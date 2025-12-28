@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/FindCare.schema.json",
+  "title": "FindCare Project Schema",
+  "description": "Project-level metadata and integration governance schema for FindCare.",
+  "type": "object",
+  "required": [
+    "ProjectName",
+    "LastUpdatedDate",
+    "Version"
+  ],
+  "properties": {
+    "ProjectName": {
+      "type": "string",
+      "description": "Canonical project name"
+    },
+    "LastUpdatedDate": {
+      "type": "string",
+      "format": "date",
+      "description": "Last update date in ISO-8601 format (YYYY-MM-DD)"
+    },
+    "Version": {
+      "type": "string",
+      "description": "Current project version"
+    },
+    "Integrations": {
+      "type": "array",
+      "description": "External or internal system integrations",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "IntegrationName",
+          "HealthChatServerSpec"
+        ],
+        "properties": {
+          "IntegrationName": {
+            "type": "string",
+            "description": "Unique integration identifier",
+            "minLength": 1
+          },
+          "HealthChatServerSpec": {
+            "type": "boolean",
+            "description": "Indicates whether the HealthChatServerSpec is required"
+          },
+          "IntegrationPartner": {
+            "type": ["string", "null"],
+            "description": "Name of the integration partner"
+          },
+          "HealthChatServerSpecLocation": {
+            "type": ["string", "null"],
+            "format": "uri",
+            "description": "URI to the HealthChatServer specification"
+          },
+          "PartnerSpecLocation": {
+            "type": ["string", "null"],
+            "format": "uri",
+            "description": "URI to the partner-published specification"
+          },
+          "PartnerSpecPublishedAndPublic": {
+            "type": "boolean",
+            "description": "Whether the partner specification is public and published"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "ChangeHistory": {
+      "type": "array",
+      "description": "Optional project change log",
+      "items": {
+        "type": "object",
+        "required": [
+          "ChangeDate",
+          "ChangeAuthor",
+          "ChangeDescription",
+          "ChangeVersion"
+        ],
+        "properties": {
+          "ChangeDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "ChangeAuthor": {
+            "type": "string"
+          },
+          "ChangeDescription": {
+            "type": "string"
+          },
+          "ChangeVersion": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
