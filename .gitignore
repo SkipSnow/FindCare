@@ -1,0 +1,8 @@
+# Ignore environment variable files
+.env
+code/.env
+
+# Explicitly allow .evv directory and contents
+!.evv/
+!.evv/**
+
