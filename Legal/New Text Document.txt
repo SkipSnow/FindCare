@@ -1,0 +1,33 @@
+FINDCARE EVALUATION LICENSE (FEL-1.0)
+
+Copyright (c) 2025 Skip Snow. All rights reserved.
+
+Permission is hereby granted to any person obtaining a copy of this
+repository to download, install, compile, and execute the software
+solely for the purpose of personal, individual, non-commercial evaluation
+and inspection of its behavior.
+
+This permission is strictly limited and does not include the right to:
+
+1. Use the software, in whole or in part, for any commercial purpose,
+   nonprofit or not-for-profit purpose, revenue-generating activity,
+   internal business use, or business process automation purpose;
+2. Deploy the software in any production, hosted, or network-accessible
+   environment, including SaaS or managed services;
+3. Distribute, sublicense, publish, or share the software or any portion
+   thereof with third parties;
+4. Create, distribute, or use derivative works except as strictly
+   necessary for personal evaluation;
+5. Use the software to provide services to third parties;
+6. Incorporate the software into any other product, service, or system.
+
+Any use beyond the scope of this license constitutes unauthorized use
+and may result in civil liability.
+
+All intellectual property rights in the software are exclusively owned
+by Skip Snow. The use of automated, AI-assisted, or generative tools in
+the creation or modification of this software does not grant any
+ownership, license, or other rights to any third party.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+
