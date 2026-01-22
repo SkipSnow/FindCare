@@ -2,6 +2,10 @@
 .env
 code/.env
 
+# Ignore temporary / editor backup files
+~*
+*.tmp
+
 # Explicitly allow .evv directory and contents
 !.evv/
 !.evv/**
