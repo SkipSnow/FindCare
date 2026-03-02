@@ -2,6 +2,6 @@
     "window.zoomLevel": 0,
     "notebook.lineNumbers": "on",
     "zenMode.hideLineNumbers": true,
-    "window.menuBarVisibility": "classic",
+    "window.menuBarVisibility": "visible",
     "window.titleBarStyle": "native"
 }
