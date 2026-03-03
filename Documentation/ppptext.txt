@@ -1,0 +1,2 @@
+Each resource group carries its own namespaces, shared infrastructure, and tags — all operating independently under one subscription, federated through the same CMDB mapping strategy.
+Because Azure tags carry only deployment identifiers — environment and version — the billing export becomes a clean transaction feed. The CMDB maps those identifiers to cost centers, and the financial system maps cost centers to GL accounts. No financial facts are baked into the deployment, meaning the same infrastructure tree can map to any general ledger structure without architectural change

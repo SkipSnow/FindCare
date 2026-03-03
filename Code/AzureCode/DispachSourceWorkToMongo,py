@@ -1,0 +1,373 @@
+# File: DispachLandedData.py
+# Author: Skip Snow
+# Co-Author: GPT-5
+# Copyright (c) 2026 Skip Snow. All rights reserved.
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, List
+
+from pymongo import MongoClient
+from pymongo.collection import Collection
+
+
+@dataclass(frozen=True)
+class DispatchStats:
+    source_file_name: str
+    format: str
+    lines_total: int
+    bytes_total: int
+    workers_created: int
+    lines_per_workload: int
+    database: str
+    collection: str
+
+
+class DispachLandedData:
+    """
+    Simple + efficient dispatcher-prep class.
+
+    Constructor REQUIRES:
+      - argDatabaseName (str)
+      - argCollectionName (str)
+
+    One Mongo document per worker task is written to:
+      db[argDatabaseName][argCollectionName]
+
+    Each document contains byte offsets so workers can do range reads directly.
+    """
+
+    def __init__(
+        self,
+        argDbConnection: MongoClient,
+        argDatabaseName: str,
+        argCollectionName: str,
+        argSourceFileName: str,
+        argFormat: str,
+        argLinesPerWorkload: int,
+        argEmbeddedContent: Optional[str] = None,
+    ) -> None:
+
+        if argDbConnection is None:
+            raise ValueError("argDbConnection is required")
+        if not argDatabaseName or not isinstance(argDatabaseName, str):
+            raise ValueError("argDatabaseName must be a non-empty string")
+        if not argCollectionName or not isinstance(argCollectionName, str):
+            raise ValueError("argCollectionName must be a non-empty string")
+        if not argSourceFileName:
+            raise ValueError("argSourceFileName is required")
+        if not argFormat:
+            raise ValueError("argFormat is required")
+        if not isinstance(argLinesPerWorkload, int) or argLinesPerWorkload <= 0:
+            raise ValueError("argLinesPerWorkload must be a positive int")
+
+        self._db = argDbConnection
+        self.database_name = argDatabaseName
+        self.collection_name = argCollectionName
+        self.collection: Collection = self._db[self.database_name][self.collection_name]
+
+        self.source_file_name = argSourceFileName
+        self.format = argFormat
+        self.lines_per_workload = argLinesPerWorkload
+        self.embedded_content = argEmbeddedContent  # accepted but unused in this version
+
+    # ---------------------------------------------------
+    # Public Entry
+    # ---------------------------------------------------
+
+    def create_worker_records(
+        self,
+        *,
+        overwrite_existing_for_source: bool = True,
+        extra_metadata: Optional[Dict[str, Any]] = None,
+        read_chunk_bytes: int = 8 * 1024 * 1024,
+    ) -> DispatchStats:
+
+        if self.source_file_name.lower().startswith("https://"):
+            lines_total, bytes_total, workloads = self._scan_blob_for_workloads(
+                blob_url=self.source_file_name,
+                chunk_bytes=read_chunk_bytes,
+            )
+        else:
+            lines_total, bytes_total, workloads = self._scan_local_for_workloads(
+                file_path=self.source_file_name,
+                chunk_bytes=read_chunk_bytes,
+            )
+
+        workers_created = self._write_worker_records(
+            overwrite_existing_for_source=overwrite_existing_for_source,
+            lines_total=lines_total,
+            bytes_total=bytes_total,
+            workloads=workloads,
+            extra_metadata=extra_metadata,
+        )
+
+        return DispatchStats(
+            source_file_name=self.source_file_name,
+            format=self.format,
+            lines_total=lines_total,
+            bytes_total=bytes_total,
+            workers_created=workers_created,
+            lines_per_workload=self.lines_per_workload,
+            database=self.database_name,
+            collection=self.collection_name,
+        )
+
+    # ---------------------------------------------------
+    # Scanning Logic
+    # ---------------------------------------------------
+
+    def _scan_local_for_workloads(
+        self,
+        *,
+        file_path: str,
+        chunk_bytes: int,
+    ) -> tuple[int, int, List[Dict[str, Any]]]:
+
+        import os
+
+        size = int(os.path.getsize(file_path))
+        if size == 0:
+            return 0, 0, []
+
+        workloads: List[Dict[str, Any]] = []
+
+        line_count = 0
+        workload_id = 0
+
+        current_start_offset = 0
+        current_start_line = 1
+
+        abs_offset = 0
+        carry = b""
+
+        with open(file_path, "rb") as f:
+            while abs_offset < size:
+                data = f.read(min(chunk_bytes, size - abs_offset))
+                if not data:
+                    break
+
+                scan = carry + data
+                scan_base = abs_offset - len(carry)
+
+                i = 0
+                while True:
+                    nl = scan.find(b"\n", i)
+                    if nl < 0:
+                        break
+
+                    line_count += 1
+                    i = nl + 1
+
+                    if (line_count % self.lines_per_workload) == 0:
+                        end_offset = scan_base + i
+                        end_line = line_count
+
+                        workloads.append(
+                            {
+                                "workloadId": workload_id,
+                                "startOffsetBytes": current_start_offset,
+                                "endOffsetBytes": end_offset,
+                                "startLine": current_start_line,
+                                "endLine": end_line,
+                            }
+                        )
+
+                        workload_id += 1
+                        current_start_offset = end_offset
+                        current_start_line = end_line + 1
+
+                carry = scan[i:] if i > 0 else scan
+                abs_offset += len(data)
+
+        if size > 0:
+            if carry and self._last_byte_local(file_path) != b"\n":
+                line_count += 1
+
+            if current_start_offset < size:
+                workloads.append(
+                    {
+                        "workloadId": workload_id,
+                        "startOffsetBytes": current_start_offset,
+                        "endOffsetBytes": size,
+                        "startLine": current_start_line,
+                        "endLine": line_count,
+                    }
+                )
+
+        return line_count, size, workloads
+
+    def _scan_blob_for_workloads(
+        self,
+        *,
+        blob_url: str,
+        chunk_bytes: int,
+    ) -> tuple[int, int, List[Dict[str, Any]]]:
+
+        from azure.storage.blob import BlobClient
+
+        blob = BlobClient.from_blob_url(blob_url)
+        props = blob.get_blob_properties()
+        size = int(props.size)
+
+        if size == 0:
+            return 0, 0, []
+
+        workloads: List[Dict[str, Any]] = []
+
+        line_count = 0
+        workload_id = 0
+
+        current_start_offset = 0
+        current_start_line = 1
+
+        abs_offset = 0
+        carry = b""
+
+        while abs_offset < size:
+            length = min(chunk_bytes, size - abs_offset)
+            data = blob.download_blob(offset=abs_offset, length=length).readall()
+            if not data:
+                break
+
+            scan = carry + data
+            scan_base = abs_offset - len(carry)
+
+            i = 0
+            while True:
+                nl = scan.find(b"\n", i)
+                if nl < 0:
+                    break
+
+                line_count += 1
+                i = nl + 1
+
+                if (line_count % self.lines_per_workload) == 0:
+                    end_offset = scan_base + i
+                    end_line = line_count
+
+                    workloads.append(
+                        {
+                            "workloadId": workload_id,
+                            "startOffsetBytes": current_start_offset,
+                            "endOffsetBytes": end_offset,
+                            "startLine": current_start_line,
+                            "endLine": end_line,
+                        }
+                    )
+
+                    workload_id += 1
+                    current_start_offset = end_offset
+                    current_start_line = end_line + 1
+
+            carry = scan[i:] if i > 0 else scan
+            abs_offset += length
+
+        if self._get_last_byte_blob(blob_url) != b"\n":
+            line_count += 1
+
+        if current_start_offset < size:
+            workloads.append(
+                {
+                    "workloadId": workload_id,
+                    "startOffsetBytes": current_start_offset,
+                    "endOffsetBytes": size,
+                    "startLine": current_start_line,
+                    "endLine": line_count,
+                }
+            )
+
+        return line_count, size, workloads
+
+    # ---------------------------------------------------
+    # Mongo Writing
+    # ---------------------------------------------------
+
+    def _write_worker_records(
+        self,
+        *,
+        overwrite_existing_for_source: bool,
+        lines_total: int,
+        bytes_total: int,
+        workloads: List[Dict[str, Any]],
+        extra_metadata: Optional[Dict[str, Any]],
+    ) -> int:
+
+        if overwrite_existing_for_source:
+            self.collection.delete_many(
+                {"sourceFileName": self.source_file_name, "format": self.format}
+            )
+
+        if not workloads:
+            return 0
+
+        now_utc = self._utc_now_iso()
+
+        docs: List[Dict[str, Any]] = []
+        for wl in workloads:
+            start_offset = wl["startOffsetBytes"]
+            end_offset = wl["endOffsetBytes"]
+
+            doc: Dict[str, Any] = {
+                "workloadId": wl["workloadId"],
+                "sourceFileName": self.source_file_name,
+                "format": self.format,
+
+                "startOffsetBytes": start_offset,
+                "endOffsetBytes": end_offset,
+                "byteLength": end_offset - start_offset,
+
+                "startLine": wl["startLine"],
+                "endLine": wl["endLine"],
+                "linesInWorkload": wl["endLine"] - wl["startLine"] + 1,
+
+                "fileBytesTotal": bytes_total,
+                "fileLinesTotal": lines_total,
+
+                "status": "Pending",
+                "createdUtc": now_utc,
+            }
+
+            if extra_metadata:
+                doc.update(extra_metadata)
+
+            docs.append(doc)
+
+        self.collection.insert_many(docs)
+
+        try:
+            self.collection.create_index(
+                [("sourceFileName", 1), ("workloadId", 1)], unique=True
+            )
+            self.collection.create_index([("status", 1)])
+        except Exception:
+            pass
+
+        return len(docs)
+
+    # ---------------------------------------------------
+
+    @staticmethod
+    def _get_last_byte_blob(blob_url: str) -> bytes:
+        from azure.storage.blob import BlobClient
+        blob = BlobClient.from_blob_url(blob_url)
+        size = int(blob.get_blob_properties().size)
+        if size == 0:
+            return b""
+        return blob.download_blob(offset=size - 1, length=1).readall()
+
+    @staticmethod
+    def _last_byte_local(file_path: str) -> bytes:
+        import os
+        size = os.path.getsize(file_path)
+        if size == 0:
+            return b""
+        with open(file_path, "rb") as f:
+            f.seek(size - 1)
+            return f.read(1)
+
+    @staticmethod
+    def _utc_now_iso() -> str:
+        from datetime import datetime, timezone
+        return datetime.now(timezone.utc).isoformat()
