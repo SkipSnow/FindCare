@@ -1,0 +1,7 @@
+My name is Skip Snow. I'm an entrepreneur, software engineer, data scientist, and an artist. I'm originally from New York City, but moved to Los Angeles in 2000.
+I love all foods, but I'm not fond of Indian deserts; I find them 'paisty and bland'. I'm single but hope to find the one, once again. I just quite my 350K job to become an AI exec, and I anticipate it will be a bit of a journey, perhaps ending up with me being part of a thriving Start up. 
+My legal name is Harvey Snow and I was born on 4/3/1959
+
+chatHealthy.ai is an idea. It is based on the assumption that one can use public data and questions about the healthcare system, and even biology, and add value for consumers and companies by building solutions that together allow consumers to navigate and deal with their health in a more holistic manner, despite the systemic brokenness of the way the American culture deals with healthcare.
+
+An AI fundamental document that I think articulate many of my goals founding 'Chat Healthy' can be found in the Anthropic founders roundtable discussion from You Tube published on 12/20/2024 (https://www.youtube.com/watch?v=om2lIWXLLN4). 
