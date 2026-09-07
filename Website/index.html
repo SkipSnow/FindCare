@@ -122,6 +122,11 @@
         flex: 0 0 auto; width: 78em;
       }
       .content-row > aside.side-panel:empty { display: none; }
+      /* A panel that has been moved to takes the vertical space the
+         chrome around it was using. The prompt stays: a person who has
+         just moved to a panel is the person about to type. */
+      body.ch-panel-focus main { padding: 0; gap: 0; }
+      body.ch-panel-focus .chat-label { display: none; }
     }
 
     #frame_UserMessage         { flex: 0 0 auto; background: var(--surface); border-top: 0.0625em solid #e5e7eb; }

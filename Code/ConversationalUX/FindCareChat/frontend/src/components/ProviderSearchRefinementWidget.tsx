@@ -113,15 +113,15 @@ function buildHintsHtml(
   if (!filter) return summaryHtml
   // A computer shows the filter where it is; a phone shows a button that
   // opens it, and the vertical space the filter took goes back to the
-  // list. The bar is as thin as it can be around a target a finger can
-  // hit -- 2.75em is the tap size, and nothing else is in the bar.
+  // list. The bar is as thin as a finger target allows, and carries
+  // nothing else.
   return (
     summaryHtml +
     `<style>
        .ch-narrow-button { display: none; }
        .ch-narrow-inline { border-top: 0.25em solid ${TEAL};
                            background: ${TEAL_LIGHT_BG}; }
-       @media (max-width: 720px) {
+       @media (max-width: 45em) {
          .ch-narrow-inline { display: none; }
          /* The summary is prose about the result and belongs beside the
             results, not in the bar. On a phone the bar carries the button
@@ -129,9 +129,8 @@ function buildHintsHtml(
          .ch-summary { display: none; }
          /* The bar is chrome, not a column. Its frame sits inside the
             centre column, which is as wide as the results need, so a
-            button centred in that frame landed at x=340 on a 360px
-            screen. Pinned to the screen it stays in view and the button
-            centres in what the person can actually see. */
+            button centred in that frame fell off the right of the
+            screen. Pinned to the screen it stays in view. */
          .ch-narrow-button { display: flex; position: sticky; left: 0;
                              width: 100vw; box-sizing: border-box; }
        }
@@ -142,10 +141,9 @@ function buildHintsHtml(
     `align-items:center;justify-content:center;">` +
     `<button type="button"` +
     ` data-router-action="narrow_open" data-testid="provider-narrow-button"` +
-    // 44px, not an em. Every other length here scales with the type
-    // because it is type; a fingertip does not, so a target sized in em
-    // shrank to 22px the moment the font scale came down.
-    ` style="width:75%;min-height:44px;border:0.0625em solid ${TEAL};` +
+    // Sized against the root, so it follows the font control like every
+    // other length here rather than fixing a pixel count.
+    ` style="width:75%;min-height:5rem;border:0.0625em solid ${TEAL};` +
     `border-radius:0.4em;background:#fff;color:${TEAL};font-weight:700;` +
     `font-size:0.9em;text-align:center;cursor:pointer;">` +
     `Narrow ${Number(total) || 0} results</button></div>`

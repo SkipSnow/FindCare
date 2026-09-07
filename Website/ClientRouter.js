@@ -114,6 +114,11 @@
           : 'click';
         el.addEventListener(listen, function (ev) {
           ev.preventDefault();
+          // Moving the strip is the wrapper's own work -- it is where
+          // the panels are. Sending it to React and having React ask
+          // for it back would be a round trip for a scroll.
+          if (action === 'panel_left')  { _step(-1); return; }
+          if (action === 'panel_right') { _step(1);  return; }
           var data = {};
           var attrs = el.attributes;
           for (var j = 0; j < attrs.length; j++) {
@@ -510,6 +515,107 @@
     if (_sessionToken) body.session_token = _sessionToken;
     return JSON.stringify(body);
   }
+
+  // ── Moving between panels on a phone ─────────────────────────────
+  // The strip is one row of panels wider than the screen. This decides
+  // where it sits and which arrows can be offered; React authors what an
+  // arrow looks like and this authors no content at all. Every length is
+  // read from the elements themselves, never written here.
+
+  function _row() { return document.querySelector('.content-row'); }
+
+  function _panels() {
+    var row = _row();
+    if (!row) return [];
+    return Array.prototype.filter.call(row.children, function (k) {
+      var st = getComputedStyle(k);
+      return st.display !== 'none' && k.getBoundingClientRect().width > 0;
+    });
+  }
+
+  // Which panel the screen is looking at: the one whose span covers the
+  // middle of the viewport.
+  function _currentPanelIndex() {
+    var row = _row(); if (!row) return 0;
+    var mid = row.scrollLeft + row.clientWidth / 2;
+    var panels = _panels(), best = 0, bestGap = Infinity;
+    for (var i = 0; i < panels.length; i++) {
+      var left = panels[i].offsetLeft;
+      var gap = Math.abs(left + panels[i].offsetWidth / 2 - mid);
+      if (gap < bestGap) { bestGap = gap; best = i; }
+    }
+    return best;
+  }
+
+  function _refreshArrowState() {
+    var panels = _panels(), i = _currentPanelIndex();
+    document.body.classList.toggle('ch-can-left', i > 0);
+    document.body.classList.toggle('ch-can-right', i < panels.length - 1);
+  }
+
+  function _goToPanel(index) {
+    var row = _row(); if (!row) return;
+    var panels = _panels();
+    if (index < 0 || index >= panels.length) return;
+    row.scrollTo({ left: panels[index].offsetLeft, behavior: 'smooth' });
+    document.body.classList.add('ch-panel-focus');
+    setTimeout(_refreshArrowState, 400);
+  }
+
+  function _step(direction) { _goToPanel(_currentPanelIndex() + direction); }
+
+  function _isPhone() { return window.matchMedia('(max-width: 45em)').matches; }
+
+  function _wirePanelNav() {
+    var row = _row();
+    if (!row || row.__chPanelNav) return;
+    row.__chPanelNav = true;
+
+    // A scroll that carries more than a fifth of the way into a
+    // neighbour is a move to that neighbour, so it completes rather than
+    // leaving the person between two panels.
+    var settle = null;
+    row.addEventListener('scroll', function () {
+      _refreshArrowState();
+      if (!_isPhone()) return;
+      if (settle) clearTimeout(settle);
+      settle = setTimeout(function () {
+        var panels = _panels(); if (!panels.length) return;
+        var i = _currentPanelIndex();
+        var here = panels[i];
+        var past = row.scrollLeft - here.offsetLeft;
+        var share = past / here.offsetWidth;
+        if (share > 0.2 && i < panels.length - 1) _goToPanel(i + 1);
+        else if (share < -0.2 && i > 0) _goToPanel(i - 1);
+        else _goToPanel(i);
+      }, 140);
+    }, { passive: true });
+
+    // A double tap on one side of the screen is that side's arrow.
+    var lastTap = 0;
+    row.addEventListener('click', function (ev) {
+      if (!_isPhone()) return;
+      var now = Date.now();
+      var quick = now - lastTap < 350;
+      lastTap = now;
+      if (!quick) return;
+      _step(ev.clientX < window.innerWidth / 2 ? -1 : 1);
+    });
+
+    _refreshArrowState();
+  }
+
+  window.addEventListener('resize', _refreshArrowState);
+  document.addEventListener('DOMContentLoaded', _wirePanelNav);
+  // Wiring happens once; which arrows can be offered is asked again on
+  // every pass, because a panel appears when a turn paints one and no
+  // event says so. Refreshing only at wiring time left the arrows in the
+  // state the page had before it had any panels -- present, and never
+  // shown.
+  setInterval(function () { _wirePanelNav(); _refreshArrowState(); }, 700);
+
+  window.ClientRouterPanelNav = { step: _step, refresh: _refreshArrowState };
+
   window._gateBody = gateBody;
 
   window.ClientRouter = {

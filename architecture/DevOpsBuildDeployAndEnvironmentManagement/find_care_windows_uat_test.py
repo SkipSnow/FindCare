@@ -2164,3 +2164,134 @@ class TestAColumnIsAsWideAsWhatItHolds:
                 f"a column is {w}px on a {m['view']}px screen; columns are "
                 f"{m['widths']}. A column must be wide enough to read and "
                 f"still reachable by swiping")
+
+
+# ── FLOW 12 — moving between panels on a phone ───────────────────────
+# An arrow for each neighbour that exists, and none for a direction with
+# nothing in it. Tapping one, double-tapping that side of the screen, and
+# dragging a fifth of the way into a neighbour all do the same thing:
+# bring that panel fully onto the screen.
+
+ARROW_LEFT = "[data-testid='panel-arrow-left']"
+ARROW_RIGHT = "[data-testid='panel-arrow-right']"
+
+
+def _strip(page) -> dict:
+    return page.evaluate(
+        "() => { const r = document.querySelector('.content-row');"
+        " const kids = Array.from(r.children).filter(k => {"
+        "   const s = getComputedStyle(k);"
+        "   return s.display !== 'none' && k.getBoundingClientRect().width > 0; });"
+        " const mid = r.scrollLeft + r.clientWidth / 2;"
+        " let at = 0, best = Infinity;"
+        " kids.forEach((k, i) => { const g = Math.abs("
+        "   k.offsetLeft + k.offsetWidth / 2 - mid);"
+        "   if (g < best) { best = g; at = i; } });"
+        " return { panels: kids.length, at, scrollLeft: Math.round(r.scrollLeft),"
+        "          ids: kids.map(k => k.id || 'centre'),"
+        "          offsets: kids.map(k => Math.round(k.offsetLeft)),"
+        "          widths: kids.map(k => Math.round(k.offsetWidth)) }; }")
+
+
+def _go_to_first_panel(page) -> None:
+    page.evaluate("() => { document.querySelector('.content-row').scrollLeft = 0; }")
+    page.wait_for_timeout(900)
+
+
+class TestMovingBetweenPanelsOnAPhone:
+    """The arrows follow position, not panel count: nothing to the left,
+    no left arrow. Every way of asking for a neighbour lands the same."""
+
+    @pytest.fixture(scope="class")
+    def phone(self, page):
+        _at(page, PHONE_SIZE)
+        _fresh(page)
+        _ask(page, "find me a shrink in Long Beach CA")
+        _wait_for_panel(page)
+        _wait_for_results(page)
+        page.wait_for_timeout(2_500)
+        _record(page, "12a_panels_on_a_phone")
+        yield page
+        _at(page, VIEWPORT)
+
+    def test_more_than_one_panel_is_showing(self, phone):
+        s = _strip(phone)
+        assert s["panels"] >= 2, (
+            f"a search paints a specialty panel beside the results, so this "
+            f"flow needs at least two panels; got {s}")
+
+    def test_no_left_arrow_when_there_is_nothing_to_the_left(self, phone):
+        _go_to_first_panel(phone)
+        assert not _shown(phone, ARROW_LEFT), (
+            f"the strip is at its first panel and a left arrow is offered; "
+            f"{_strip(phone)}")
+        assert _shown(phone, ARROW_RIGHT), (
+            f"there is a panel to the right and no arrow offers it; "
+            f"{_strip(phone)}")
+
+    def test_the_right_arrow_brings_the_next_panel_fully_on_screen(self, phone):
+        _go_to_first_panel(phone)
+        before = _strip(phone)
+        phone.locator(ARROW_RIGHT).first.click()
+        phone.wait_for_timeout(1_400)
+        after = _strip(phone)
+        assert after["at"] == before["at"] + 1, (
+            f"the right arrow did not move one panel: {before} -> {after}")
+        assert abs(after["scrollLeft"] - after["offsets"][after["at"]]) <= 4, (
+            f"the panel is not fully on screen after the arrow: {after}")
+
+    def test_no_right_arrow_at_the_last_panel(self, phone):
+        s = _strip(phone)
+        while s["at"] < s["panels"] - 1:
+            phone.locator(ARROW_RIGHT).first.click()
+            phone.wait_for_timeout(1_400)
+            s = _strip(phone)
+        assert not _shown(phone, ARROW_RIGHT), (
+            f"the strip is at its last panel and a right arrow is offered; {s}")
+        assert _shown(phone, ARROW_LEFT), (
+            f"there is a panel to the left and no arrow offers it; {s}")
+
+    def test_the_left_arrow_goes_back(self, phone):
+        before = _strip(phone)
+        phone.locator(ARROW_LEFT).first.click()
+        phone.wait_for_timeout(1_400)
+        after = _strip(phone)
+        assert after["at"] == before["at"] - 1, (
+            f"the left arrow did not move one panel back: {before} -> {after}")
+
+    def test_a_double_tap_on_a_side_moves_that_way(self, phone):
+        _go_to_first_panel(phone)
+        before = _strip(phone)
+        box = phone.locator(".content-row").first.bounding_box()
+        x = box["x"] + box["width"] * 0.8      # the right half
+        y = box["y"] + box["height"] * 0.5
+        phone.mouse.click(x, y)
+        phone.mouse.click(x, y, delay=40)
+        phone.wait_for_timeout(1_400)
+        after = _strip(phone)
+        assert after["at"] == before["at"] + 1, (
+            f"a double tap on the right half did not move right: "
+            f"{before} -> {after}")
+
+    def test_dragging_a_fifth_of_the_way_completes_the_move(self, phone):
+        _go_to_first_panel(phone)
+        before = _strip(phone)
+        here = before["widths"][before["at"]]
+        phone.evaluate(
+            "(px) => { const r = document.querySelector('.content-row');"
+            " r.scrollLeft = r.scrollLeft + px;"
+            " r.dispatchEvent(new Event('scroll')); }",
+            int(here * 0.3))
+        phone.wait_for_timeout(1_800)
+        after = _strip(phone)
+        assert after["at"] == before["at"] + 1, (
+            f"a drag three tenths into the next panel did not complete: "
+            f"{before} -> {after}")
+        assert abs(after["scrollLeft"] - after["offsets"][after["at"]]) <= 4, (
+            f"the panel did not come fully on screen: {after}")
+
+    def test_a_computer_offers_no_arrows(self, phone):
+        _at(phone, COMPUTER_SIZE)
+        phone.wait_for_timeout(600)
+        assert not _shown(phone, ARROW_LEFT) and not _shown(phone, ARROW_RIGHT), (
+            "a computer shows every panel at once and offers no arrows")
