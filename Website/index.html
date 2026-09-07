@@ -255,7 +255,6 @@
     // not display logic — no HTML is constructed here.
     (function () {
       var params = new URLSearchParams(window.location.search);
-      window._popupParams = Object.fromEntries(params);
       if (params.get('oauth_popup_close') === '1') {
         window.close();
         return;
@@ -276,42 +275,6 @@
           window._envServiceUrls.evaluatecare = (d && d.evaluatecare) || '';
           var iframe = document.getElementById('coreReactFrame');
           if (iframe) {
-            // Forward popup URL params (e.g. the OAuth state/flow) to the
-            // React iframe once it loads. Parameter passing only —
-            // the React widget produces all display.
-            iframe.addEventListener('load', function () {
-              if (!window._popupParams || !iframe.contentWindow) return;
-              // The React app inside the iframe registers its message
-              // listener inside a useEffect, which fires AFTER the
-              // iframe's load event. Retry on a short cadence so the
-              // first message after React mounts isn't lost. ~2 s of
-              // retries handles the mount window; the widget treats
-              // duplicate messages as idempotent.
-              var tries = 0;
-              var send = function () {
-                if (iframe.contentWindow) {
-                  // Include the SharedServices origin so widgets in the
-                  // iframe can post back to SS without relying on the
-                  // wrapper's _envServiceUrls (which is not visible
-                  // cross-origin).
-                  iframe.contentWindow.postMessage(
-                    {
-                      type: 'popup_params',
-                      params: window._popupParams,
-                      env: {
-                        sharedservices: (window._envServiceUrls && window._envServiceUrls.sharedservices) || '',
-                      },
-                    },
-                    '*'
-                  );
-                }
-              };
-              send();
-              var t = setInterval(function () {
-                send();
-                if (++tries >= 20) clearInterval(t);
-              }, 100);
-            });
             // The React application is served by this site, not by the
             // FindCare Space. The Space's address is no longer a browser
             // address at all: every route on it requires a SharedServices

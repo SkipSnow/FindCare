@@ -6,9 +6,45 @@
   "type": "object",
   "additionalProperties": false,
   "$defs": {
+    "config_collection": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A collection named here is wholly governed by this manifest. There are no exceptions and no partial control: every record that must exist is declared here, a declared record that differs from what is stored is corrected, and a record found in the collection that is not declared is deleted. Naming a collection makes this file the sole authority for its contents, so a collection that anything other than a deploy writes to does not belong here at all. This definition names no collection and no field of one: the address, the identity key and the record bodies are data, so bringing a new collection under control is an edit to this file and never a change to code.",
+      "required": [
+        "address",
+        "identity_key",
+        "records"
+      ],
+      "properties": {
+        "address": {
+          "type": "string",
+          "description": "Destination as 'Database.Collection' on the cluster this environment binding names. The collection is created if it does not exist.",
+          "pattern": "^[A-Za-z0-9_]{1,64}\\.[A-Za-z0-9_.]{1,120}$"
+        },
+        "identity_key": {
+          "type": "array",
+          "description": "The field names whose values identify one record. Reconciliation matches a declared record to a stored one on these fields alone, so they must be unique within the collection. A collection with no key cannot be compared, only overwritten, so at least one field is required.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "records": {
+          "type": "array",
+          "description": "Every record that must be present in this collection for this environment. Each is the whole document as it must be stored: one that is absent is inserted, one that differs is corrected, and one that is stored but not declared is deleted. An empty list is a statement that the collection must not exist, and the deploy drops it.",
+          "items": {
+            "type": "object",
+            "minProperties": 1
+          }
+        }
+      }
+    },
     "record_action": {
       "type": "string",
-      "description": "Lifecycle action the deploy chain applies to this record. Semantics: 'create' (default, absent == create) — provision the resource if it doesn't already exist. 'delete' — the record represents a resource we WANT gone; deploy handler destroys it, then the operator removes the record from the manifest in the next commit. 'rename' — the resource currently exists under `from_name`; deploy handler moves it to the new name (typically create-new + copy-state + delete-old). 'create_if_empty' — provision only if the parent slot is currently unoccupied; leave existing state alone otherwise. One-shot semantics: after a delete or rename completes, the record is expected to be removed (delete) or have its action reset (rename) in the next commit.",
+      "description": "Lifecycle action the deploy chain applies to this record. Semantics: 'create' (default, absent == create) \u2014 provision the resource if it doesn't already exist. 'delete' \u2014 the record represents a resource we WANT gone; deploy handler destroys it, then the operator removes the record from the manifest in the next commit. 'rename' \u2014 the resource currently exists under `from_name`; deploy handler moves it to the new name (typically create-new + copy-state + delete-old). 'create_if_empty' \u2014 provision only if the parent slot is currently unoccupied; leave existing state alone otherwise. One-shot semantics: after a delete or rename completes, the record is expected to be removed (delete) or have its action reset (rename) in the next commit.",
       "enum": [
         "create",
         "delete",
@@ -219,11 +255,11 @@
           },
           "promote_chain_bound": {
             "type": "boolean",
-            "description": "Whether this target participates in the firm-level dev->qa->prod promote chain. Default true (absent == true). When true, the deploy script enforces that the local git branch matches the env_binding.branch declared for the requested env (dev branch deploys dev, qa branch deploys qa, main branch deploys prod) — both at firm-level entry and at per-target dispatch. When false, the target is single-environment shared infrastructure (e.g. the one pipeline Function App, the one durable router ACA, the one Automation Account and its runbooks) that every developer deploys to from any branch, typically dev. Both branch-vs-env guards in local_deploy.py skip targets carrying promote_chain_bound=false."
+            "description": "Whether this target participates in the firm-level dev->qa->prod promote chain. Default true (absent == true). When true, the deploy script enforces that the local git branch matches the env_binding.branch declared for the requested env (dev branch deploys dev, qa branch deploys qa, main branch deploys prod) \u2014 both at firm-level entry and at per-target dispatch. When false, the target is single-environment shared infrastructure (e.g. the one pipeline Function App, the one durable router ACA, the one Automation Account and its runbooks) that every developer deploys to from any branch, typically dev. Both branch-vs-env guards in local_deploy.py skip targets carrying promote_chain_bound=false."
           },
           "provisioning": {
             "type": "string",
-            "description": "Who owns creating this target. 'deploy_provisioned' — Deploy creates and reconciles this target on every invocation. 'pre_existing' — the target is provisioned once out of band by the operator; Deploy verifies presence + declared configuration on every invocation and refuses to proceed on absence (F-012 v7 §4). Default (absent) is 'deploy_provisioned'.",
+            "description": "Who owns creating this target. 'deploy_provisioned' \u2014 Deploy creates and reconciles this target on every invocation. 'pre_existing' \u2014 the target is provisioned once out of band by the operator; Deploy verifies presence + declared configuration on every invocation and refuses to proceed on absence (F-012 v7 \u00a74). Default (absent) is 'deploy_provisioned'.",
             "enum": [
               "deploy_provisioned",
               "pre_existing"
@@ -359,7 +395,7 @@
                 },
                 "azure_automation": {
                   "type": "object",
-                  "description": "Azure Automation runbook deploy coordinates for this env binding. Present iff target_kind=='azure_automation_runbook'. resource_group + automation_account identify the Automation Account; runbook_name names the runbook whose content this target ships (replace-content on every deploy). schedule_names[] lists the Automation Schedules that fire this runbook — informational only; the deploy handler does not touch schedules. Secret bindings whose store is `azure_automation_variable` get materialized as Automation Variables on the same Automation Account during deploy. The optional `webhook` block declares that this runbook is dispatched by HTTP POST from another deployed target: the runbook deploy MUST ensure a webhook bound to the runbook exists (mint if absent; reuse if present and the consumer already carries the named app setting; delete-and-re-mint if present but the consumer is missing the setting, since Azure Automation never re-exposes a webhook URL after creation), then push the URL onto the consumer target's runtime env surface as the named app setting via UPSERT (no other consumer settings touched).",
+                  "description": "Azure Automation runbook deploy coordinates for this env binding. Present iff target_kind=='azure_automation_runbook'. resource_group + automation_account identify the Automation Account; runbook_name names the runbook whose content this target ships (replace-content on every deploy). schedule_names[] lists the Automation Schedules that fire this runbook \u2014 informational only; the deploy handler does not touch schedules. Secret bindings whose store is `azure_automation_variable` get materialized as Automation Variables on the same Automation Account during deploy. The optional `webhook` block declares that this runbook is dispatched by HTTP POST from another deployed target: the runbook deploy MUST ensure a webhook bound to the runbook exists (mint if absent; reuse if present and the consumer already carries the named app setting; delete-and-re-mint if present but the consumer is missing the setting, since Azure Automation never re-exposes a webhook URL after creation), then push the URL onto the consumer target's runtime env surface as the named app setting via UPSERT (no other consumer settings touched).",
                   "additionalProperties": false,
                   "required": [
                     "resource_group",
@@ -404,7 +440,7 @@
                         "properties": {
                           "name": {
                             "type": "string",
-                            "description": "Package name as it appears on the AA Python3 packages list — used as the path segment in the package REST resource (PUT /python3Packages/{name}).",
+                            "description": "Package name as it appears on the AA Python3 packages list \u2014 used as the path segment in the package REST resource (PUT /python3Packages/{name}).",
                             "pattern": "^[A-Za-z0-9._-]+$",
                             "minLength": 1,
                             "maxLength": 256
@@ -579,7 +615,7 @@
                 },
                 "azure_container_app": {
                   "type": "object",
-                  "description": "Azure Container Apps deploy coordinates for this env binding. Present iff target_kind=='azure_container_app'. resource_group + container_app identify the ACA resource; container_app_environment names the Container Apps Environment that hosts it; registry names the Azure Container Registry that hosts the image (deploy issues `az acr login --name <registry>` and pushes <registry>.azurecr.io/<container_app>:<build_number>); min_replicas / max_replicas set the scale-to-zero envelope; task_hub names the Durable Functions task hub used by the Netherite storage provider that this ACA hosts; event_hubs_namespace names the Azure Event Hubs namespace whose `partitions` Event Hub backs Netherite's partition queues — deploy verifies it exists with partitionCount matching host.json and creates it if missing (per the deploy-owns-permanent-infrastructure split). location / dockerfile_from / placeholder_image / netherite move former module-level constants out of aca_helpers.py into per-target manifest declarations.",
+                  "description": "Azure Container Apps deploy coordinates for this env binding. Present iff target_kind=='azure_container_app'. resource_group + container_app identify the ACA resource; container_app_environment names the Container Apps Environment that hosts it; registry names the Azure Container Registry that hosts the image (deploy issues `az acr login --name <registry>` and pushes <registry>.azurecr.io/<container_app>:<build_number>); min_replicas / max_replicas set the scale-to-zero envelope; task_hub names the Durable Functions task hub used by the Netherite storage provider that this ACA hosts; event_hubs_namespace names the Azure Event Hubs namespace whose `partitions` Event Hub backs Netherite's partition queues \u2014 deploy verifies it exists with partitionCount matching host.json and creates it if missing (per the deploy-owns-permanent-infrastructure split). location / dockerfile_from / placeholder_image / netherite move former module-level constants out of aca_helpers.py into per-target manifest declarations.",
                   "additionalProperties": false,
                   "required": [
                     "resource_group",
@@ -605,7 +641,7 @@
                     },
                     "registry": {
                       "type": "string",
-                      "description": "Azure Container Registry short name (NOT the full <name>.azurecr.io login server). The deploy handler issues `az acr login --name <registry>` and tags images as <registry>.azurecr.io/<container_app>:<build_number>. If absent, the deploy handler derives one from resource_group (lowercased, dashes stripped) — operator should set this explicitly to avoid surprises.",
+                      "description": "Azure Container Registry short name (NOT the full <name>.azurecr.io login server). The deploy handler issues `az acr login --name <registry>` and tags images as <registry>.azurecr.io/<container_app>:<build_number>. If absent, the deploy handler derives one from resource_group (lowercased, dashes stripped) \u2014 operator should set this explicitly to avoid surprises.",
                       "minLength": 1,
                       "maxLength": 50,
                       "pattern": "^[a-zA-Z0-9]+$"
@@ -720,7 +756,7 @@
                 "azure_container_apps_environment": {
                   "type": "object",
                   "additionalProperties": false,
-                  "description": "Azure Container Apps Environment coordinates (F-012 §4.4). Present iff target_kind=='azure_container_apps_environment'. Deploy creates the environment attached to the declared subnet with logs-destination none (no Log Analytics).",
+                  "description": "Azure Container Apps Environment coordinates (F-012 \u00a74.4). Present iff target_kind=='azure_container_apps_environment'. Deploy creates the environment attached to the declared subnet with logs-destination none (no Log Analytics).",
                   "required": [
                     "resource_group",
                     "environment_name",
@@ -770,7 +806,7 @@
                 "azure_container_app_job": {
                   "type": "object",
                   "additionalProperties": false,
-                  "description": "Azure Container Apps Job definition (F-012 §4.4 / LLD v22). Present iff target_kind=='azure_container_app_job'. Deploy creates or replaces the Job definition; executions are started by the Automation runbook (control) or by Control (workers).",
+                  "description": "Azure Container Apps Job definition (F-012 \u00a74.4 / LLD v22). Present iff target_kind=='azure_container_app_job'. Deploy creates or replaces the Job definition; executions are started by the Automation runbook (control) or by Control (workers).",
                   "required": [
                     "resource_group",
                     "job_name",
@@ -876,7 +912,7 @@
                 "azure_container_registry": {
                   "type": "object",
                   "additionalProperties": false,
-                  "description": "Azure Container Registry coordinates for this env binding. Present iff target_kind=='azure_container_registry'. registry_name is the ACR short name (login server derived as <registry_name>.azurecr.io); resource_group is the Azure RG that owns it. image_tag_convention documents the deploy-time tag shape (F-012 v7 §5 mandates git_head_sha as the tag).",
+                  "description": "Azure Container Registry coordinates for this env binding. Present iff target_kind=='azure_container_registry'. registry_name is the ACR short name (login server derived as <registry_name>.azurecr.io); resource_group is the Azure RG that owns it. image_tag_convention documents the deploy-time tag shape (F-012 v7 \u00a75 mandates git_head_sha as the tag).",
                   "required": [
                     "registry_name",
                     "resource_group"
@@ -895,7 +931,7 @@
                     },
                     "image_tag_convention": {
                       "type": "string",
-                      "description": "Deploy-time image tag convention. Free-text documentation; the deploy script uses this to construct tags. F-012 v7 §5 mandates 'git_head_sha' for ACR tags.",
+                      "description": "Deploy-time image tag convention. Free-text documentation; the deploy script uses this to construct tags. F-012 v7 \u00a75 mandates 'git_head_sha' for ACR tags.",
                       "minLength": 1,
                       "maxLength": 256
                     }
@@ -953,7 +989,7 @@
                     },
                     "blob_containers": {
                       "type": "array",
-                      "description": "Blob containers deploy creates inside this pre-existing storage account (per F-012 v9 §4.3). Each entry declares one container's full configuration.",
+                      "description": "Blob containers deploy creates inside this pre-existing storage account (per F-012 v9 \u00a74.3). Each entry declares one container's full configuration.",
                       "uniqueItems": true,
                       "items": {
                         "type": "object",
@@ -1182,7 +1218,7 @@
                 "atlas": {
                   "type": "object",
                   "additionalProperties": false,
-                  "description": "MongoDB Atlas coordinates for this env binding. Present iff target_kind=='atlas'. Encapsulates every fact about our Atlas usage that we deploy: the cluster we point to, how the cluster accepts inbound (accepted_access[]), and the Atlas-side private endpoint service that the Azure-side private endpoint handshakes with. Deploy-time authentication is NOT declared here — the deploy handler reads Atlas Admin credentials directly from Code/.env on the operator's workstation (kept out of the manifest per the 'nothing in deployment_architecture.json that we are not deploying' rule).",
+                  "description": "MongoDB Atlas coordinates for this env binding. Present iff target_kind=='atlas'. Encapsulates every fact about our Atlas usage that we deploy: the cluster we point to, how the cluster accepts inbound (accepted_access[]), and the Atlas-side private endpoint service that the Azure-side private endpoint handshakes with. Deploy-time authentication is NOT declared here \u2014 the deploy handler reads Atlas Admin credentials directly from Code/.env on the operator's workstation (kept out of the manifest per the 'nothing in deployment_architecture.json that we are not deploying' rule).",
                   "required": [
                     "cluster"
                   ],
@@ -1454,13 +1490,21 @@
                       }
                     }
                   }
+                },
+                "config_collections": {
+                  "type": "array",
+                  "description": "The collections on this cluster that this file governs, for this environment binding. Each environment states its own, so editing one environment cannot alter another.",
+                  "uniqueItems": true,
+                  "items": {
+                    "$ref": "#/$defs/config_collection"
+                  }
                 }
               }
             }
           },
           "files": {
             "type": "array",
-            "description": "Every file the target ships, enumerated. disposition partitions entries into 'managed' (JSON owns the bytes via embedded_content; deploy materializes via the Extractor; Crosswalk validates byte-equality with the repo tree) and 'referenced' (only source_location is declared; deploy copies bytes from origin/<branch>'s git tree at deploy time; Crosswalk validates presence). MAY be empty for shared-infrastructure target_kinds (azure_automation_account) which carry no source files — those targets exist to declare entitlements and shared facts that other targets reference.",
+            "description": "Every file the target ships, enumerated. disposition partitions entries into 'managed' (JSON owns the bytes via embedded_content; deploy materializes via the Extractor; Crosswalk validates byte-equality with the repo tree) and 'referenced' (only source_location is declared; deploy copies bytes from origin/<branch>'s git tree at deploy time; Crosswalk validates presence). MAY be empty for shared-infrastructure target_kinds (azure_automation_account) which carry no source files \u2014 those targets exist to declare entitlements and shared facts that other targets reference.",
             "minItems": 0,
             "uniqueItems": true,
             "items": {
@@ -1511,7 +1555,7 @@
                 },
                 "disposition": {
                   "type": "string",
-                  "description": "Closed taxonomy that decides who owns the file's bytes. 'managed' — the JSON owns the bytes verbatim in embedded_content; Extractor materializes; Crosswalk requires byte-equality with the repo tree. 'referenced' — only the source_location path is declared; deploy machinery copies the bytes from origin/<branch>'s git tree at deploy time; Crosswalk requires presence only. INVARIANT: when disposition=managed, embedded_content is required. When disposition=referenced, embedded_content MUST be absent.",
+                  "description": "Closed taxonomy that decides who owns the file's bytes. 'managed' \u2014 the JSON owns the bytes verbatim in embedded_content; Extractor materializes; Crosswalk requires byte-equality with the repo tree. 'referenced' \u2014 only the source_location path is declared; deploy machinery copies the bytes from origin/<branch>'s git tree at deploy time; Crosswalk requires presence only. INVARIANT: when disposition=managed, embedded_content is required. When disposition=referenced, embedded_content MUST be absent.",
                   "enum": [
                     "managed",
                     "referenced"
@@ -1530,7 +1574,7 @@
                 },
                 "content_hash": {
                   "type": "string",
-                  "description": "sha256 hex digest of the file's bytes at the moment the Builder enumerated it. Populated for disposition='referenced' as a drift detector — Crosswalk re-hashes the disk bytes on every deploy and REJECTs on mismatch, catching unstaged edits that would otherwise ship differently between local builds (disk-driven) and remote builds (commit-driven). Forbidden when disposition='managed' (managed files are already byte-protected by embedded_content).",
+                  "description": "sha256 hex digest of the file's bytes at the moment the Builder enumerated it. Populated for disposition='referenced' as a drift detector \u2014 Crosswalk re-hashes the disk bytes on every deploy and REJECTs on mismatch, catching unstaged edits that would otherwise ship differently between local builds (disk-driven) and remote builds (commit-driven). Forbidden when disposition='managed' (managed files are already byte-protected by embedded_content).",
                   "pattern": "^[0-9a-f]{64}$"
                 }
               },
@@ -1628,7 +1672,7 @@
           },
           "secrets": {
             "type": "object",
-            "description": "Secret / environment key declarations for this TARGET. Map of key NAME -> store id. The same keys apply across every env_binding of this target; per-env VALUES come from the bound store via SecretsResolver. The deploy script reads this inventory and configures the target's runtime env surface (FA app settings, Automation Variables, HF Space secrets, Cloudflare env, etc.). Values themselves NEVER appear in this JSON — only names + store ids. Each target enumerates ITS OWN full key list; no inheritance, no shared base, no implicit defaults. Per EPIC-008-F-012. The 'azure_automation_webhook' store names a key whose value is the webhook URL of another target (an azure_automation_runbook) — the runbook target's deploy step mints/reuses the webhook and pushes the URL directly onto this target's runtime env surface, and the THIS target's deploy resolver MUST skip entries carrying this store (they are set by the upstream runbook deploy, not by reading any local store).",
+            "description": "Secret / environment key declarations for this TARGET. Map of key NAME -> store id. The same keys apply across every env_binding of this target; per-env VALUES come from the bound store via SecretsResolver. The deploy script reads this inventory and configures the target's runtime env surface (FA app settings, Automation Variables, HF Space secrets, Cloudflare env, etc.). Values themselves NEVER appear in this JSON \u2014 only names + store ids. Each target enumerates ITS OWN full key list; no inheritance, no shared base, no implicit defaults. Per EPIC-008-F-012. The 'azure_automation_webhook' store names a key whose value is the webhook URL of another target (an azure_automation_runbook) \u2014 the runbook target's deploy step mints/reuses the webhook and pushes the URL directly onto this target's runtime env surface, and the THIS target's deploy resolver MUST skip entries carrying this store (they are set by the upstream runbook deploy, not by reading any local store).",
             "additionalProperties": {
               "$ref": "#/$defs/SourceQualifier"
             }
@@ -1645,7 +1689,7 @@
           },
           "variables": {
             "type": "object",
-            "description": "Deploy-computed VARIABLES (not secrets) for this TARGET, e.g. HF Space variables, runtime env values derived from cluster topology. Map of name -> source_qualifier string. Source-qualifier syntax: 'env_name' (value is the env binding name like dev/qa/prod), 'local_cert_file:<repo-relative-path>' (value is base64 of the file content), 'peer_url:<target_id>' (value is the peer target's HF Space URL resolved at deploy time), 'rename_from:<other_entry_name>' (value is the resolved value of another entry in this target's secrets or variables, pushed under THIS name). The deploy script dispatches on the qualifier prefix — zero target-specific knowledge lives in the deploy code. Moved here from hardcoded per-target maps inside local_deploy.py.",
+            "description": "Deploy-computed VARIABLES (not secrets) for this TARGET, e.g. HF Space variables, runtime env values derived from cluster topology. Map of name -> source_qualifier string. Source-qualifier syntax: 'env_name' (value is the env binding name like dev/qa/prod), 'local_cert_file:<repo-relative-path>' (value is base64 of the file content), 'peer_url:<target_id>' (value is the peer target's HF Space URL resolved at deploy time), 'rename_from:<other_entry_name>' (value is the resolved value of another entry in this target's secrets or variables, pushed under THIS name). The deploy script dispatches on the qualifier prefix \u2014 zero target-specific knowledge lives in the deploy code. Moved here from hardcoded per-target maps inside local_deploy.py.",
             "additionalProperties": {
               "$ref": "#/$defs/SourceQualifier"
             }
@@ -1675,7 +1719,7 @@
           },
           "entitlements": {
             "type": "array",
-            "description": "Roles, role assignments, memberships, and access grants this TARGET requires. Not secrets — values live entirely in this JSON, never in any .env or external store. The deploy procedure reads this inventory and provisions every entitlement it lists; a ground-up build produces a runtime with exactly these entitlements and no others. Per EPIC-008-F-012.",
+            "description": "Roles, role assignments, memberships, and access grants this TARGET requires. Not secrets \u2014 values live entirely in this JSON, never in any .env or external store. The deploy procedure reads this inventory and provisions every entitlement it lists; a ground-up build produces a runtime with exactly these entitlements and no others. Per EPIC-008-F-012.",
             "items": {
               "oneOf": [
                 {
@@ -1874,7 +1918,7 @@
                 },
                 "kind": {
                   "type": "string",
-                  "description": "Handshake kind — free string identifying the shape of the handshake (e.g. 'private_endpoint_service', 'vnet_peering', 'oidc_federation'). No taxonomy in the schema; deploy code owns the meaning per kind.",
+                  "description": "Handshake kind \u2014 free string identifying the shape of the handshake (e.g. 'private_endpoint_service', 'vnet_peering', 'oidc_federation'). No taxonomy in the schema; deploy code owns the meaning per kind.",
                   "minLength": 1,
                   "maxLength": 64
                 }
@@ -2020,7 +2064,7 @@
     },
     "CustomRoleCatalog": {
       "type": "array",
-      "description": "Custom role definitions. Built-in Azure roles do NOT appear here (Azure owns their definitions). Each entry declares one custom role's grants — the (operation, on) pairs that make up the role's authority. Identities' roles[] and targets' allowed_roles[] may reference role_id values from this catalog OR built-in Azure role names as strings.",
+      "description": "Custom role definitions. Built-in Azure roles do NOT appear here (Azure owns their definitions). Each entry declares one custom role's grants \u2014 the (operation, on) pairs that make up the role's authority. Identities' roles[] and targets' allowed_roles[] may reference role_id values from this catalog OR built-in Azure role names as strings.",
       "uniqueItems": true,
       "items": {
         "type": "object",

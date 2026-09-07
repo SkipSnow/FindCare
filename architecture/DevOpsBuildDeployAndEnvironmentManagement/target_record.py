@@ -98,6 +98,11 @@ class EnvironmentBinding:
     # private_endpoint_service under one substrate target. Deploy handler
     # provisions everything Atlas-side from this one block.
     atlas: dict | None = None
+    # The collections on this cluster that the manifest wholly governs for
+    # this environment. Read straight off the binding rather than out of a
+    # platform's facts: a record body is arbitrary JSON, and the fact
+    # encoding carries a name and a value, not a document.
+    config_collections: list | None = None
     # Package lists — child artifacts that get deployed TO this target's
     # host. runbooks[] is populated when the parent target is an
     # azure_automation_account; jobs[] when the parent is an
@@ -133,6 +138,7 @@ class EnvironmentBinding:
             "cloudflare_firewall_rules",
             "branch",
             "atlas",
+            "config_collections",
             "runbooks",
             "jobs",
             "packages",
@@ -214,6 +220,7 @@ class EnvironmentBinding:
             branch=d.get("branch"),
             host=cls._host_of(d),
             atlas=cls._platform(d, "atlas"),
+            config_collections=d.get("config_collections"),
             runbooks=d.get("runbooks"),
             jobs=d.get("jobs"),
             packages=d.get("packages"),

@@ -2719,6 +2719,130 @@ def _identity_name(coll: "DeploymentCollection", identity_target_id: str,
         message=f"{identity_target_id} names no identity for env={env!r}")
 
 
+def _config_write_identity(target: TargetRecord, env: str,
+                           coll: "DeploymentCollection") -> tuple:
+    """The cluster and the identity this target declares for writing it.
+
+    Read from the manifest rather than named here, so who may write is stated
+    once and a deploy cannot quietly use an identity the record does not
+    declare.
+    """
+    cluster = ""
+    consumers: list = []
+    for eb in target.environments:
+        if eb.env_binding == env:
+            block = (eb.atlas or {}).get("cluster") or {}
+            cluster = block.get("cluster_name", "")
+            consumers = block.get("runtime_consumers") or []
+    if not cluster:
+        raise ChatHealthyException(
+            mode="runtime_error",
+            component="_deploy_chain",
+            message=f"{target.target_id} governs collections but names no "
+                    f"cluster for env={env!r}")
+    writers = [con.get("identity_target_id") for con in consumers
+               if con.get("operation") == "mongo_write"]
+    if len(writers) != 1:
+        raise ChatHealthyException(
+            mode="runtime_error",
+            component="_deploy_chain",
+            message=f"{target.target_id} env={env!r} declares {len(writers)} "
+                    f"mongo_write runtime consumer(s); governing a collection "
+                    f"needs exactly one identity to write as")
+    return cluster, _identity_name(coll, writers[0], env)
+
+
+def _record_key(record: dict, identity_key: list, address: str) -> dict:
+    """The filter that finds this one record, built from its declared key."""
+    key = {}
+    for field in identity_key:
+        if field not in record:
+            raise ChatHealthyException(
+                mode="runtime_error",
+                component="_deploy_chain",
+                message=f"{address}: a record is missing declared key field "
+                        f"{field!r}, so it cannot be matched against what is "
+                        f"stored")
+        key[field] = record[field]
+    return key
+
+
+def reconcile_config_collections(target: TargetRecord, env: str,
+                                 coll: "DeploymentCollection") -> None:
+    """Bring every collection this manifest governs to what it declares.
+
+    A collection named in config_collections is wholly governed: a declared
+    record that is absent is inserted, one that differs is corrected, and one
+    that is stored and not declared is deleted. Declaring no records states
+    that the collection must not exist, and it is dropped.
+
+    Nothing here names a collection or a field of one. The address, the key
+    and the record bodies are read from the manifest, so bringing a new
+    collection under control is an edit to that file.
+    """
+    from chathealthy_lib.mongo_utilities import ChatHealthyMongoUtilities
+    from cluster_host import host_for as _cluster_host
+
+    governed = []
+    for eb in target.environments:
+        if eb.env_binding == env:
+            governed = eb.config_collections or []
+    if not governed:
+        return
+
+    cluster, identity = _config_write_identity(target, env, coll)
+    client = ChatHealthyMongoUtilities().getConnection(
+        identity, cluster, host=_cluster_host(cluster))
+    step(f"  governing {len(governed)} collection(s) as {identity} "
+         f"(declared by {target.target_id})")
+
+    for entry in governed:
+        address = entry.get("address") or ""
+        database, _, collection = address.partition(".")
+        if not database or not collection:
+            raise ChatHealthyException(
+                mode="runtime_error",
+                component="_deploy_chain",
+                message=f"config_collections address {address!r} must name its "
+                        f"destination as 'Database.Collection'")
+        identity_key = entry.get("identity_key") or []
+        records = entry.get("records") or []
+        db = client[database]
+        present = collection in db.list_collection_names()
+
+        if not records:
+            if present:
+                db[collection].drop()
+                step(f"  {address}: declared empty, collection dropped")
+            continue
+
+        if not present:
+            db.create_collection(collection)
+        target_coll = db[collection]
+
+        inserted = corrected = deleted = 0
+        declared_keys = []
+        for record in records:
+            key = _record_key(record, identity_key, address)
+            declared_keys.append(key)
+            stored = target_coll.find_one(key, {"_id": 0})
+            if stored is None:
+                target_coll.insert_one(dict(record))
+                inserted += 1
+            elif stored != record:
+                target_coll.replace_one(key, dict(record))
+                corrected += 1
+
+        for stored in target_coll.find({}, {"_id": 1, **{f: 1 for f in identity_key}}):
+            key = {f: stored.get(f) for f in identity_key}
+            if key not in declared_keys:
+                target_coll.delete_one({"_id": stored["_id"]})
+                deleted += 1
+
+        step(f"  {address} env={env}: {len(records)} declared, "
+             f"{inserted} inserted, {corrected} corrected, {deleted} deleted")
+
+
 def apply_config_documents(build_dir: Path, target: TargetRecord, env: str,
                            coll: "DeploymentCollection",
                            package_selection: set[str] | None = None) -> None:
@@ -2859,6 +2983,7 @@ def deploy_one(
             f.handler_type == "json" for f in staged)
         result = None if document_only else pad.verify_atlas(target, env)
         apply_config_documents(build_dir, target, env, coll, package_selection)
+        reconcile_config_collections(target, env, coll)
         return result
     if target_kind == "identity":
         return pad.ensure_managed_identity(target, env)

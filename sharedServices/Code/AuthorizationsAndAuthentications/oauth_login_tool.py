@@ -2,14 +2,10 @@
 # Licensed under the FindCare Evaluation License (FEL-1.0).
 """OAuth Login Tool — EPIC-002-F-003-S-004.
 
-ChatHealthyTool that owns the OAuth login flow. The verify path is one
-code path regardless of env: POST to TOKEN_ENDPOINT_URL, extract id_token,
-verify signature against TRUSTED_KEYS. The fake IdP signs real JWTs;
-no claim-fabrication code exists in the verification path.
-
-Env conditionals are module-load constants only (TOKEN_ENDPOINT_URL,
-_LOCAL_EXTRA_KEYS, TLS_VERIFY, PRE_ALPHA_ALLOW_LIST). Runtime code is
-one path.
+ChatHealthyTool that owns the OAuth login flow: POST to
+TOKEN_ENDPOINT_URL, extract id_token, verify its signature against
+TRUSTED_KEYS. Google is the only identity provider; there is no
+environment in which another one is trusted.
 """
 from __future__ import annotations
 
@@ -77,16 +73,12 @@ def _real_google_authz_url(state: str, flow: str) -> str:
     return GOOGLE_AUTHZ_URL + "?" + urlencode(params)
 
 
-_LOCAL_EXTRA_KEYS: dict = {}
 TOKEN_ENDPOINT_URL = GOOGLE_TOKEN_URL
 TLS_VERIFY = True
-_LOCAL_TEST_IDENTITIES: tuple = ()
 AUTHZ_URL_BUILDER = _real_google_authz_url
 
 
-PRE_ALPHA_ALLOW_LIST = frozenset(
-    e.lower() for e in (("skip.snow@gmail.com",) + _LOCAL_TEST_IDENTITIES)
-)
+PRE_ALPHA_ALLOW_LIST = frozenset(("skip.snow@gmail.com",))
 
 
 def message_new_user_success(email: str) -> str:
