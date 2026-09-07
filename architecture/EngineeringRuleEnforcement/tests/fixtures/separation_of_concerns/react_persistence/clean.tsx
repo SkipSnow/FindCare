@@ -6,9 +6,9 @@ export default function CleanWidget() {
   useEffect(() => {
     window.parent.postMessage({
       type: "router:makeCall",
-      op: "boot",
+      op: "session_data",
       payload: {},
-      call_id: "boot-1",
+      call_id: "sd-1",
     }, "*")
   }, [])
   return null

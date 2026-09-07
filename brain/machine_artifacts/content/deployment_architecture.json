@@ -449,7 +449,7 @@
           "source_location": "Website/ClientRouter.js",
           "handler_type": "static_asset",
           "disposition": "referenced",
-          "content_hash": "d94e6748ca162bb5ec0bc5bb0a1833beac3aafed961959f3a330655b72a013af",
+          "content_hash": "e403b34800f9001aa2bc4cc4182cc016529f4c087351685e92601ba11bc2892c",
           "package": "runtime_driver"
         },
         {
@@ -537,7 +537,7 @@
           "source_location": "Website/index.html",
           "handler_type": "static_asset",
           "disposition": "referenced",
-          "content_hash": "f20fae9cdf9698b78205001f8f5ab41ebd3b0e897a25e3876db2a8f466dd256b",
+          "content_hash": "a245e17391ed100457642743138f1e693bfc40c1c5c45e123fdeaaf2e9268904",
           "package": "runtime_driver"
         },
         {
@@ -1648,7 +1648,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/authentication/user_object.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "371699a30ba112f4da0be03ddb9128fcfb7c9eba64e2c06b94ecd062ecf55efd",
+          "content_hash": "c5b1217460f90ada2d9f6cfa8fbe6f06508f0c4132b634fc27574990cc4d0d8b",
           "package": "service_runtime"
         },
         {
@@ -2160,7 +2160,7 @@
           "source_location": "Code/ConversationalUX/FindCareChat/frontend/src/components/SessionDataWidget.tsx",
           "handler_type": "static_asset",
           "disposition": "referenced",
-          "content_hash": "3964b5612914809f767c1a145a45e8b09622aecdcfd20f87f1e567a59d8ce92b",
+          "content_hash": "9b3f1f2c829d4b35e710ac53a2e96962f77b3ccb6ca73dae5e519d2722f79352",
           "package": "service_runtime"
         },
         {
@@ -2913,7 +2913,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/authentication/user_object.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "371699a30ba112f4da0be03ddb9128fcfb7c9eba64e2c06b94ecd062ecf55efd",
+          "content_hash": "c5b1217460f90ada2d9f6cfa8fbe6f06508f0c4132b634fc27574990cc4d0d8b",
           "package": "service_runtime"
         },
         {
@@ -3110,14 +3110,6 @@
         },
         {
           "feature_id": "EPIC-008-F-012",
-          "source_location": "sharedServices/Code/AuthorizationsAndAuthentications/fake_google_endpoint.py",
-          "handler_type": "python_source",
-          "disposition": "referenced",
-          "content_hash": "35e8abf7a61d14d4e07269e4ea3b1f09f1f727c45bc19059b9d8309e755e0dc5",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
           "source_location": "sharedServices/Code/AuthorizationsAndAuthentications/google_oauth_endpoint.py",
           "handler_type": "python_source",
           "disposition": "referenced",
@@ -3161,7 +3153,7 @@
           "source_location": "sharedServices/Code/AuthorizationsAndAuthentications/universal_navigation_tool.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "6b8fe65503ef8e31415ae905880fb4a1562c719aad47edccd99558b3c7007040",
+          "content_hash": "f5f26c4dd6c4d135704ea3e2560f08a2341a360ad857b5c01def49e967924a53",
           "package": "service_runtime"
         },
         {
@@ -3430,7 +3422,7 @@
           "source_location": "sharedServices/Code/app.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "d95474c7326baa9b69f51d52969b2632b63ab0401128e6bfe1fb41fbc6977b81",
+          "content_hash": "f7703c2075ce81e954d2c1231f077ae458c153a4d1459f8e1a931048ca0bb75f",
           "package": "service_runtime"
         },
         {

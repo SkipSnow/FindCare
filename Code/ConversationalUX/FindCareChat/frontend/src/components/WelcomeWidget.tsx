@@ -40,15 +40,7 @@ export default function WelcomeWidget() {
     const fcOrigin = window.location.origin
     let cachedHtml = FALLBACK_WELCOME_HTML
 
-    // OAuth popup case: index.html forwards URL params via the
-    // popup_params message, and FakeGoogleLoginWidget paints the
-    // sign-in form into MainWindow. If WelcomeWidget paints first
-    // (and then again on /welcome fetch resolve) the form gets
-    // overwritten. Suppress all WelcomeWidget paints in popup mode.
-    let suppressed = false
-
     function paint(inner: string) {
-      if (suppressed) return
       window.parent.postMessage({
         type: 'router:render',
         target: TARGET,
@@ -96,10 +88,6 @@ export default function WelcomeWidget() {
     function onMessage(ev: MessageEvent) {
       const msg = ev.data
       if (!msg || typeof msg !== 'object') return
-      if (msg.type === 'popup_params' && msg.params && msg.params.fake_google_login === '1') {
-        suppressed = true
-        return
-      }
       if (msg.type === 'router:event-broadcast' && msg.kind === 'show_welcome') {
         paint(cachedHtml)
       } else if (msg.type === 'router:action' && msg.action === 'goto_findcare') {

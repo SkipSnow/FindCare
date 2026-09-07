@@ -83,21 +83,6 @@ TLS_VERIFY = True
 _LOCAL_TEST_IDENTITIES: tuple = ()
 AUTHZ_URL_BUILDER = _real_google_authz_url
 
-if os.getenv("ENV_PREFIX") == "local":
-    from authentication.fake_google_endpoint import (
-        LOCAL_FAKE_KID, LOCAL_FAKE_SHARED_SECRET,
-    )
-    _LOCAL_EXTRA_KEYS[LOCAL_FAKE_KID] = LOCAL_FAKE_SHARED_SECRET
-    _KID_TABLE[LOCAL_FAKE_KID] = (LOCAL_FAKE_SHARED_SECRET, "HS256")
-    TOKEN_ENDPOINT_URL = "https://127.0.0.1:7860/fake_google/token"
-    TLS_VERIFY = False
-    _LOCAL_TEST_IDENTITIES = ("Claude@anthropic.ai",)
-    def _local_fake_authz_url(state: str, flow: str) -> str:
-        return (
-            f"https://localhost:8002/fake_google/auth?state={state}&flow={flow}"
-        )
-    AUTHZ_URL_BUILDER = _local_fake_authz_url
-
 
 PRE_ALPHA_ALLOW_LIST = frozenset(
     e.lower() for e in (("skip.snow@gmail.com",) + _LOCAL_TEST_IDENTITIES)

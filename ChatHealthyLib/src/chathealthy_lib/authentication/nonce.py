@@ -34,6 +34,42 @@ class Nonce:
         return field[:cls.STAMP_SIZE]
 
     @classmethod
+    def stamped_at(cls, stamp: str) -> datetime:
+        """The moment one stamp records."""
+        if len(stamp) != cls.STAMP_SIZE:
+            raise ChatHealthyException(
+            mode="value_error",
+            component="nonce",
+            message=f"stamp length {len(stamp)} != {cls.STAMP_SIZE}")
+        try:
+            when = datetime.strptime(stamp[:14], cls._STRFTIME)
+            ms = int(stamp[14:])
+        except ValueError as exc:
+            raise ChatHealthyException(
+            mode="value_error",
+            component="nonce",
+            message=f"stamp {stamp!r} is not a {cls._STRFTIME} time plus milliseconds",
+            exception=exc) from exc
+        return when.replace(tzinfo=timezone.utc, microsecond=ms * 1000)
+
+    @classmethod
+    def age_seconds(cls, field: str) -> float:
+        """Seconds since the last hop stamped this nonce.
+
+        The latest stamp, because that is the one that moves: the original
+        records when the session was issued and never changes, so it says
+        nothing about whether anyone is still here.
+        """
+        return (datetime.now(timezone.utc)
+                - cls.stamped_at(cls.latest_stamp(field))).total_seconds()
+
+    @classmethod
+    def is_expired(cls, field: str, ttl_seconds: float) -> bool:
+        """Whether the last hop is further back than the window allows.
+        The holder states the window."""
+        return cls.age_seconds(field) > ttl_seconds
+
+    @classmethod
     def _now_stamp(cls) -> str:
         now = datetime.now(timezone.utc)
         ms = str(now.microsecond)[:3].zfill(3)

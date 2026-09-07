@@ -316,7 +316,10 @@ def _open_about(page) -> None:
     way; only the route to it differs, which is the whole of what a phone
     changes here.
     """
-    if IS_PHONE:
+    # The width on screen right now, not the width the run was launched
+    # at: a case that resizes to a computer must take the computer's
+    # route to About, and IS_PHONE only knows how the run started.
+    if page.viewport_size["width"] <= 720:
         page.locator("[data-router-action='toggle_mobile_nav']").first.click()
         page.wait_for_selector("#frame_MobileNavDrawer", state="visible",
                                timeout=DEFAULT_TIMEOUT)
@@ -2295,3 +2298,181 @@ class TestMovingBetweenPanelsOnAPhone:
         phone.wait_for_timeout(600)
         assert not _shown(phone, ARROW_LEFT) and not _shown(phone, ARROW_RIGHT), (
             "a computer shows every panel at once and offers no arrows")
+
+
+# ── FLOW 13 — the form factor, and the panels on every page ──────────
+# The session is told once, at boot, which arrangement it is being read
+# in. And each of the three pages puts its own panels on the strip, so
+# the arrows are asserted on all of them rather than on care givers
+# alone.
+
+def _session_form_factor(page) -> str:
+    """What the session says it is, read the way a person reads it.
+
+    Through the session window the application itself renders, not a
+    hand-made call: a fetch built here would be testing a transport this
+    suite invented rather than the one the app uses.
+    """
+    # Session Info is offered by the About window, and a phone reaches
+    # About through the menu. Same capability, different route in.
+    _open_about(page)
+    page.wait_for_selector("#frame_AboutChatHealtyPopUP", state="visible",
+                           timeout=DEFAULT_TIMEOUT)
+    page.locator("[data-router-action='session_info']").first.click()
+    page.wait_for_selector("#frame_SessionInfoPopUp", state="visible",
+                           timeout=DEFAULT_TIMEOUT)
+    page.wait_for_function(
+        "() => ((document.querySelector('#frame_SessionInfoPopUp') || {})"
+        " .innerText || '').includes('form_factor')", timeout=DEFAULT_TIMEOUT)
+    lines = [ln.strip() for ln in
+             page.locator("#frame_SessionInfoPopUp").inner_text().splitlines()]
+    # Both windows are closed again. A window left open covers the
+    # control that opens it, so a second reading in the same case could
+    # never reach About.
+    for frame in ("#frame_SessionInfoPopUp", "#frame_AboutChatHealtyPopUP"):
+        close = page.locator(f"{frame} .ch-popup-close")
+        if close.count():
+            close.first.click()
+            page.wait_for_timeout(300)
+    for i, ln in enumerate(lines):
+        if ln == "form_factor" and i + 1 < len(lines):
+            return lines[i + 1]
+    return "not-reported"
+
+
+class TestTheSessionKnowsItsFormFactor:
+    """Established with the session and fixed for its life. A narrow
+    window is a phone whatever the device is, because the arrangement is
+    what the name is about."""
+
+    def test_a_phone_session_says_phone(self, page):
+        _at(page, PHONE_SIZE)
+        _fresh(page)
+        page.wait_for_timeout(1_200)
+        got = _session_form_factor(page)
+        _at(page, VIEWPORT)
+        assert got == "phone", f"a session booted at 360px reports {got!r}"
+
+    def test_a_computer_session_says_desktop(self, page):
+        _at(page, COMPUTER_SIZE)
+        _fresh(page)
+        page.wait_for_timeout(1_200)
+        got = _session_form_factor(page)
+        _at(page, VIEWPORT)
+        assert got == "desktop", f"a session booted at 1600px reports {got!r}"
+
+    def test_it_does_not_change_when_the_window_does(self, page):
+        _at(page, PHONE_SIZE)
+        _fresh(page)
+        page.wait_for_timeout(1_200)
+        first = _session_form_factor(page)
+        _at(page, COMPUTER_SIZE)
+        page.wait_for_timeout(800)
+        second = _session_form_factor(page)
+        _at(page, VIEWPORT)
+        assert first == second == "phone", (
+            f"the form factor moved with the window: {first!r} -> {second!r}; "
+            f"it is established at boot and fixed for the session")
+
+
+# Each page, the utterance that opens it, and what says its results are
+# on screen. The arrows are the same mechanism everywhere, so the same
+# cases run against all three.
+PAGES = [
+    ("individual", "find me a shrink in Long Beach CA",
+     "d.querySelectorAll(\"[data-testid='provider-card']\").length > 0"),
+    ("facility", "find me a hospital in Pasadena CA",
+     "d.querySelectorAll(\"[data-testid='facility-card']\").length > 0"),
+    ("clinicaltrial", "find me a clinical trial for diabetes",
+     "((d.querySelector('#frame_MainWindow')||{}).innerText||'')"
+     ".toLowerCase().includes('trial')"),
+]
+
+
+@pytest.mark.parametrize("page_name,utterance,ready_js",
+                         PAGES, ids=[p[0] for p in PAGES])
+class TestEveryPagePutsItsPanelsOnTheStrip:
+    """Whatever a page paints, the strip carries it and the arrows follow
+    the position: nothing to the left, no left arrow."""
+
+    def test_the_page_paints_and_the_arrows_agree(
+            self, page, page_name, utterance, ready_js):
+        _at(page, PHONE_SIZE)
+        _fresh(page)
+        _ask(page, utterance)
+        _wait_for(page, ready_js, f"the {page_name} results")
+        page.wait_for_timeout(2_500)
+        _record(page, f"13_{page_name}_on_a_phone")
+
+        s = _strip(page)
+        assert s["panels"] >= 1, f"{page_name}: nothing is on the strip; {s}"
+
+        _go_to_first_panel(page)
+        s = _strip(page)
+        assert not _shown(page, ARROW_LEFT), (
+            f"{page_name}: at the first panel and a left arrow is offered; {s}")
+        if s["panels"] > 1:
+            assert _shown(page, ARROW_RIGHT), (
+                f"{page_name}: {s['panels']} panels and no right arrow; {s}")
+            page.locator(ARROW_RIGHT).first.click()
+            page.wait_for_timeout(1_400)
+            after = _strip(page)
+            assert after["at"] == 1, (
+                f"{page_name}: the right arrow did not move one panel; {after}")
+            assert abs(after["scrollLeft"] - after["offsets"][1]) <= 4, (
+                f"{page_name}: the panel is not fully on screen; {after}")
+        else:
+            assert not _shown(page, ARROW_RIGHT), (
+                f"{page_name}: one panel and a right arrow is offered; {s}")
+
+    def test_no_panel_on_the_strip_is_blank(
+            self, page, page_name, utterance, ready_js):
+        """A panel showing nothing must not take a screen of its own. An
+        empty container left behind by a widget is not content."""
+        blank = page.evaluate(
+            "() => Array.from(document.querySelectorAll('.content-row > *'))"
+            " .filter(k => getComputedStyle(k).display !== 'none'"
+            "   && k.getBoundingClientRect().width > 0"
+            "   && !(k.innerText||'').trim()"
+            "   && !k.querySelector('img, svg, canvas, input, button, table'))"
+            " .map(k => k.id || 'centre')")
+        assert blank == [], (
+            f"{page_name}: these panels are on the strip with nothing in "
+            f"them: {blank}")
+
+
+# ── FLOW 14 — a session we already have is not built again ───────────
+
+class TestAReloadKeepsTheSession:
+    """Having a session means not needing a new one. A reload offers the
+    GUID it holds and is stamped against that session, rather than
+    starting a second one beside it and orphaning the first."""
+
+    def test_the_guid_survives_a_reload(self, page):
+        _fresh(page)
+        page.wait_for_timeout(1_500)
+        before = page.evaluate(
+            "() => window.ClientRouter.getSessionGuid()")
+        assert before, "no session guid after the first load"
+        page.reload(wait_until="domcontentloaded")
+        _ready(page)
+        page.wait_for_timeout(1_500)
+        after = page.evaluate("() => window.ClientRouter.getSessionGuid()")
+        assert after == before, (
+            f"a reload started a second session: {before} -> {after}; the "
+            f"first is now in Mongo with nothing able to point at it")
+
+    def test_what_was_said_survives_a_reload(self, page):
+        _fresh(page)
+        _ask(page, "find me a shrink in Long Beach CA")
+        _wait_for_panel(page)
+        _wait_for_results(page)
+        page.wait_for_timeout(2_000)
+        page.reload(wait_until="domcontentloaded")
+        _ready(page)
+        page.wait_for_timeout(2_000)
+        said = page.evaluate(
+            "async () => { const r = await fetch(window.location.origin);"
+            " return true; }")
+        guid = page.evaluate("() => window.ClientRouter.getSessionGuid()")
+        assert guid, "no session after the reload"

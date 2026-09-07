@@ -209,6 +209,14 @@ class UserObject(BaseModel):
     is_locked_out: Annotated[Optional[bool], MergeRole.STORED_WINS] = None
     lockout: Annotated[Optional[Lockout], MergeRole.STORED_WINS] = None
     ip_address: Annotated[Optional[str], MergeRole.GUEST_WINS] = None
+    # Which arrangement the person is looking at. Established with the
+    # session and fixed for its life. Only the browser knows it -- a
+    # narrow window on a computer is a phone as far as the layout is
+    # concerned -- so it is reported once, when /auth/issue makes the
+    # session.
+    form_factor: Annotated[
+        Optional[Literal["phone", "desktop"]], MergeRole.STORED_WINS,
+    ] = None
     is_registered: Annotated[Optional[bool], MergeRole.STORED_WINS] = None
     user_id: Annotated[Optional[str], MergeRole.STORED_WINS] = None
     user_type: Annotated[

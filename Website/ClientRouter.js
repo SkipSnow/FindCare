@@ -64,12 +64,31 @@
   // the signature on every non-trivial op, not just the tail-32 lookup.
   var _sessionToken = null;
 
+  // The GUID a session is known by, kept for the life of the tab. The
+  // token is per hop and dies with the page; the GUID is per session and
+  // outlives a reload, which is what lets a reload resume instead of
+  // starting a second session and orphaning the first.
+  var _GUID_KEY = 'ch_session_guid';
+
+  function _rememberGuid(st) {
+    try {
+      if (st && typeof st.token === 'string' && st.token.length >= 32) {
+        sessionStorage.setItem(_GUID_KEY, st.token.slice(-32));
+      }
+    } catch (e) { /* storage unavailable is not a failure worth stopping for */ }
+  }
+
+  function _rememberedGuid() {
+    try { return sessionStorage.getItem(_GUID_KEY) || ''; } catch (e) { return ''; }
+  }
+
   function _captureSessionToken(evt) {
     if (!evt || typeof evt !== 'object') return;
     var st = evt.session_token;
     if (!st || typeof st !== 'object') return;
     if (typeof st.token !== 'string' || st.token.length < 32) return;
     _sessionToken = st;
+    _rememberGuid(st);
   }
 
   // bootstrap — fetch a freshly-minted SessionToken from SS's /auth/issue
@@ -82,7 +101,17 @@
     return fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      // The form factor is told to the session on the call that makes
+      // it, and on no other. Only the browser knows it -- a narrow
+      // window on a computer is a phone as far as the arrangement is
+      // concerned -- and it does not change while the session lives.
+      // A session we already have is offered back. Having one means we
+      // do not need a new one: the server stamps a fresh token against
+      // it rather than building a second session beside it.
+      body: JSON.stringify({
+        session_guid: _rememberedGuid(),
+        form_factor: _isPhone() ? 'phone' : 'desktop',
+      }),
     }).then(function (resp) {
       if (!resp.ok) {
         throw new Error('ClientRouter.bootstrap: /auth/issue failed HTTP ' + resp.status);
@@ -90,6 +119,7 @@
       return resp.json();
     }).then(function (st) {
       _sessionToken = st;
+      _rememberGuid(st);
       return st;
     });
   }
@@ -508,7 +538,7 @@
   // returns a ready-to-POST string.
   function gateBody(args) {
     var body = {
-      op: (args && args.op) || 'boot',
+      op: (args && args.op),
       payload: (args && args.payload) || {},
     };
     if (args && args.intent) body.intent = args.intent;
@@ -524,9 +554,25 @@
 
   function _row() { return document.querySelector('.content-row'); }
 
+  // A panel is blank when it shows nothing. :empty cannot say that: a
+  // widget lays an empty container into a panel and the selector sees a
+  // child node, so a panel with nothing in it counted as a panel, took a
+  // share of the screen, and offered an arrow onto a blank screen.
+  function _markBlankPanels() {
+    var row = _row(); if (!row) return;
+    var sides = row.querySelectorAll('aside.side-panel');
+    for (var i = 0; i < sides.length; i++) {
+      var el = sides[i];
+      var hasText = (el.innerText || '').trim().length > 0;
+      var hasThing = !!el.querySelector('img, svg, canvas, input, button, table');
+      el.classList.toggle('ch-blank', !(hasText || hasThing));
+    }
+  }
+
   function _panels() {
     var row = _row();
     if (!row) return [];
+    _markBlankPanels();
     return Array.prototype.filter.call(row.children, function (k) {
       var st = getComputedStyle(k);
       return st.display !== 'none' && k.getBoundingClientRect().width > 0;
@@ -535,13 +581,22 @@
 
   // Which panel the screen is looking at: the one whose span covers the
   // middle of the viewport.
+  // Where a panel sits along the row, in the row's own terms. offsetLeft
+  // is measured against whatever the offset parent happens to be -- the
+  // body here, because the row is not positioned -- so it carried the
+  // page padding and every scroll landed a few pixels short of the panel.
+  function _panelLeft(row, el) {
+    return Math.round(el.getBoundingClientRect().left
+                      - row.getBoundingClientRect().left + row.scrollLeft);
+  }
+
   function _currentPanelIndex() {
     var row = _row(); if (!row) return 0;
     var mid = row.scrollLeft + row.clientWidth / 2;
     var panels = _panels(), best = 0, bestGap = Infinity;
     for (var i = 0; i < panels.length; i++) {
-      var left = panels[i].offsetLeft;
-      var gap = Math.abs(left + panels[i].offsetWidth / 2 - mid);
+      var left = _panelLeft(row, panels[i]);
+      var gap = Math.abs(left + panels[i].getBoundingClientRect().width / 2 - mid);
       if (gap < bestGap) { bestGap = gap; best = i; }
     }
     return best;
@@ -557,7 +612,7 @@
     var row = _row(); if (!row) return;
     var panels = _panels();
     if (index < 0 || index >= panels.length) return;
-    row.scrollTo({ left: panels[index].offsetLeft, behavior: 'smooth' });
+    row.scrollTo({ left: _panelLeft(row, panels[index]), behavior: 'smooth' });
     document.body.classList.add('ch-panel-focus');
     setTimeout(_refreshArrowState, 400);
   }
@@ -583,8 +638,8 @@
         var panels = _panels(); if (!panels.length) return;
         var i = _currentPanelIndex();
         var here = panels[i];
-        var past = row.scrollLeft - here.offsetLeft;
-        var share = past / here.offsetWidth;
+        var past = row.scrollLeft - _panelLeft(row, here);
+        var share = past / here.getBoundingClientRect().width;
         if (share > 0.2 && i < panels.length - 1) _goToPanel(i + 1);
         else if (share < -0.2 && i > 0) _goToPanel(i - 1);
         else _goToPanel(i);

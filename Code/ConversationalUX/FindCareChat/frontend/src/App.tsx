@@ -26,7 +26,6 @@ import NewQueryLoadingWidget from './components/NewQueryLoadingWidget'
 import EvaluateCareSplashWidget from './components/EvaluateCareSplashWidget'
 import LegalPanelWidget from './components/LegalPanelWidget'
 import OAuthLoginWidget from './components/OAuthLoginWidget'
-import FakeGoogleLoginWidget from './components/FakeGoogleLoginWidget'
 import AboutChatHealthyWidget from './components/AboutChatHealthyWidget'
 import PanelNavWidget from './components/PanelNavWidget'
 import PopupHost from './components/PopupHost'
@@ -55,7 +54,6 @@ function App() {
       <EvaluateCareSplashWidget />
       <LegalPanelWidget />
       <OAuthLoginWidget />
-      <FakeGoogleLoginWidget />
       <AboutChatHealthyWidget />
       <PanelNavWidget />
     </>

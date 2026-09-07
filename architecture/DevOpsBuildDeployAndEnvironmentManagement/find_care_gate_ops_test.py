@@ -68,15 +68,16 @@ def test_claim_oauth_result_pop_and_clear():
     client = _ch_connection()
     coll = client["Users"]["sessions"]
     try:
-        # Seed a session via op=boot, then plant a pending_oauth_result.
-        boot_events = _ndjson_post(f"{SHARED_URL}/gate",
-                                   {"op": "boot", "payload": {}})
-        guid = None
-        for ev in boot_events:
-            if ev.get("kind") == "final":
-                guid = ev.get("guid")
-                break
-        assert guid, "boot did not return a session guid"
+        # Seed a session, then plant a pending_oauth_result. A session is
+        # established by /auth/issue and by nothing else: it mints the
+        # token and creates the session in one call.
+        import urllib.request as _rq
+        req = _rq.Request(f"{SHARED_URL}/auth/issue", method="POST",
+                          data=b"{}",
+                          headers={"Content-Type": "application/json"})
+        token = json.loads(_rq.urlopen(req, timeout=30).read())
+        guid = (token.get("token") or "")[-32:]
+        assert guid, "/auth/issue did not return a session guid"
 
         seeded = {"outcome": "success", "message": "Welcome test",
                   "email": "test@example.com", "user_id": "u-TEST123"}

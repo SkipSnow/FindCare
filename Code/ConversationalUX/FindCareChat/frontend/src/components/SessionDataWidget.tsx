@@ -38,7 +38,8 @@ function buildLoadingHtml(): string {
 // the two scrollbars that make the live transcript easy to read.
 
 const IDENTITY_ORDER = [
-  'user_type', 'guid', 'origin', 'server_env', 'created_at', 'expires_at',
+  'user_type', 'guid', 'origin', 'server_env', 'form_factor',
+  'created_at', 'expires_at',
 ]
 const IDENTITY_HIDDEN = new Set(['token', 'signature'])
 

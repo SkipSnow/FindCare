@@ -50,7 +50,7 @@
       margin: 0; padding: 0; height: 100%; width: 100%;
       color: var(--ink); background: var(--bg); overflow: hidden;
     }
-    /* font-size discipline: html { font-size: 9px } is set by the inlined
+    /* font-size discipline: the root font size is set by the inlined
        CH_FONTS snippet (canonical). Body inherits 1rem; widgets MUST use
        font-size: 1em. Browser-default heading multipliers (h1=2em, h2=1.5em
        etc.) are the only larger sizes allowed. */
@@ -95,38 +95,51 @@
        wide as there is something to see. Each panel that holds anything is
        one screen wide, so the row is one screen when only the list exists,
        two once a specialty filter has been offered, three once a detail has
-       been opened. A panel holding nothing takes no width at all -- which
-       is what :empty says -- so a person can never slide onto a blank
-       screen. Nothing tracks this: a panel becomes visible by being given
-       content and stops being visible by being emptied, which is what
-       React already does to it.
+       been opened. A panel showing nothing takes no width at all, so a
+       person can never slide onto a blank screen. Whether a panel shows
+       anything is marked by the wrapper as ch-blank: :empty cannot say it,
+       because a widget leaves an empty container behind and the selector
+       counts that as content.
 
        Vertically it is exactly the viewport; only the horizontal overflows.
        The scroll is the browser's own, so the swipe carries its momentum
        and rubber-banding on both platforms and nothing here handles a
        gesture. The borders already on the side panels are the lines
        between them. (C-27) */
-    @media (max-width: 720px) {
+    @media (max-width: 45em) {
       main { max-width: none; padding: 0.5em; gap: 0.5em; }
       .content-row { overflow-x: auto; overflow-y: hidden;
                      -webkit-overflow-scrolling: touch; }
       /* Alone, a panel takes the whole width. */
       .content-row > aside.side-panel,
       .content-row > .center-column { flex: 0 0 100%; width: auto; }
-      /* Two or three: each as wide as its content needs, at the widths
-         the computer arrangement uses, and the row scrolls. */
-      .content-row:has(> aside.side-panel:not(:empty)) > aside.side-panel {
-        flex: 0 0 auto; width: 27em;
+      /* Two or three: each is a share of the screen, so the row runs
+         wider than the phone and scrolls. A side panel shows most of
+         itself with the edge of its neighbour beside it; the centre
+         column, which carries the list, takes the screen. Every width
+         here is a percentage of the viewport, so it is the same
+         arrangement on any handset. */
+      .content-row:has(> aside.side-panel:not(.ch-blank)) > aside.side-panel {
+        flex: 0 0 auto; width: 85vw;
       }
-      .content-row:has(> aside.side-panel:not(:empty)) > .center-column {
-        flex: 0 0 auto; width: 78em;
+      .content-row:has(> aside.side-panel:not(.ch-blank)) > .center-column {
+        flex: 0 0 auto; width: 100vw;
       }
-      .content-row > aside.side-panel:empty { display: none; }
+      .content-row > aside.side-panel.ch-blank { display: none; }
       /* A panel that has been moved to takes the vertical space the
          chrome around it was using. The prompt stays: a person who has
          just moved to a panel is the person about to type. */
       body.ch-panel-focus main { padding: 0; gap: 0; }
       body.ch-panel-focus .chat-label { display: none; }
+      /* Asking for a panel is asking to read it, so it takes the screen.
+         Browsing sizes a column by its content and lets the row run wider
+         than the phone; choosing one ends that -- a panel wider than the
+         screen it was just brought to is not the panel, it is the left
+         part of it. */
+      body.ch-panel-focus .content-row > aside.side-panel,
+      body.ch-panel-focus .content-row > .center-column {
+        flex: 0 0 100%; width: auto;
+      }
     }
 
     #frame_UserMessage         { flex: 0 0 auto; background: var(--surface); border-top: 0.0625em solid #e5e7eb; }
@@ -193,8 +206,8 @@
       flex: 0 0 auto;
     }
     .ch-react-iframe {
-      position: absolute; left: -9999px; top: -9999px;
-      width: 1px; height: 1px; border: 0; visibility: hidden;
+      position: absolute; left: -200vw; top: -200vh;
+      width: 1vmin; height: 1vmin; border: 0; visibility: hidden;
     }
   </style>
 </head>
@@ -263,8 +276,8 @@
           window._envServiceUrls.evaluatecare = (d && d.evaluatecare) || '';
           var iframe = document.getElementById('coreReactFrame');
           if (iframe) {
-            // Forward popup URL params (e.g. fake_google_login state/flow)
-            // to the React iframe once it loads. Parameter passing only —
+            // Forward popup URL params (e.g. the OAuth state/flow) to the
+            // React iframe once it loads. Parameter passing only —
             // the React widget produces all display.
             iframe.addEventListener('load', function () {
               if (!window._popupParams || !iframe.contentWindow) return;
@@ -307,25 +320,19 @@
           }
           // Mint a signed SessionToken before any non-trivial /gate call
           // fires. /gate validates the token on every non-trivial op, so
-          // ClientRouter must hold one before op=boot runs. /auth/issue
+          // ClientRouter must hold one before any non-trivial /gate
+          // call. /auth/issue
           // is un-authenticated (pre-auth by design); every subsequent
           // /gate call is validated using the token this returns.
           //
-          // After bootstrap, eagerly mint the user_object via op=boot.
-          // Without this, the user_object is minted lazily on the first
-          // user gesture; a visitor who lands and just looks would be
-          // invisible to SharedServices — no admin.sessions row, no
-          // identity in the banner. The boot op handler mints/restores
-          // the user_object and streams kind:'boot' carrying a fresh
-          // signed token; ClientRouter captures it and threads it on
-          // every subsequent call.
+          // One call establishes the session. Without it the user_object
+          // would be minted lazily on the first gesture and a visitor who
+          // lands and just looks would be invisible to SharedServices —
+          // no session row, no identity in the banner. /auth/issue makes
+          // the session and returns its token; ClientRouter holds that
+          // token and threads it on every subsequent call.
           if (window.ClientRouter && typeof window.ClientRouter.bootstrap === 'function') {
             window.ClientRouter.bootstrap()
-              .then(function () {
-                if (typeof window.ClientRouter.getStreamedPayloads === 'function') {
-                  window.ClientRouter.getStreamedPayloads({ op: 'boot', payload: {} });
-                }
-              })
               .catch(function () {
                 window.location.replace('/bootstrap-error.html');
               });

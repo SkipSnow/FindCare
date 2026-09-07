@@ -5,7 +5,6 @@
 Runs after AuthorizationsAndAuthentications has established the user
 (deps.user_object). Dispatches by op to a graph node handler:
 
-  * boot              — identity-only handshake (page load)
   * session_data      — render the session: identity, live parameters,
                         and the utterance/action history
   * record_ux_event   — append a UX-control event to ux_events[]
@@ -50,6 +49,8 @@ from authentication import (
     evalcare_splash_tool,
     provider_detail_tool,
 )
+from chathealthy_lib.authentication.nonce import Nonce
+from chathealthy_lib.authentication.session_token import SessionToken
 from chathealthy_lib.authentication.user_object import UserObject
 from chathealthy_lib import ChatHealthyException
 from UtteranceManager import utterance_manager
@@ -113,10 +114,11 @@ def _ch_exc():
 class Request(BaseModel):
     """Op + opaque payload. The router picks a handler by `op`."""
     op: str = Field(
-        default="boot",
         description="Which gesture the client made. Every browser call "
                     "arrives here and names one; the router dispatches the "
-                    "tool that owns it.")
+                    "tool that owns it. Required: a call that names no "
+                    "gesture used to default to `boot`, and once boot was "
+                    "gone that default dispatched nowhere.")
     payload: dict[str, Any] = Field(
         default_factory=dict,
         description="The gesture's own arguments, shaped by the op.")
@@ -498,7 +500,6 @@ class UniversalNavigationTool(ChatHealthyTool):
     # Map ops to method names. run() looks up by op and dispatches via
     # getattr(self, name). Adding a new op = new method + new dict entry.
     _OP_HANDLERS = {
-        "boot":                 "_handle_boot",
         "session_data":         "_handle_session_data",
         "session_pdf":          "_handle_session_pdf",
         "record_ux_event":      "_handle_record_ux_event",
@@ -523,7 +524,7 @@ class UniversalNavigationTool(ChatHealthyTool):
     }
 
     async def run(self, deps: AgentDeps, request: "Request") -> "Response":
-        op = (request.op or "boot")
+        op = request.op
         method_name = self._OP_HANDLERS.get(op)
         if method_name is None:
             return self.Response(
@@ -534,12 +535,15 @@ class UniversalNavigationTool(ChatHealthyTool):
 
     # ── Op handlers ───────────────────────────────────────────────
 
-    async def _handle_boot(self, deps: AgentDeps, payload: dict[str, Any]) -> Response:
-        deps.stream({"kind": "boot", "data": {"ok": True}})
-        return Response(kind="boot", result={"op": "boot"})
+    # The two form factors the application is built for. Which one a
+    # person is on is a fact only the browser holds, so it is reported
+    # rather than inferred, and it is one of these two or it is unknown.
+    FORM_FACTORS = ("phone", "desktop")
 
     async def _handle_session_data(self, deps: AgentDeps, payload: dict[str, Any]) -> Response:
         data = session_data(deps.user_object)
+        data.setdefault("identity", {})["form_factor"] = (
+            deps.user_object.form_factor or "unknown")
         data["deployment_facts"] = await deployment_facts()
         append_action(
             deps.user_object,
@@ -1546,7 +1550,7 @@ class UniversalNavigationTool(ChatHealthyTool):
         )
 
     # The ops that are a turn: the person said or gestured something and is
-    # owed an answer. Everything else -- boot, session reads, selection
+    # owed an answer. Everything else -- session reads, selection
     # bookkeeping -- is not a turn and is allowed to be silent.
     _TURN_OPS = frozenset({
         "utterance", "apply_filter", "provider_page", "facility_page",
@@ -2138,7 +2142,16 @@ class UniversalNavigationTool(ChatHealthyTool):
                     expires_at = candidate.expires_at
                     if expires_at.tzinfo is None:
                         expires_at = expires_at.replace(tzinfo=timezone.utc)
-                    if expires_at > datetime.now(timezone.utc):
+                    # A session continues only while its nonce is inside
+                    # the window. The nonce's latest stamp is the last hop
+                    # this session made, so a lapsed one means nobody has
+                    # been here for longer than a session is allowed to be
+                    # quiet. The gateway decides this and nothing else does.
+                    stored_token = candidate.current_session_token
+                    nonce_live = isinstance(stored_token, SessionToken) and (
+                        not Nonce.is_expired(stored_token.get_nonce(),
+                                             SESSION_TTL_SECONDS))
+                    if expires_at > datetime.now(timezone.utc) and nonce_live:
                         loaded_user_object = candidate
                 except Exception as exc:
                     # Mode 2 (REQ-B-008): persisted session doc can't be
@@ -2212,6 +2225,13 @@ class UniversalNavigationTool(ChatHealthyTool):
             if isinstance(kind, str):
                 kinds_seen.add(kind)
             event_queue.put_nowait(event)
+
+        # Read if a call carries it. Session establishment is
+        # /auth/issue, which is where the form factor is reported and
+        # where the session that holds it is made.
+        reported = str((gate_req.payload or {}).get("form_factor") or "").strip().lower()
+        if reported in self.FORM_FACTORS and not user_object.form_factor:
+            user_object.form_factor = reported
 
         agent_deps = AgentDeps(
             user_object=user_object,

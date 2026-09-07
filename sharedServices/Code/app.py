@@ -11,7 +11,7 @@
 #   1. authorizations_and_authentications_tool.run(AuthnDeps)
 #         -> user_object (mint-or-restore + persist admin.sessions)
 #   2. universal_navigation_tool.run(AgentDeps, NavRequest(op, payload))
-#         -> dispatches to the graph node for `op` (boot, splash,
+#         -> dispatches to the graph node for `op` (splash,
 #            record_ux_event, utterance, ...). Emits stream events as it
 #            runs; final result is the last NDJSON line on the wire.
 #
@@ -191,7 +191,9 @@ from secretsManager.secrets_endpoint import SecretsEndpoint
 from chathealthy_lib.authentication import (
     AuthToken, SessionRestampRequest, SessionToken, VerifyTokenResponse,
 )
+from chathealthy_lib.authentication.user_object import UserObject
 from authentication.mintable_auth_token import MintableAuthToken
+from chathealthy_lib.authentication.agent_deps import AuthnDeps
 from authentication.google_oauth_endpoint import GoogleOAuthEndpoint
 
 # New architecture: two tools chained inside /gate.
@@ -207,7 +209,7 @@ ORIGIN = "SharedServices"
 ENV = os.getenv("ENV_PREFIX", "dev")
 
 # Browser-facing peer URLs the wrapper consumes from /gate (op=peer_urls
-# or /gate boot response) so iframe.src and peer-health lookups never
+# op=peer_urls) so iframe.src and peer-health lookups never
 # need build-time substitution into the wrapper bytes. Set by deploy.
 CH_BROWSER_PEER_URL_FINDCARE = os.getenv("CH_BROWSER_PEER_URL_FINDCARE", "https://localhost:7860")
 CH_BROWSER_PEER_URL_EVALCARE = os.getenv("CH_BROWSER_PEER_URL_EVALCARE", "https://localhost:8001")
@@ -453,7 +455,10 @@ async def gate(
     from OPTIONS preflights.
     """
     payload = dict(body or {})
-    op = str(payload.get("op") or "boot")
+    # A call names its gesture. This defaulted to `boot`, an op that no
+    # longer exists: session establishment is /auth/issue and nothing
+    # else, so a body with no op is a caller error rather than a boot.
+    op = str(payload.get("op") or "")
     op_payload = payload.get("payload") or {}
     intent = payload.get("intent")
     _log_gate_entry(op, intent, sorted(list(payload.keys())))
@@ -540,16 +545,21 @@ async def gate(
 @app.post("/auth/issue", operation_id="AuthIssue", response_model=SessionToken,
           openapi_extra=impl("MintableAuthToken", "authentication/mintable_auth_token.py"))
 async def auth_issue(request: Request):
-    """Stamp a token, resuming the session the page names.
+    """Establish a session and hand back its token.
 
-    The page passes back the GUID it holds. A GUID naming a session that is
-    in Mongo and has not expired is resumed; anything else is ignored and a
-    new session begins, so a GUID a caller invents buys nothing.
+    This is the one unauthenticated door in the system, and the whole of
+    session establishment: the session exists when this returns. It used
+    to mint a token and nothing else, leaving the session to be created
+    by a `boot` call that followed it on every page load -- two round
+    trips where the second existed only because the first had made a GUID
+    with nothing behind it.
 
-    Before this, the body was empty and a new GUID was minted on every page
-    load. The session document stayed in Mongo, correct and complete, and
-    nothing could point at it again -- which is why a reload lost the
-    conversation and Apply Filter re-derived the whole specialty list.
+    The page passes back the GUID it holds. A GUID naming a session that
+    is in Mongo and has not expired is resumed; anything else is ignored
+    and a new session begins, so a GUID a caller invents buys nothing.
+
+    The form factor is told to the session here because here is where the
+    session is made, and it does not change while the session lives.
     """
     try:
         body = await request.json()
@@ -557,7 +567,30 @@ async def auth_issue(request: Request):
         body = {}
     offered = str((body or {}).get("session_guid") or "").strip()
     resumed = _live_session_guid(offered) if offered else ""
-    return MintableAuthToken.manufacture(server_env=ENV, guid=resumed).to_wire()
+    if resumed:
+        # A session we already have is not authorised again: it is
+        # stamped. The GUID is per session and the nonce is per hop, so
+        # the token is minted fresh against the session that exists --
+        # handing back the stored one would replay a nonce, and building
+        # a second session would orphan the first, which is the waste
+        # this endpoint was meant to end.
+        return MintableAuthToken.manufacture(
+            server_env=ENV, guid=resumed).to_wire()
+
+    reported = str((body or {}).get("form_factor") or "").strip().lower()
+    deps = AuthnDeps(session_guid="", server_env=ENV,
+                           mongo_frontend=authn.get_mongo_frontend())
+    user_object = UserObject(
+        current_session_token="NULL",
+        expires_at=dt.datetime.now(dt.timezone.utc)
+        + dt.timedelta(seconds=authn.SESSION_TTL_SECONDS),
+    )
+    if reported in ("phone", "desktop"):
+        user_object.form_factor = reported
+    resp = await authn.TOOL.run(
+        deps, authn.Request(intent="manufacture_session", user_object=user_object))
+    await authn.TOOL.persist(deps, resp.user_object, resp.fresh_mint)
+    return resp.user_object.current_session_token.model_dump(mode="json")
 
 
 def _live_session_guid(guid: str) -> str:
@@ -604,43 +637,6 @@ async def google_oauth_start(
 ):
     return await GoogleOAuthEndpoint.start(
         server_env=ENV, session_guid=session_guid, flow=flow,
-    )
-
-
-@app.get("/fake_google/auth", operation_id="FakeGoogleAuth")
-def fake_google_auth(state: str = "", flow: str = "login"):
-    from authentication.fake_google_endpoint import serve_auth_page
-    return serve_auth_page(state=state, flow=flow)
-
-
-@app.post("/fake_google/submit", operation_id="FakeGoogleSubmit")
-def fake_google_submit(
-    email: str = FormBody(...),
-    password: str = FormBody(...),
-    state: str = FormBody(...),
-    flow: str = FormBody("login"),
-    create_account: str | None = FormBody(default=None),
-    confirm: str | None = FormBody(default=None),
-):
-    from authentication.fake_google_endpoint import submit_credentials
-    final_flow = "register" if create_account == "on" else flow
-    return submit_credentials(
-        email=email, password=password, state=state,
-        flow=final_flow, server_env=ENV,
-    )
-
-
-@app.post("/fake_google/token", operation_id="FakeGoogleToken")
-def fake_google_token(
-    code: str = FormBody(...),
-    client_id: str = FormBody(...),
-    client_secret: str | None = FormBody(default=None),
-    redirect_uri: str | None = FormBody(default=None),
-    grant_type: str | None = FormBody(default=None),
-):
-    from authentication.fake_google_endpoint import exchange_code_for_token
-    return exchange_code_for_token(
-        code=code, client_id=client_id, server_env=ENV,
     )
 
 
