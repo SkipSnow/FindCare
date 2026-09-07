@@ -1961,7 +1961,24 @@ class UniversalNavigationTool(ChatHealthyTool):
         fs = await specialty_filter_tool.TOOL.run_and_log(
             deps, specialty_filter_tool.Request(query=complaint),
         )
-        if fs.error or not fs.specialties:
+        if fs.error:
+            # A service that failed and a search that matched nothing took
+            # the same branch, so a 503 from /classify reached the rest of
+            # the turn as an empty result. The turn then had nothing to
+            # show, and the end-of-turn check asked the person for what
+            # they had already given -- a complaint and a city that were
+            # both on the document. The person is told a service is down
+            # rather than questioned about their own sentence.
+            await self._dispatch_llm_unavailable_dialogue(
+                deps,
+                ChatHealthyException(
+                    mode="llm_unavailable",
+                    message=f"specialty filter unavailable: {fs.error}",
+                    component="SpecialtyFilterTool",
+                    context={"provider": "classify", "call_site": "specialty_filter"},
+                ))
+            return []
+        if not fs.specialties:
             return []
 
         specialties = [s.model_dump(exclude_none=True) for s in fs.specialties]

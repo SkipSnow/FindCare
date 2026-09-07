@@ -52,8 +52,13 @@ class ChatHealthyTool(ABC):
         Bootstrap tools (e.g. AuthN) whose deps do NOT yet carry a
         user_object should be invoked via `run()` directly, not this
         method.
+
+        A tool that raises is recorded before the exception continues on
+        its way. The run used to be outside every guard, so a tool that
+        raised appended nothing at all and the action log simply stopped
+        -- the one entry that would say why is the one that was never
+        written.
         """
-        result = await self.run(deps, request)
         from chathealthy_lib.authentication.agent_deps import append_action
         try:
             args_dump = (
@@ -69,6 +74,27 @@ class ChatHealthyTool(ABC):
                                                                              exception=_exc,
                                                                          ))
             args_dump = {}
+
+        try:
+            result = await self.run(deps, request)
+        except BaseException as exc:
+            failure: dict = {
+                "exception": type(exc).__name__,
+                "message": str(exc)[:1000],
+            }
+            if isinstance(exc, ChatHealthyException):
+                failure["mode"] = exc.mode
+                failure["component"] = exc.component
+                if exc.context:
+                    failure["context"] = exc.context
+            append_action(
+                deps.user_object,
+                tool_name=self.TOOL_NAME,
+                input_json=args_dump,
+                output_json=failure,
+            )
+            raise
+
         try:
             result_dump = (
                 result.model_dump(exclude_none=True) if result is not None else {}
