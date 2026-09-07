@@ -689,7 +689,7 @@
           "source_location": "Website/schemas/ChatHealthyDeploymentArchitectureSchema.json",
           "handler_type": "json",
           "disposition": "referenced",
-          "content_hash": "19cc9b72d832b1746fe03daf969d6c589f5773bc925b45abefccd5a7c3415431",
+          "content_hash": "a1a0da1491d6465454811c0bacffa83b23c344b07c1f03d457c566dddc601cb1",
           "package": "json_schemas"
         },
         {
@@ -5318,7 +5318,67 @@
       ],
       "environments": [
         {
+          "env_binding": "local",
+          "node_address": "DevOpsUser",
+          "identity": {
+            "identity_class": "service_principal",
+            "name": "DevOpsUser",
+            "object_id": "8e6f61db-9d92-4f7a-a3db-8731a7518791"
+          },
+          "platforms": [
+            {
+              "name": "identity",
+              "facts": [
+                {
+                  "name": "role",
+                  "value": "host"
+                }
+              ]
+            }
+          ]
+        },
+        {
           "env_binding": "dev",
+          "node_address": "DevOpsUser",
+          "identity": {
+            "identity_class": "service_principal",
+            "name": "DevOpsUser",
+            "object_id": "8e6f61db-9d92-4f7a-a3db-8731a7518791"
+          },
+          "platforms": [
+            {
+              "name": "identity",
+              "facts": [
+                {
+                  "name": "role",
+                  "value": "host"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "env_binding": "qa",
+          "node_address": "DevOpsUser",
+          "identity": {
+            "identity_class": "service_principal",
+            "name": "DevOpsUser",
+            "object_id": "8e6f61db-9d92-4f7a-a3db-8731a7518791"
+          },
+          "platforms": [
+            {
+              "name": "identity",
+              "facts": [
+                {
+                  "name": "role",
+                  "value": "host"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "env_binding": "prod",
           "node_address": "DevOpsUser",
           "identity": {
             "identity_class": "service_principal",
@@ -6091,7 +6151,7 @@
           ],
           "packages": [
             {
-              "package_id": "parameter_declaration",
+              "package_id": "front_end_configuration",
               "kind": "file_set"
             }
           ],
@@ -6380,7 +6440,7 @@
           ],
           "packages": [
             {
-              "package_id": "parameter_declaration",
+              "package_id": "front_end_configuration",
               "kind": "file_set"
             }
           ],
@@ -6669,7 +6729,7 @@
           ],
           "packages": [
             {
-              "package_id": "parameter_declaration",
+              "package_id": "front_end_configuration",
               "kind": "file_set"
             }
           ],
@@ -6958,7 +7018,7 @@
           ],
           "packages": [
             {
-              "package_id": "parameter_declaration",
+              "package_id": "front_end_configuration",
               "kind": "file_set"
             }
           ],
@@ -7205,7 +7265,7 @@
           "source_location": "FindCare/ParameterDeclaration/parameter_declaration.json",
           "handler_type": "json",
           "disposition": "referenced",
-          "package": "parameter_declaration"
+          "package": "front_end_configuration"
         }
       ]
     }

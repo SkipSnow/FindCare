@@ -2790,6 +2790,18 @@ def reconcile_config_collections(target: TargetRecord, env: str,
     if not governed:
         return
 
+    # Every key the manifest declares at each address, from every binding
+    # that declares one. A deploy installs its own binding's records and
+    # judges what it finds against the whole file, because a record another
+    # binding declares is declared, and only an undeclared one is nobody's.
+    declared_anywhere: dict = {}
+    for eb in target.environments:
+        for entry in eb.config_collections or []:
+            keys = declared_anywhere.setdefault(entry.get("address") or "", [])
+            for record in entry.get("records") or []:
+                keys.append({field: record.get(field)
+                             for field in entry.get("identity_key") or []})
+
     cluster, identity = _config_write_identity(target, env, coll)
     client = ChatHealthyMongoUtilities().getConnection(
         identity, cluster, host=_cluster_host(cluster))
@@ -2821,10 +2833,8 @@ def reconcile_config_collections(target: TargetRecord, env: str,
         target_coll = db[collection]
 
         inserted = corrected = deleted = 0
-        declared_keys = []
         for record in records:
             key = _record_key(record, identity_key, address)
-            declared_keys.append(key)
             stored = target_coll.find_one(key, {"_id": 0})
             if stored is None:
                 target_coll.insert_one(dict(record))
@@ -2833,9 +2843,12 @@ def reconcile_config_collections(target: TargetRecord, env: str,
                 target_coll.replace_one(key, dict(record))
                 corrected += 1
 
+        # A record no environment declares belongs to nobody, and the
+        # manifest is the whole authority for this collection.
+        keep = declared_anywhere.get(address) or []
         for stored in target_coll.find({}, {"_id": 1, **{f: 1 for f in identity_key}}):
             key = {f: stored.get(f) for f in identity_key}
-            if key not in declared_keys:
+            if key not in keep:
                 target_coll.delete_one({"_id": stored["_id"]})
                 deleted += 1
 

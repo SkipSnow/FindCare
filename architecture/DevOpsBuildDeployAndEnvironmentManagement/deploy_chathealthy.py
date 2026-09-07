@@ -712,6 +712,12 @@ def _execute_deploy(args, repo_root: Path, worker, approval) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     """Drive the deploy and report its status."""
+    # The workstation's .env carries the facts a connection needs, and every
+    # env reaches Mongo. It was loaded inside the build-number lookup, which
+    # only cloud deploys call, so a local deploy reached the cluster with
+    # nothing telling it where the vault is.
+    from dotenv import load_dotenv
+    load_dotenv(_repo_root() / ".env")
     args = _arguments(argv)
     from_git = _run_from_branch_checkout(args.env, argv)
     if from_git is not None:
