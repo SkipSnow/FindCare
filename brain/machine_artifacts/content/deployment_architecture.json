@@ -6094,6 +6094,241 @@
               "package_id": "parameter_declaration",
               "kind": "file_set"
             }
+          ],
+          "config_collections": [
+            {
+              "address": "ChatHealthyConfig.test_ParameterDeclaration",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "env": "local",
+                  "pages": [
+                    {
+                      "page": "individualProvider",
+                      "consumed_by": [
+                        "EPIC-006-F-001",
+                        "EPIC-006-F-002"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "geography",
+                          "value_type": "geography"
+                        },
+                        {
+                          "name": "complaint",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "selectedSpecialtyCodes",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "providerName",
+                          "value_type": "provider_name"
+                        },
+                        {
+                          "name": "providerSex",
+                          "value_type": "sex_code"
+                        },
+                        {
+                          "name": "soleProprietor",
+                          "value_type": "boolean"
+                        },
+                        {
+                          "name": "insurance",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "selectedNpis",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "openNpi",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "position",
+                          "value_type": "position"
+                        }
+                      ]
+                    },
+                    {
+                      "page": "facility",
+                      "consumed_by": [
+                        "EPIC-006-F-006",
+                        "EPIC-006-F-007"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "geography",
+                          "value_type": "geography"
+                        },
+                        {
+                          "name": "facilityName",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "facilityType",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "offeredFacilityTypes",
+                          "value_type": "specialties"
+                        },
+                        {
+                          "name": "selectedTaxonomyCodes",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "administratorName",
+                          "value_type": "provider_name"
+                        },
+                        {
+                          "name": "selectedNpis",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "openNpi",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "position",
+                          "value_type": "position"
+                        }
+                      ]
+                    },
+                    {
+                      "page": "NUCC",
+                      "consumed_by": [
+                        "EPIC-006-F-003"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "complaint",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "offeredSpecialties",
+                          "value_type": "specialties"
+                        },
+                        {
+                          "name": "selectedSpecialtyCodes",
+                          "value_type": "string_list"
+                        }
+                      ]
+                    },
+                    {
+                      "page": "clinicalTrial",
+                      "consumed_by": [
+                        "EPIC-006-F-005",
+                        "EPIC-006-F-004"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "condition",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "ageYears",
+                          "value_type": "integer"
+                        },
+                        {
+                          "name": "sex",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "unitedStatesOnly",
+                          "value_type": "boolean"
+                        },
+                        {
+                          "name": "openNctId",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "position",
+                          "value_type": "position"
+                        }
+                      ]
+                    }
+                  ],
+                  "carry_over": [
+                    {
+                      "parameter": "geography",
+                      "from": "individualProvider",
+                      "to": "facility"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "address": "ChatHealthyConfig.test_DBVersions",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "env": "local",
+                  "targets": [
+                    {
+                      "deployment_target": "target_hf_space_findcare_backend",
+                      "collections": [
+                        {
+                          "collection_environment_name": "PROVIDER_COLLECTION",
+                          "collection_base": "PublicHealthData.Provider",
+                          "version": 4
+                        },
+                        {
+                          "collection_environment_name": "SPECIALTY_META_COLLECTION",
+                          "collection_base": "PublicHealthData.SpecialtyMetaData",
+                          "version": 4
+                        }
+                      ]
+                    }
+                  ],
+                  "lib_permissions": [
+                    {
+                      "component": "findcare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "evaluatecare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "sharedservices",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
           ]
         },
         {
@@ -6147,6 +6382,241 @@
             {
               "package_id": "parameter_declaration",
               "kind": "file_set"
+            }
+          ],
+          "config_collections": [
+            {
+              "address": "ChatHealthyConfig.test_ParameterDeclaration",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "env": "dev",
+                  "pages": [
+                    {
+                      "page": "individualProvider",
+                      "consumed_by": [
+                        "EPIC-006-F-001",
+                        "EPIC-006-F-002"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "geography",
+                          "value_type": "geography"
+                        },
+                        {
+                          "name": "complaint",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "selectedSpecialtyCodes",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "providerName",
+                          "value_type": "provider_name"
+                        },
+                        {
+                          "name": "providerSex",
+                          "value_type": "sex_code"
+                        },
+                        {
+                          "name": "soleProprietor",
+                          "value_type": "boolean"
+                        },
+                        {
+                          "name": "insurance",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "selectedNpis",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "openNpi",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "position",
+                          "value_type": "position"
+                        }
+                      ]
+                    },
+                    {
+                      "page": "facility",
+                      "consumed_by": [
+                        "EPIC-006-F-006",
+                        "EPIC-006-F-007"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "geography",
+                          "value_type": "geography"
+                        },
+                        {
+                          "name": "facilityName",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "facilityType",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "offeredFacilityTypes",
+                          "value_type": "specialties"
+                        },
+                        {
+                          "name": "selectedTaxonomyCodes",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "administratorName",
+                          "value_type": "provider_name"
+                        },
+                        {
+                          "name": "selectedNpis",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "openNpi",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "position",
+                          "value_type": "position"
+                        }
+                      ]
+                    },
+                    {
+                      "page": "NUCC",
+                      "consumed_by": [
+                        "EPIC-006-F-003"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "complaint",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "offeredSpecialties",
+                          "value_type": "specialties"
+                        },
+                        {
+                          "name": "selectedSpecialtyCodes",
+                          "value_type": "string_list"
+                        }
+                      ]
+                    },
+                    {
+                      "page": "clinicalTrial",
+                      "consumed_by": [
+                        "EPIC-006-F-005",
+                        "EPIC-006-F-004"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "condition",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "ageYears",
+                          "value_type": "integer"
+                        },
+                        {
+                          "name": "sex",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "unitedStatesOnly",
+                          "value_type": "boolean"
+                        },
+                        {
+                          "name": "openNctId",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "position",
+                          "value_type": "position"
+                        }
+                      ]
+                    }
+                  ],
+                  "carry_over": [
+                    {
+                      "parameter": "geography",
+                      "from": "individualProvider",
+                      "to": "facility"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "address": "ChatHealthyConfig.test_DBVersions",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "env": "dev",
+                  "targets": [
+                    {
+                      "deployment_target": "target_hf_space_findcare_backend",
+                      "collections": [
+                        {
+                          "collection_environment_name": "PROVIDER_COLLECTION",
+                          "collection_base": "PublicHealthData.Provider",
+                          "version": 4
+                        },
+                        {
+                          "collection_environment_name": "SPECIALTY_META_COLLECTION",
+                          "collection_base": "PublicHealthData.SpecialtyMetaData",
+                          "version": 4
+                        }
+                      ]
+                    }
+                  ],
+                  "lib_permissions": [
+                    {
+                      "component": "findcare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "evaluatecare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "sharedservices",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    }
+                  ]
+                }
+              ]
             }
           ]
         },
@@ -6202,6 +6672,241 @@
               "package_id": "parameter_declaration",
               "kind": "file_set"
             }
+          ],
+          "config_collections": [
+            {
+              "address": "ChatHealthyConfig.test_ParameterDeclaration",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "env": "qa",
+                  "pages": [
+                    {
+                      "page": "individualProvider",
+                      "consumed_by": [
+                        "EPIC-006-F-001",
+                        "EPIC-006-F-002"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "geography",
+                          "value_type": "geography"
+                        },
+                        {
+                          "name": "complaint",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "selectedSpecialtyCodes",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "providerName",
+                          "value_type": "provider_name"
+                        },
+                        {
+                          "name": "providerSex",
+                          "value_type": "sex_code"
+                        },
+                        {
+                          "name": "soleProprietor",
+                          "value_type": "boolean"
+                        },
+                        {
+                          "name": "insurance",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "selectedNpis",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "openNpi",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "position",
+                          "value_type": "position"
+                        }
+                      ]
+                    },
+                    {
+                      "page": "facility",
+                      "consumed_by": [
+                        "EPIC-006-F-006",
+                        "EPIC-006-F-007"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "geography",
+                          "value_type": "geography"
+                        },
+                        {
+                          "name": "facilityName",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "facilityType",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "offeredFacilityTypes",
+                          "value_type": "specialties"
+                        },
+                        {
+                          "name": "selectedTaxonomyCodes",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "administratorName",
+                          "value_type": "provider_name"
+                        },
+                        {
+                          "name": "selectedNpis",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "openNpi",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "position",
+                          "value_type": "position"
+                        }
+                      ]
+                    },
+                    {
+                      "page": "NUCC",
+                      "consumed_by": [
+                        "EPIC-006-F-003"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "complaint",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "offeredSpecialties",
+                          "value_type": "specialties"
+                        },
+                        {
+                          "name": "selectedSpecialtyCodes",
+                          "value_type": "string_list"
+                        }
+                      ]
+                    },
+                    {
+                      "page": "clinicalTrial",
+                      "consumed_by": [
+                        "EPIC-006-F-005",
+                        "EPIC-006-F-004"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "condition",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "ageYears",
+                          "value_type": "integer"
+                        },
+                        {
+                          "name": "sex",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "unitedStatesOnly",
+                          "value_type": "boolean"
+                        },
+                        {
+                          "name": "openNctId",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "position",
+                          "value_type": "position"
+                        }
+                      ]
+                    }
+                  ],
+                  "carry_over": [
+                    {
+                      "parameter": "geography",
+                      "from": "individualProvider",
+                      "to": "facility"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "address": "ChatHealthyConfig.test_DBVersions",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "env": "qa",
+                  "targets": [
+                    {
+                      "deployment_target": "target_hf_space_findcare_backend",
+                      "collections": [
+                        {
+                          "collection_environment_name": "PROVIDER_COLLECTION",
+                          "collection_base": "PublicHealthData.Provider",
+                          "version": 4
+                        },
+                        {
+                          "collection_environment_name": "SPECIALTY_META_COLLECTION",
+                          "collection_base": "PublicHealthData.SpecialtyMetaData",
+                          "version": 4
+                        }
+                      ]
+                    }
+                  ],
+                  "lib_permissions": [
+                    {
+                      "component": "findcare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "evaluatecare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "sharedservices",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
           ]
         },
         {
@@ -6255,6 +6960,241 @@
             {
               "package_id": "parameter_declaration",
               "kind": "file_set"
+            }
+          ],
+          "config_collections": [
+            {
+              "address": "ChatHealthyConfig.test_ParameterDeclaration",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "env": "prod",
+                  "pages": [
+                    {
+                      "page": "individualProvider",
+                      "consumed_by": [
+                        "EPIC-006-F-001",
+                        "EPIC-006-F-002"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "geography",
+                          "value_type": "geography"
+                        },
+                        {
+                          "name": "complaint",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "selectedSpecialtyCodes",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "providerName",
+                          "value_type": "provider_name"
+                        },
+                        {
+                          "name": "providerSex",
+                          "value_type": "sex_code"
+                        },
+                        {
+                          "name": "soleProprietor",
+                          "value_type": "boolean"
+                        },
+                        {
+                          "name": "insurance",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "selectedNpis",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "openNpi",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "position",
+                          "value_type": "position"
+                        }
+                      ]
+                    },
+                    {
+                      "page": "facility",
+                      "consumed_by": [
+                        "EPIC-006-F-006",
+                        "EPIC-006-F-007"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "geography",
+                          "value_type": "geography"
+                        },
+                        {
+                          "name": "facilityName",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "facilityType",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "offeredFacilityTypes",
+                          "value_type": "specialties"
+                        },
+                        {
+                          "name": "selectedTaxonomyCodes",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "administratorName",
+                          "value_type": "provider_name"
+                        },
+                        {
+                          "name": "selectedNpis",
+                          "value_type": "string_list"
+                        },
+                        {
+                          "name": "openNpi",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "position",
+                          "value_type": "position"
+                        }
+                      ]
+                    },
+                    {
+                      "page": "NUCC",
+                      "consumed_by": [
+                        "EPIC-006-F-003"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "complaint",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "offeredSpecialties",
+                          "value_type": "specialties"
+                        },
+                        {
+                          "name": "selectedSpecialtyCodes",
+                          "value_type": "string_list"
+                        }
+                      ]
+                    },
+                    {
+                      "page": "clinicalTrial",
+                      "consumed_by": [
+                        "EPIC-006-F-005",
+                        "EPIC-006-F-004"
+                      ],
+                      "attributes": [
+                        {
+                          "name": "condition",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "ageYears",
+                          "value_type": "integer"
+                        },
+                        {
+                          "name": "sex",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "unitedStatesOnly",
+                          "value_type": "boolean"
+                        },
+                        {
+                          "name": "openNctId",
+                          "value_type": "string"
+                        },
+                        {
+                          "name": "position",
+                          "value_type": "position"
+                        }
+                      ]
+                    }
+                  ],
+                  "carry_over": [
+                    {
+                      "parameter": "geography",
+                      "from": "individualProvider",
+                      "to": "facility"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "address": "ChatHealthyConfig.test_DBVersions",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "env": "prod",
+                  "targets": [
+                    {
+                      "deployment_target": "target_hf_space_findcare_backend",
+                      "collections": [
+                        {
+                          "collection_environment_name": "PROVIDER_COLLECTION",
+                          "collection_base": "PublicHealthData.Provider",
+                          "version": 4
+                        },
+                        {
+                          "collection_environment_name": "SPECIALTY_META_COLLECTION",
+                          "collection_base": "PublicHealthData.SpecialtyMetaData",
+                          "version": 4
+                        }
+                      ]
+                    }
+                  ],
+                  "lib_permissions": [
+                    {
+                      "component": "findcare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "evaluatecare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "sharedservices",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }
