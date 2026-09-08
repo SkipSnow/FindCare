@@ -104,3 +104,47 @@ def mine(record_id: str, output_type: type[BaseModel], utterance: str,
         call_site=call_site,
         provider="openai", server="find_care", component=component)
     return result.output
+
+
+REFINEMENT_PROMPT_RECORD = "page_refinement_request_system_prompt"
+
+
+class RefinementRequest(BaseModel):
+    question: str
+
+
+def _state_of_the_page(page: str, missing: list[str], optional: list[str],
+                       in_force: dict) -> str:
+    """What the model is told about where the person stands.
+
+    Every line is read from the declaration and the session, so a parameter
+    that becomes required is described to the model without anything here
+    naming it.
+    """
+    held = [f"{name} = {value!r}"
+            for name, value in sorted((in_force or {}).items())
+            if value not in (None, "", [], {})]
+    return (
+        f"Page: {page}\n"
+        f"Required and missing: {', '.join(missing) or 'none'}\n"
+        f"Optional on this page: {', '.join(optional) or 'none'}\n"
+        f"Already in force: {'; '.join(held) or 'nothing'}")
+
+
+def ask_for_missing(page: str, missing: list[str], optional: list[str],
+                    in_force: dict, utterance: str, history: Optional[list],
+                    *, component: str, call_site: str) -> str:
+    """The question a page asks when what it requires is not in force.
+
+    The page, what it requires, what is merely allowed and what the person
+    has already said all reach the model as facts, so making an attribute
+    required in the declaration is enough to have it asked for. Nothing
+    here knows what any of them mean.
+    """
+    result = run_llm_sync(
+        _mining_agent(REFINEMENT_PROMPT_RECORD, RefinementRequest, component),
+        f"{_state_of_the_page(page, missing, optional, in_force)}\n\n"
+        f"{user_message(utterance, history)}",
+        call_site=call_site,
+        provider="openai", server="find_care", component=component)
+    return result.output.question

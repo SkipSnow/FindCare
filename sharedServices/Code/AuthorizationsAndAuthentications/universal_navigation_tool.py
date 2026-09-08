@@ -1750,6 +1750,28 @@ class UniversalNavigationTool(ChatHealthyTool):
         "about_chathealthy", "show_welcome",
     })
 
+    async def _ask_what_the_page_needs(self, deps: AgentDeps,
+                                       raw: dict) -> None:
+        """Say what the page still needs, in the page's own words.
+
+        A page that cannot run answers with a question rather than an empty
+        window, and the question is authored where the requirement is known
+        -- the page holds the declaration saying which of its attributes it
+        cannot run without. The gateway carries it and reads none of it, so
+        an attribute made required in the declaration is asked for without
+        anything here changing.
+
+        Streamed as a prompt, which is an answering kind, so the turn has
+        answered and the manufactured question does not also fire.
+        """
+        question = (raw or {}).get("refinement_question")
+        if not question:
+            return
+        from chathealthy_lib.authentication.agent_deps import (
+            append_system_utterance)
+        deps.stream({"kind": "prompt", "data": {"text": question}})
+        append_system_utterance(deps.user_object, question)
+
     async def _ensure_the_turn_answered(
         self, deps: AgentDeps, op: str, kinds_seen: set[str],
     ) -> None:
@@ -2010,6 +2032,7 @@ class UniversalNavigationTool(ChatHealthyTool):
                 })
             await self._write_position(deps, FACILITY,
                                        raw.get("first_npi"), raw.get("last_npi"))
+            await self._ask_what_the_page_needs(deps, raw)
 
         elif target_action == "findAProvider":
             # The individual-provider page mines its own parameters from
@@ -2054,6 +2077,7 @@ class UniversalNavigationTool(ChatHealthyTool):
                              if value is not None},
                 })
             await self._reconcile_open_detail(deps, providers)
+            await self._ask_what_the_page_needs(deps, raw)
             # No inner "final" emission — outer pipeline emits the
             # canonical final event with full payload.
 

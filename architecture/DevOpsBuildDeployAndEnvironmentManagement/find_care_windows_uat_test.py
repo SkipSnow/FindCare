@@ -1336,7 +1336,7 @@ class TestTheProviderDetailAcrossEveryWindow:
 # result skips, which reports green while covering nothing.
 # ═══════════════════════════════════════════════════════════════════════
 
-class TestPaginationAcrossEveryWindow:
+class TestProviderPagination:
     """Page forward, and read every window on both pages."""
 
     censuses = {}

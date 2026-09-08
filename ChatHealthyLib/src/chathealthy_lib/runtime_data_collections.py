@@ -360,6 +360,38 @@ def declared_attributes(page: str) -> dict[str, str]:
     return {}
 
 
+def required_attributes(page: str) -> list[str]:
+    """The attributes this page cannot run without, from the declaration.
+
+    A page states which of its attributes are required, and code asks here
+    rather than deciding for itself. Making a parameter required or optional
+    is then an edit to the declaration and a deploy -- no code changes, and
+    nothing can enforce a requirement the record does not state.
+
+    An attribute that does not say is not required: the declaration states
+    what it demands, and silence demands nothing.
+    """
+    for entry in parameter_declaration().get("pages") or []:
+        if entry.get("page") == page:
+            return [a["name"] for a in (entry.get("attributes") or [])
+                    if a.get("name") and a.get("required") is True]
+    return []
+
+
+def optional_attributes(page: str) -> list[str]:
+    """The attributes this page will use but can run without.
+
+    Asked for by the question a page puts to a person when it cannot run:
+    what is optional is what must not be asked for, and that is a fact about
+    the declaration rather than about any page.
+    """
+    for entry in parameter_declaration().get("pages") or []:
+        if entry.get("page") == page:
+            return [a["name"] for a in (entry.get("attributes") or [])
+                    if a.get("name") and a.get("required") is not True]
+    return []
+
+
 def carry_over_triples(destination: str) -> list[dict]:
     """The stated triples whose destination is this page.
 

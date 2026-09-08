@@ -293,6 +293,9 @@ async def _chathealthy_exception_to_response(request, exc: ChatHealthyException)
               exc.mode, exc.component or "-", exc.message)
     return JSONResponse(status_code=status, content={"detail": exc.message})
 
+from chathealthy_lib.runtime_data_collections import (  # noqa: E402
+    optional_attributes, required_attributes)
+from ProviderManagement.utterance_mining import ask_for_missing  # noqa: E402
 from chathealthy_lib.runtime_data_collections import (
     providers_coll,
     specialty_meta_coll,
@@ -788,19 +791,36 @@ async def facility_find(body: FacilityFindRequest):
             _write_facility_parameters, body.session_token,
             _facility_page_entries(mined, offered, codes))
         geo = mined.geography
-        result = find_care.search_providers(
-            entity_type="2",
-            nucc_codes=codes,
-            state=geo.state,
-            city=geo.city,
-            county=geo.county,
-            zip=geo.zip,
-            facility_name=mined.facility_name,
-        )
+        # What a search needs is what the page declares it needs. The
+        # declaration is edited and deployed; nothing here decides.
+        in_force = {"geography": geo.state or geo.zip or geo.city or geo.county,
+                    "facilityType": mined.facility_type,
+                    "facilityName": mined.facility_name,
+                    "selectedTaxonomyCodes": codes,
+                    "offeredFacilityTypes": offered}
+        result: dict = {"providers": [], "total_count": 0}
+        unmet = _unmet_requirements(FACILITY_PAGE, in_force)
+        if not unmet:
+            result = find_care.search_providers(
+                entity_type="2",
+                nucc_codes=codes,
+                state=geo.state,
+                city=geo.city,
+                county=geo.county,
+                zip=geo.zip,
+                facility_name=mined.facility_name,
+            )
         # What the search ran on, for a caller that has to say on screen
         # what was searched for. Nothing downstream reads it to persist:
         # the parameters are already written above.
         result["mined"] = mined.model_dump()
+        # What the page still needs before it can answer. The caller asks
+        # the person about exactly these, by name, so a requirement added
+        # to the declaration is asked for without new code.
+        result["unmet_requirements"] = unmet
+        if unmet:
+            result["refinement_question"] = _question_for(
+                FACILITY_PAGE, unmet, in_force, body.utterance, body.history)
         return result
     except ChatHealthyException as exc:
         if exc.mode == "mongo_query_timeout":
@@ -839,6 +859,48 @@ def _parameter_entry(value) -> dict:
 
     return ParameterEntry(value=value, route="tool",
                           determination="model").model_dump(exclude_none=True)
+
+
+def _unmet_requirements(page: str, in_force: dict) -> list[str]:
+    """Which of this page's declared requirements are not in force.
+
+    Empty means the page can run. Otherwise these are the attributes to
+    ask the person about, by name -- so a parameter made required in the
+    declaration is asked for without a line of code being written for it.
+
+    The declaration says which attributes a page cannot run without, and
+    this asks it rather than deciding. Making a parameter required or
+    optional is an edit to deployment_architecture.json and a deploy: no
+    page has a rule of its own, and none can enforce a requirement the
+    record does not state. A page that declares nothing required runs on
+    whatever it has.
+
+    A value that is present but empty is not in force -- an empty string
+    and a missing string are the same absence to the person who did not
+    say it.
+    """
+    missing = []
+    for name in required_attributes(page):
+        value = in_force.get(name)
+        if value is None or value == "" or value == [] or value == {}:
+            missing.append(name)
+    return missing
+
+
+def _question_for(page: str, missing: list[str], in_force: dict,
+                  utterance: str, history) -> str:
+    """What to ask the person when this page cannot run yet.
+
+    The page authors it rather than the gateway, because the page is what
+    holds the declaration -- and a question about what a page needs is a
+    question only the page can be sure of. What is required, what is merely
+    allowed and what has already been said all reach the model as facts, so
+    an attribute made required is asked for with nothing written for it.
+    """
+    return ask_for_missing(
+        page, missing, optional_attributes(page), in_force,
+        utterance, history,
+        component="FindCareApp", call_site=f"{page}_refinement_request")
 
 
 def _write_page_parameters(page: str, entries: dict) -> None:
@@ -1010,12 +1072,21 @@ async def provider_find(body: ProviderFindRequest):
             _write_page_parameters, INDIVIDUAL_PROVIDER_PAGE,
             _provider_page_entries(mined, complaint, ticked))
         geo = mined.geography
-        # A state or a ZIP, or no search. A city or a county alone does not
-        # locate anybody -- city names repeat across states -- and a search
-        # with neither is a search of the whole country. Nothing is shown
-        # for the turn, so the caller asks the person where they are.
+        # Whether a search needs a geography is the declaration's to say.
+        # What counts as one is this page's: a city or a county alone does
+        # not locate anybody -- city names repeat across states -- so a
+        # geography is in force when a state or a ZIP is known and not
+        # before.
         result: dict = {"providers": [], "total_count": 0}
-        if codes and (geo.state or geo.zip):
+        in_force = {"geography": geo.state or geo.zip,
+                    "complaint": complaint,
+                    "selectedSpecialtyCodes": codes,
+                    "providerName": mined.provider_name.last,
+                    "providerSex": mined.provider_sex,
+                    "soleProprietor": mined.sole_proprietor,
+                    "insurance": mined.insurance}
+        unmet = _unmet_requirements(INDIVIDUAL_PROVIDER_PAGE, in_force)
+        if not unmet:
             name = mined.provider_name
             result = find_care.search_providers(
                 entity_type="1",
@@ -1036,9 +1107,14 @@ async def provider_find(body: ProviderFindRequest):
         # Nothing downstream reads it to persist: the parameters are
         # already written above.
         result["mined"] = mined.model_dump()
+        result["unmet_requirements"] = unmet
         result["complaint"] = complaint
         result["offered_specialties"] = offered
         result["selected_specialty_codes"] = ticked
+        if unmet:
+            result["refinement_question"] = _question_for(
+                INDIVIDUAL_PROVIDER_PAGE, unmet, in_force,
+                body.utterance, body.history)
         return result
     except ChatHealthyException as exc:
         if exc.mode == "mongo_query_timeout":

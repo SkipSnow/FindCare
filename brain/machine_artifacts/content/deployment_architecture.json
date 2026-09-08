@@ -1211,7 +1211,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/runtime_data_collections.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "93948560b4019679d28f3af7b7ae1732c1967ec514a6fb1a6a3f4dfc5fad72d5",
+          "content_hash": "1b199b88c26b8a29c43f33a1ee4473b5b914e2b0e324c5720e4acecf3aa89d4f",
           "package": "service_runtime"
         },
         {
@@ -1726,7 +1726,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/runtime_data_collections.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "93948560b4019679d28f3af7b7ae1732c1967ec514a6fb1a6a3f4dfc5fad72d5",
+          "content_hash": "1b199b88c26b8a29c43f33a1ee4473b5b914e2b0e324c5720e4acecf3aa89d4f",
           "package": "service_runtime"
         },
         {
@@ -1798,7 +1798,7 @@
           "source_location": "Code/ConversationalUX/FindCareChat/backend/app.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "db5dbf86effcb28edc7e174c85b3b7f3eb053fcac360d910ebb7e3faf7a3fac9",
+          "content_hash": "6035828538f68e5a02fc2490d87a8a72fc551aeb61c9ac43d21bf5e053097309",
           "package": "service_runtime"
         },
         {
@@ -2542,7 +2542,7 @@
           "source_location": "brain/machine_artifacts/content/prompts.json",
           "handler_type": "json",
           "disposition": "referenced",
-          "content_hash": "8edf174a062ab7f7e39d825d470cf6e50ce84f5de99c69ea783ed35c067bfb6c",
+          "content_hash": "fb9ade48b1a709cd8e3aedd8d8c9484db52b1eb6cf0ef33c93ac05c9a101a035",
           "package": "service_runtime"
         },
         {
@@ -3041,7 +3041,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/runtime_data_collections.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "93948560b4019679d28f3af7b7ae1732c1967ec514a6fb1a6a3f4dfc5fad72d5",
+          "content_hash": "1b199b88c26b8a29c43f33a1ee4473b5b914e2b0e324c5720e4acecf3aa89d4f",
           "package": "service_runtime"
         },
         {
@@ -3209,7 +3209,7 @@
           "source_location": "sharedServices/Code/AuthorizationsAndAuthentications/universal_navigation_tool.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "8031b20e416b13517dafebf1390aeb8a895d4f8daa9cafb0d954f1eb50633c8a",
+          "content_hash": "3679297c0731ef940502131fa662160fa3f54babe2a32de502aaf2dda7f758ad",
           "package": "service_runtime"
         },
         {
@@ -6230,43 +6230,53 @@
                       "attributes": [
                         {
                           "name": "geography",
-                          "value_type": "geography"
+                          "value_type": "geography",
+                          "required": true
                         },
                         {
                           "name": "complaint",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": true
                         },
                         {
                           "name": "providerName",
-                          "value_type": "provider_name"
+                          "value_type": "provider_name",
+                          "required": false
                         },
                         {
                           "name": "providerSex",
-                          "value_type": "sex_code"
+                          "value_type": "sex_code",
+                          "required": false
                         },
                         {
                           "name": "soleProprietor",
-                          "value_type": "boolean"
+                          "value_type": "boolean",
+                          "required": false
                         },
                         {
                           "name": "insurance",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "selectedNpis",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": false
                         },
                         {
                           "name": "openNpi",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "position",
-                          "value_type": "position"
+                          "value_type": "position",
+                          "required": false
                         }
                       ]
                     },
@@ -6279,39 +6289,48 @@
                       "attributes": [
                         {
                           "name": "geography",
-                          "value_type": "geography"
+                          "value_type": "geography",
+                          "required": true
                         },
                         {
                           "name": "facilityName",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "facilityType",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "offeredFacilityTypes",
-                          "value_type": "specialties"
+                          "value_type": "specialties",
+                          "required": false
                         },
                         {
                           "name": "selectedTaxonomyCodes",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": true
                         },
                         {
                           "name": "administratorName",
-                          "value_type": "provider_name"
+                          "value_type": "provider_name",
+                          "required": false
                         },
                         {
                           "name": "selectedNpis",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": false
                         },
                         {
                           "name": "openNpi",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "position",
-                          "value_type": "position"
+                          "value_type": "position",
+                          "required": false
                         }
                       ]
                     },
@@ -6323,15 +6342,18 @@
                       "attributes": [
                         {
                           "name": "complaint",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "offeredSpecialties",
-                          "value_type": "specialties"
+                          "value_type": "specialties",
+                          "required": false
                         },
                         {
                           "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": true
                         }
                       ]
                     },
@@ -6344,27 +6366,33 @@
                       "attributes": [
                         {
                           "name": "condition",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": true
                         },
                         {
                           "name": "ageYears",
-                          "value_type": "integer"
+                          "value_type": "integer",
+                          "required": false
                         },
                         {
                           "name": "sex",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "unitedStatesOnly",
-                          "value_type": "boolean"
+                          "value_type": "boolean",
+                          "required": false
                         },
                         {
                           "name": "openNctId",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "position",
-                          "value_type": "position"
+                          "value_type": "position",
+                          "required": false
                         }
                       ]
                     }
@@ -6562,43 +6590,53 @@
                       "attributes": [
                         {
                           "name": "geography",
-                          "value_type": "geography"
+                          "value_type": "geography",
+                          "required": true
                         },
                         {
                           "name": "complaint",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": true
                         },
                         {
                           "name": "providerName",
-                          "value_type": "provider_name"
+                          "value_type": "provider_name",
+                          "required": false
                         },
                         {
                           "name": "providerSex",
-                          "value_type": "sex_code"
+                          "value_type": "sex_code",
+                          "required": false
                         },
                         {
                           "name": "soleProprietor",
-                          "value_type": "boolean"
+                          "value_type": "boolean",
+                          "required": false
                         },
                         {
                           "name": "insurance",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "selectedNpis",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": false
                         },
                         {
                           "name": "openNpi",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "position",
-                          "value_type": "position"
+                          "value_type": "position",
+                          "required": false
                         }
                       ]
                     },
@@ -6611,39 +6649,48 @@
                       "attributes": [
                         {
                           "name": "geography",
-                          "value_type": "geography"
+                          "value_type": "geography",
+                          "required": true
                         },
                         {
                           "name": "facilityName",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "facilityType",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "offeredFacilityTypes",
-                          "value_type": "specialties"
+                          "value_type": "specialties",
+                          "required": false
                         },
                         {
                           "name": "selectedTaxonomyCodes",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": true
                         },
                         {
                           "name": "administratorName",
-                          "value_type": "provider_name"
+                          "value_type": "provider_name",
+                          "required": false
                         },
                         {
                           "name": "selectedNpis",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": false
                         },
                         {
                           "name": "openNpi",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "position",
-                          "value_type": "position"
+                          "value_type": "position",
+                          "required": false
                         }
                       ]
                     },
@@ -6655,15 +6702,18 @@
                       "attributes": [
                         {
                           "name": "complaint",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "offeredSpecialties",
-                          "value_type": "specialties"
+                          "value_type": "specialties",
+                          "required": false
                         },
                         {
                           "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": true
                         }
                       ]
                     },
@@ -6676,27 +6726,33 @@
                       "attributes": [
                         {
                           "name": "condition",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": true
                         },
                         {
                           "name": "ageYears",
-                          "value_type": "integer"
+                          "value_type": "integer",
+                          "required": false
                         },
                         {
                           "name": "sex",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "unitedStatesOnly",
-                          "value_type": "boolean"
+                          "value_type": "boolean",
+                          "required": false
                         },
                         {
                           "name": "openNctId",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "position",
-                          "value_type": "position"
+                          "value_type": "position",
+                          "required": false
                         }
                       ]
                     }
@@ -6894,43 +6950,53 @@
                       "attributes": [
                         {
                           "name": "geography",
-                          "value_type": "geography"
+                          "value_type": "geography",
+                          "required": true
                         },
                         {
                           "name": "complaint",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": true
                         },
                         {
                           "name": "providerName",
-                          "value_type": "provider_name"
+                          "value_type": "provider_name",
+                          "required": false
                         },
                         {
                           "name": "providerSex",
-                          "value_type": "sex_code"
+                          "value_type": "sex_code",
+                          "required": false
                         },
                         {
                           "name": "soleProprietor",
-                          "value_type": "boolean"
+                          "value_type": "boolean",
+                          "required": false
                         },
                         {
                           "name": "insurance",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "selectedNpis",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": false
                         },
                         {
                           "name": "openNpi",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "position",
-                          "value_type": "position"
+                          "value_type": "position",
+                          "required": false
                         }
                       ]
                     },
@@ -6943,39 +7009,48 @@
                       "attributes": [
                         {
                           "name": "geography",
-                          "value_type": "geography"
+                          "value_type": "geography",
+                          "required": true
                         },
                         {
                           "name": "facilityName",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "facilityType",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "offeredFacilityTypes",
-                          "value_type": "specialties"
+                          "value_type": "specialties",
+                          "required": false
                         },
                         {
                           "name": "selectedTaxonomyCodes",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": true
                         },
                         {
                           "name": "administratorName",
-                          "value_type": "provider_name"
+                          "value_type": "provider_name",
+                          "required": false
                         },
                         {
                           "name": "selectedNpis",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": false
                         },
                         {
                           "name": "openNpi",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "position",
-                          "value_type": "position"
+                          "value_type": "position",
+                          "required": false
                         }
                       ]
                     },
@@ -6987,15 +7062,18 @@
                       "attributes": [
                         {
                           "name": "complaint",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "offeredSpecialties",
-                          "value_type": "specialties"
+                          "value_type": "specialties",
+                          "required": false
                         },
                         {
                           "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": true
                         }
                       ]
                     },
@@ -7008,27 +7086,33 @@
                       "attributes": [
                         {
                           "name": "condition",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": true
                         },
                         {
                           "name": "ageYears",
-                          "value_type": "integer"
+                          "value_type": "integer",
+                          "required": false
                         },
                         {
                           "name": "sex",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "unitedStatesOnly",
-                          "value_type": "boolean"
+                          "value_type": "boolean",
+                          "required": false
                         },
                         {
                           "name": "openNctId",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "position",
-                          "value_type": "position"
+                          "value_type": "position",
+                          "required": false
                         }
                       ]
                     }
@@ -7226,43 +7310,53 @@
                       "attributes": [
                         {
                           "name": "geography",
-                          "value_type": "geography"
+                          "value_type": "geography",
+                          "required": true
                         },
                         {
                           "name": "complaint",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": true
                         },
                         {
                           "name": "providerName",
-                          "value_type": "provider_name"
+                          "value_type": "provider_name",
+                          "required": false
                         },
                         {
                           "name": "providerSex",
-                          "value_type": "sex_code"
+                          "value_type": "sex_code",
+                          "required": false
                         },
                         {
                           "name": "soleProprietor",
-                          "value_type": "boolean"
+                          "value_type": "boolean",
+                          "required": false
                         },
                         {
                           "name": "insurance",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "selectedNpis",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": false
                         },
                         {
                           "name": "openNpi",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "position",
-                          "value_type": "position"
+                          "value_type": "position",
+                          "required": false
                         }
                       ]
                     },
@@ -7275,39 +7369,48 @@
                       "attributes": [
                         {
                           "name": "geography",
-                          "value_type": "geography"
+                          "value_type": "geography",
+                          "required": true
                         },
                         {
                           "name": "facilityName",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "facilityType",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "offeredFacilityTypes",
-                          "value_type": "specialties"
+                          "value_type": "specialties",
+                          "required": false
                         },
                         {
                           "name": "selectedTaxonomyCodes",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": true
                         },
                         {
                           "name": "administratorName",
-                          "value_type": "provider_name"
+                          "value_type": "provider_name",
+                          "required": false
                         },
                         {
                           "name": "selectedNpis",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": false
                         },
                         {
                           "name": "openNpi",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "position",
-                          "value_type": "position"
+                          "value_type": "position",
+                          "required": false
                         }
                       ]
                     },
@@ -7319,15 +7422,18 @@
                       "attributes": [
                         {
                           "name": "complaint",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "offeredSpecialties",
-                          "value_type": "specialties"
+                          "value_type": "specialties",
+                          "required": false
                         },
                         {
                           "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list"
+                          "value_type": "string_list",
+                          "required": true
                         }
                       ]
                     },
@@ -7340,27 +7446,33 @@
                       "attributes": [
                         {
                           "name": "condition",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": true
                         },
                         {
                           "name": "ageYears",
-                          "value_type": "integer"
+                          "value_type": "integer",
+                          "required": false
                         },
                         {
                           "name": "sex",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "unitedStatesOnly",
-                          "value_type": "boolean"
+                          "value_type": "boolean",
+                          "required": false
                         },
                         {
                           "name": "openNctId",
-                          "value_type": "string"
+                          "value_type": "string",
+                          "required": false
                         },
                         {
                           "name": "position",
-                          "value_type": "position"
+                          "value_type": "position",
+                          "required": false
                         }
                       ]
                     }
