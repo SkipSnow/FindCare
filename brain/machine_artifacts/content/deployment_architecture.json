@@ -6157,7 +6157,7 @@
           ],
           "config_collections": [
             {
-              "address": "ChatHealthyConfig.test_ParameterDeclaration",
+              "address": "ChatHealthyConfig.ParameterDeclaration",
               "identity_key": [
                 "env"
               ],
@@ -6324,7 +6324,7 @@
               ]
             },
             {
-              "address": "ChatHealthyConfig.test_DBVersions",
+              "address": "ChatHealthyConfig.DBVersions",
               "identity_key": [
                 "env"
               ],
@@ -6446,7 +6446,7 @@
           ],
           "config_collections": [
             {
-              "address": "ChatHealthyConfig.test_ParameterDeclaration",
+              "address": "ChatHealthyConfig.ParameterDeclaration",
               "identity_key": [
                 "env"
               ],
@@ -6613,7 +6613,7 @@
               ]
             },
             {
-              "address": "ChatHealthyConfig.test_DBVersions",
+              "address": "ChatHealthyConfig.DBVersions",
               "identity_key": [
                 "env"
               ],
@@ -6735,7 +6735,7 @@
           ],
           "config_collections": [
             {
-              "address": "ChatHealthyConfig.test_ParameterDeclaration",
+              "address": "ChatHealthyConfig.ParameterDeclaration",
               "identity_key": [
                 "env"
               ],
@@ -6902,7 +6902,7 @@
               ]
             },
             {
-              "address": "ChatHealthyConfig.test_DBVersions",
+              "address": "ChatHealthyConfig.DBVersions",
               "identity_key": [
                 "env"
               ],
@@ -7024,7 +7024,7 @@
           ],
           "config_collections": [
             {
-              "address": "ChatHealthyConfig.test_ParameterDeclaration",
+              "address": "ChatHealthyConfig.ParameterDeclaration",
               "identity_key": [
                 "env"
               ],
@@ -7191,7 +7191,7 @@
               ]
             },
             {
-              "address": "ChatHealthyConfig.test_DBVersions",
+              "address": "ChatHealthyConfig.DBVersions",
               "identity_key": [
                 "env"
               ],
