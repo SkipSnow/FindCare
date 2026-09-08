@@ -868,23 +868,20 @@ class UniversalNavigationTool(ChatHealthyTool):
         # An open detail is a place the user navigated to. Recording it here
         # is what lets a return to FindCare put them back on it instead of
         # at the top of the list.
-        npi = str((payload or {}).get("npi") or "").strip()
-        if npi:
-            from UserParameters import user_parameters_tool
+        record_id = str((payload or {}).get("npi") or "").strip()
+        if record_id:
             # The record is recorded on the page it belongs to. Both pages
             # open a detail through this one handler, and it wrote every
             # open record to the care-giver page -- so a facility was held
             # open there, no page ever knew a facility was on screen, and
             # nothing could take it down when the person moved on.
+            #
+            # Which page is a routing fact and stays here. Which of that
+            # page's parameters holds a record on screen is the page's, and
+            # is not the same attribute on every page.
             entity_type = str((payload or {}).get("entity_type") or "").strip()
             page = FACILITY if entity_type == "2" else INDIVIDUAL_PROVIDER
-            await user_parameters_tool.TOOL.run_and_log(
-                deps,
-                user_parameters_tool.Request(
-                    verb="set", page=page, name="openNpi",
-                    value=npi, route="gateway", origin="deterministic",
-                ),
-            )
+            await self._tell_page_detail_opened(deps, page, record_id)
         # No inner "final" emission — _run_pipeline_then_finalize emits
         # the single canonical final event with full payload.
         return Response(kind="provider-detail", result=resp.model_dump(exclude_none=True, mode='json'))
@@ -1025,14 +1022,7 @@ class UniversalNavigationTool(ChatHealthyTool):
         belongs to, so the panel stops describing what they are looking at.
         The gesture is the client's; what it means is decided here.
         """
-        from UserParameters import user_parameters_tool
-        await user_parameters_tool.TOOL.run_and_log(
-            deps,
-            user_parameters_tool.Request(
-                verb="clear", page=INDIVIDUAL_PROVIDER, name="openNpi",
-                route="gateway", origin="deterministic",
-            ),
-        )
+        await self._tell_page_detail_closed(deps, INDIVIDUAL_PROVIDER)
         deps.stream({"kind": "provider_detail_close", "data": {"closed": True}})
         return Response(kind="provider_detail_close", result={"closed": True})
 
@@ -1343,8 +1333,6 @@ class UniversalNavigationTool(ChatHealthyTool):
         """Another page of the facility list, forward or back. The same
         keyset paging the care-giver list uses, on the facility page's own
         position."""
-        from FacilitySearch import facility_search_tool
-
         cursor = str((payload or {}).get("cursor") or "").strip()
         direction = str((payload or {}).get("direction") or "forward").strip()
         if direction not in ("forward", "back"):
@@ -1355,26 +1343,10 @@ class UniversalNavigationTool(ChatHealthyTool):
             return Response(kind="facility_page",
                             result={"ok": False, "error": "cursor required"})
 
-        params = deps.user_object.userParameters
-        geo = geography_of(params, FACILITY)
-        administrator = params.get(FACILITY, "administratorName") or {}
-        resp = await facility_search_tool.TOOL.run_and_log(
-            deps,
-            facility_search_tool.Request(
-                facility_name=params.get(FACILITY, "facilityName") or None,
-                administrator_last_name=administrator.get("last") or None,
-                administrator_first_name=administrator.get("first") or None,
-                administrator_middle_name=administrator.get("middle") or None,
-                taxonomy_codes=list(
-                    params.get(FACILITY, "selectedTaxonomyCodes") or []),
-                state=geo.state if geo else None,
-                city=geo.city if geo else None,
-                county=geo.county if geo else None,
-                zip=geo.zip if geo else None,
-                cursor=cursor, direction=direction, limit=25,
-            ),
-        )
-        await self._write_position(deps, FACILITY, resp.first_npi, resp.last_npi)
+        raw = await self._tell_page(
+            deps, "/facility/page",
+            {"cursor": cursor, "direction": direction, "limit": 25})
+        self._stream_facilities(deps, raw)
         return Response(kind="facility_page",
                         result={"cursor": cursor, "direction": direction})
 
@@ -1750,6 +1722,77 @@ class UniversalNavigationTool(ChatHealthyTool):
         "about_chathealthy", "show_welcome",
     })
 
+    def _stream_facilities(self, deps: AgentDeps, raw: dict) -> None:
+        """Put a set of organizations on the window.
+
+        One copy, because a search and a page turn produce the same event
+        and two copies of the shaping is two things to keep in step. Every
+        field is taken from the page's answer and none is interpreted.
+        """
+        facilities = (raw or {}).get("providers") or []
+        if not facilities:
+            return
+        data = {
+            "facilities": facilities,
+            "has_more": bool(raw.get("has_more", False)),
+            "first_npi": raw.get("first_npi"),
+            "last_npi": raw.get("last_npi"),
+            "count": int(raw.get("count", 0) or 0),
+            "total_count": int(raw.get("total_count", 0) or 0),
+            "page_start": int(raw.get("page_start", 1) or 1),
+            "page_end": int(raw.get("page_end", 0) or 0),
+            "search_params": raw.get("search_params"),
+            "state": raw.get("state"),
+            "summary_message": raw.get("summary_message"),
+        }
+        deps.stream({
+            "kind": "facilities",
+            "data": {name: value for name, value in data.items()
+                     if value is not None},
+        })
+
+    async def _tell_page(self, deps: AgentDeps, path: str,
+                         body: dict) -> dict:
+        """Say something to the page that owns it, and take its answer.
+
+        The body carries page names and record identities and no parameter
+        name: which of its own parameters a page changes on being told this
+        is the page's business, and naming one here would be this component
+        holding a fact it has no use for.
+        """
+        from authentication import provider_search_tool
+        url = provider_search_tool.findcare_url() + path
+        try:
+            async with httpx.AsyncClient(timeout=None, verify=False) as client:
+                r = await client.post(url, json={
+                    "session_token": deps.session_token.model_dump(mode="json"),
+                    **body,
+                })
+                r.raise_for_status()
+                return r.json() or {}
+        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout,
+                httpx.WriteTimeout, httpx.PoolTimeout, httpx.ReadError,
+                httpx.WriteError, httpx.RemoteProtocolError,
+                httpx.HTTPStatusError) as exc:
+            raise ChatHealthyException(
+                mode="page_unreachable",
+                component="universal_navigation_tool",
+                message=f"FindCare {path} call failed: "
+                        f"{type(exc).__name__}: {exc}",
+                exception=exc,
+            )
+
+    async def _tell_page_detail_opened(self, deps: AgentDeps, page: str,
+                                       record_id: str) -> None:
+        """This page is showing this record."""
+        await self._tell_page(deps, "/page/detail-open",
+                              {"page": page, "record_id": record_id})
+
+    async def _tell_page_detail_closed(self, deps: AgentDeps,
+                                       page: str) -> None:
+        """This page has stopped showing a record."""
+        await self._tell_page(deps, "/page/detail-close", {"page": page})
+
     async def _ask_what_the_page_needs(self, deps: AgentDeps,
                                        raw: dict) -> None:
         """Say what the page still needs, in the page's own words.
@@ -2010,26 +2053,7 @@ class UniversalNavigationTool(ChatHealthyTool):
                                  or "facilities"),
                 },
             })
-            facilities = raw.get("providers") or []
-            if facilities:
-                data = {
-                    "facilities": facilities,
-                    "has_more": bool(raw.get("has_more", False)),
-                    "first_npi": raw.get("first_npi"),
-                    "last_npi": raw.get("last_npi"),
-                    "count": int(raw.get("count", 0) or 0),
-                    "total_count": int(raw.get("total_count", 0) or 0),
-                    "page_start": int(raw.get("page_start", 1) or 1),
-                    "page_end": int(raw.get("page_end", 0) or 0),
-                    "search_params": raw.get("search_params"),
-                    "state": raw.get("state"),
-                    "summary_message": raw.get("summary_message"),
-                }
-                deps.stream({
-                    "kind": "facilities",
-                    "data": {name: value for name, value in data.items()
-                             if value is not None},
-                })
+            self._stream_facilities(deps, raw)
             await self._write_position(deps, FACILITY,
                                        raw.get("first_npi"), raw.get("last_npi"))
             await self._ask_what_the_page_needs(deps, raw)

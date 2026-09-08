@@ -887,6 +887,236 @@ def _unmet_requirements(page: str, in_force: dict) -> list[str]:
     return missing
 
 
+def _read_page_parameter(page: str, name: str):
+    """One of this page's own parameters, off the session.
+
+    The page reads what it owns rather than being handed it. A caller that
+    passes a page's parameter in is a caller that had to know the parameter,
+    and knowing it is what this page exists to do.
+    """
+    db = get_db()
+    if db is None:
+        raise ChatHealthyException(
+            mode="mongo_network_failure",
+            component="FindCareBackend",
+            message=f"the session is unreachable, so {page} cannot read what "
+                    f"it needs to answer")
+    address = f"userParameters.pages.{page}.{name}"
+    doc = db[SESSION_DB][SESSION_COLLECTION].find_one(
+        {"_id": request_facts.facts().session_guid()}, {address: 1})
+    held = ((doc or {}).get("userParameters", {})
+            .get("pages", {}).get(page, {}).get(name))
+    return (held or {}).get("value") if isinstance(held, dict) else held
+
+
+def _gesture_entry(value) -> dict:
+    """A value a gesture set, ready to be stored.
+
+    The route is the tool because this service made the write, and the
+    determination is a rule rather than a model: nobody inferred which
+    record the person opened -- they opened it.
+    """
+    from chathealthy_lib.authentication.user_parameters import ParameterEntry
+
+    return ParameterEntry(value=value, route="tool",
+                          determination="rule").model_dump(exclude_none=True)
+
+
+# Which attribute names the record a page is currently showing. Every page
+# that can open a detail has one, and it is not the same attribute on each:
+# a care giver and an organization are both identified by an NPI, a trial by
+# its registry id. Nothing outside this service needs to know that -- a
+# caller says which page and which record, and this decides where it lands.
+OPEN_RECORD_ATTRIBUTE = {
+    INDIVIDUAL_PROVIDER_PAGE: "openNpi",
+    FACILITY_PAGE: "openNpi",
+    CLINICAL_TRIAL_PAGE: "openNctId",
+}
+
+
+def _open_record_attribute(page: str) -> str:
+    name = OPEN_RECORD_ATTRIBUTE.get(page)
+    if not name:
+        raise ChatHealthyException(
+            mode="value_error",
+            component="FindCareBackend",
+            message=f"{page!r} shows no record, so nothing can be opened or "
+                    f"closed on it")
+    return name
+
+
+def _clear_page_parameter(page: str, name: str) -> None:
+    """Take one of this page's own parameters off the session."""
+    db = get_db()
+    if db is None:
+        raise ChatHealthyException(
+            mode="mongo_network_failure",
+            component="FindCareBackend",
+            message=f"the session is unreachable, so {page} cannot record "
+                    f"what it stopped showing")
+    db[SESSION_DB][SESSION_COLLECTION].update_one(
+        {"_id": request_facts.facts().session_guid()},
+        {"$unset": {f"userParameters.pages.{page}.{name}": ""}})
+
+
+class FacilityPageRequest(BaseModel):
+    """Another page of the facility list, forward or back.
+
+    The caller sends where in the list to continue from and nothing else.
+    What the list is a list OF -- the place, the kind, the name, the
+    administrator -- is this page's, already in force from the search that
+    produced the list being paged.
+    """
+    session_token: dict
+    cursor: str
+    direction: str = "forward"
+    limit: int = 25
+
+
+@app.post("/facility/page")
+async def facility_page(body: FacilityPageRequest):
+    """Page the facility list on the parameters already in force.
+
+    Keyset paging, on this page's own recorded position: back takes the
+    rows before the first key on screen, forward those after the last. The
+    position is written here because it is this page's parameter and this
+    is the page that moved.
+    """
+    require_gateway_signature(body.session_token,
+                              posted=body.model_dump(exclude_none=True))
+    if body.direction not in ("forward", "back"):
+        raise ChatHealthyException(
+            mode="value_error",
+            component="FindCareBackend",
+            message=f"unknown direction {body.direction!r}")
+    if not (body.cursor or "").strip():
+        raise ChatHealthyException(
+            mode="value_error",
+            component="FindCareBackend",
+            message="a page of a list continues from somewhere, and no "
+                    "cursor was given")
+
+    def _in_force() -> dict:
+        geo = _read_page_parameter(FACILITY_PAGE, "geography") or {}
+        administrator = _read_page_parameter(
+            FACILITY_PAGE, "administratorName") or {}
+        return {
+            "state": geo.get("state") or "",
+            "city": geo.get("city") or "",
+            "county": geo.get("county") or "",
+            "zip": geo.get("zip") or "",
+            "facility_name": _read_page_parameter(
+                FACILITY_PAGE, "facilityName") or "",
+            "administrator_last_name": administrator.get("last") or "",
+            "administrator_first_name": administrator.get("first") or "",
+            "administrator_middle_name": administrator.get("middle") or "",
+            "nucc_codes": list(_read_page_parameter(
+                FACILITY_PAGE, "selectedTaxonomyCodes") or []),
+        }
+
+    in_force = await asyncio.to_thread(_in_force)
+    result = await asyncio.to_thread(
+        lambda: find_care.search_providers(
+            entity_type="2", limit=body.limit,
+            cursor=body.cursor, direction=body.direction, **in_force))
+    await asyncio.to_thread(
+        _write_page_parameters, FACILITY_PAGE,
+        {"position": _gesture_entry(
+            {"first": str(result.get("first_npi") or ""),
+             "last": str(result.get("last_npi") or "")})})
+    return result
+
+
+class DetailOpenRequest(BaseModel):
+    """A record the person navigated to, on a named page."""
+    session_token: dict
+    page: str
+    record_id: str
+
+
+class DetailCloseRequest(BaseModel):
+    """A page that has stopped showing a record."""
+    session_token: dict
+    page: str
+
+
+@app.post("/page/detail-open")
+async def page_detail_open(body: DetailOpenRequest):
+    """Record that this page is showing this record.
+
+    An open detail is a place the person navigated to, and recording it is
+    what lets a return put them back on it rather than at the top of the
+    list. The caller names the page and the record; which attribute holds
+    it is this service's to know.
+    """
+    require_gateway_signature(body.session_token,
+                              posted=body.model_dump(exclude_none=True))
+    record = (body.record_id or "").strip()
+    if not record:
+        return {"opened": False}
+    await asyncio.to_thread(
+        _write_page_parameters, body.page,
+        {_open_record_attribute(body.page): _gesture_entry(record)})
+    return {"opened": True}
+
+
+@app.post("/page/detail-close")
+async def page_detail_close(body: DetailCloseRequest):
+    """Record that this page has stopped showing a record.
+
+    Not clearing it is what resurrects a panel on the next return, so the
+    close is a write and not merely the absence of one.
+    """
+    require_gateway_signature(body.session_token,
+                              posted=body.model_dump(exclude_none=True))
+    await asyncio.to_thread(_clear_page_parameter, body.page,
+                            _open_record_attribute(body.page))
+    return {"closed": True}
+
+
+class ProviderExclusionsRequest(BaseModel):
+    """Which of these care givers the filter in force sets aside.
+
+    The caller sends identities and nothing else. Which specialties are in
+    force, and what it means for one to admit a care giver, are this page's
+    to know -- a caller that sent the codes would be a caller that had to
+    hold them.
+    """
+    session_token: dict
+    npis: list[str] = []
+
+
+@app.post("/provider/exclusions")
+async def provider_exclusions(body: ProviderExclusionsRequest):
+    """Mark, per identity, whether the specialties in force admit them.
+
+    The row is marked and kept, never dropped: a filter that silently
+    discards a person's own choice is the failure this prevents
+    (EPIC-006-F-001-S-002-REQ-B-019). Only this page holds a care giver's
+    full taxonomy list, which is why the comparison is made here.
+    """
+    require_gateway_signature(body.session_token,
+                              posted=body.model_dump(exclude_none=True))
+    wanted = [npi for npi in (body.npis or []) if npi]
+    if not wanted:
+        return {"excluded": {}}
+    chosen = set(await asyncio.to_thread(
+        _read_page_parameter, INDIVIDUAL_PROVIDER_PAGE,
+        "selectedSpecialtyCodes") or [])
+    if not chosen:
+        return {"excluded": {npi: False for npi in wanted}}
+    found = await asyncio.to_thread(
+        lambda: find_care.search_providers(
+            entity_type="1", npis=wanted, limit=len(wanted)))
+    held = {npi: set() for npi in wanted}
+    for row in (found or {}).get("providers") or []:
+        npi = row.get("npi")
+        if npi in held:
+            held[npi] = {code for code in (row.get("taxonomy_codes") or [])
+                         if code}
+    return {"excluded": {npi: not (held[npi] & chosen) for npi in wanted}}
+
+
 def _question_for(page: str, missing: list[str], in_force: dict,
                   utterance: str, history) -> str:
     """What to ask the person when this page cannot run yet.

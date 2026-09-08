@@ -26,10 +26,10 @@ log = ChatHealthyLoggingService()
 
 
 
-# FindCare owns the provider collection; this component owns the session.
-# A component holding identities asks the owner for those records rather
-# than opening the collection itself (C-26). The peer call is the one
-# FacilitySearch already makes.
+# FindCare owns the care-giver records and the rules about them; this
+# component owns the session and the person's chosen set. A component
+# holding identities asks the owner a question about them rather than
+# fetching the records and judging them itself (C-26).
 FINDCARE_INTERNAL_URL_ENV = "CH_INTERNAL_PEER_URL_FINDCARE"
 FINDCARE_INTERNAL_URL_DEFAULT = "https://localhost:7860"
 
@@ -39,38 +39,41 @@ def _findcare_url() -> str:
             or FINDCARE_INTERNAL_URL_DEFAULT)
 
 
-async def _records_for(deps, npis: list, entity_type: str) -> list:
-    """The records FindCare holds for these identities, or none.
+async def _excluded_by_filter(deps, npis: list) -> dict:
+    """Which of these the filter in force sets aside, asked of its owner.
 
-    A failure here costs the exclusion marks, not the selection: the person
-    keeps what they chose and the strip is drawn without the flag rather
-    than the turn dying, which is what happened when this opened the
-    collection from the wrong component.
+    This component sends identities and nothing else. Which specialties are
+    in force is a parameter of the care-giver page, and whether one admits a
+    care giver is that page's rule about its own records -- so both stay
+    there and neither is named here.
+
+    A failure costs the exclusion marks, not the selection: the person keeps
+    what they chose and the strip is drawn without the flag rather than the
+    turn dying.
     """
     wanted = [n for n in (npis or []) if n]
     if not wanted:
-        return []
+        return {}
     body = {
-        "entity_type": entity_type,
         "npis": wanted,
-        "limit": len(wanted),
         "session_token": deps.session_token.model_dump(mode="json"),
     }
     try:
         async with httpx.AsyncClient(timeout=None, verify=False) as client:
-            r = await client.post(_findcare_url() + "/search", json=body)
+            r = await client.post(_findcare_url() + "/provider/exclusions",
+                                  json=body)
             r.raise_for_status()
-            return (r.json() or {}).get("providers") or []
+            return (r.json() or {}).get("excluded") or {}
     except Exception as exc:
-        log.error("FindCare lookup by identity failed for %d record(s): %s",
+        log.error("FindCare exclusion marks failed for %d record(s): %s",
                   len(wanted), exc,
                   exc=ChatHealthyException(
-                      mode="findcare_identity_lookup_failed",
-                      message=f"FindCare lookup by identity failed: {exc}",
+                      mode="findcare_exclusion_marks_failed",
+                      message=f"FindCare exclusion marks failed: {exc}",
                       component="SharedServices",
                       exception=exc if isinstance(exc, Exception) else None,
                   ))
-        return []
+        return {}
 
 
 MAX_SELECTED = 5
@@ -102,28 +105,6 @@ class ProviderSelectionTool(ChatHealthyTool):
     Request = Request
     Response = Response
 
-    async def _excluded_by_filter(self, deps, selected: list[str],
-                                  chosen_codes: list[str]) -> dict[str, bool]:
-        """Which selected providers the chosen specialties do not admit.
-
-        The selected set and the chosen codes are both parameters, so the
-        exclusion is computable without re-running the search: a selected
-        provider is excluded when none of its taxonomies is in the chosen
-        set. Only the server holds the selected provider's full taxonomy
-        list, which is why the flag is computed here and not in the browser.
-        """
-        if not selected:
-            return {}
-        chosen = set(chosen_codes or [])
-        if not chosen:
-            return {npi: False for npi in selected}
-        held = {npi: set() for npi in selected}
-        for row in await _records_for(deps, selected, "1"):
-            npi = row.get("npi")
-            if npi in held:
-                held[npi] = {c for c in (row.get("taxonomy_codes") or []) if c}
-        return {npi: not (held[npi] & chosen) for npi in selected}
-
     async def run(self, deps: AgentDeps, request: "Request") -> "Response":
         user_obj = deps.user_object
         current = list(user_obj.selected_providers or [])
@@ -153,10 +134,7 @@ class ProviderSelectionTool(ChatHealthyTool):
             selected=current,
             max_selected=MAX_SELECTED,
             full=len(current) >= MAX_SELECTED,
-            excluded_by_filter=await self._excluded_by_filter(
-                deps, current,
-                user_obj.userParameters.get(
-                    "individualProvider", "selectedSpecialtyCodes") or []),
+            excluded_by_filter=await _excluded_by_filter(deps, current),
             error=error,
         )
         deps.stream({"kind": "selection_changed", "data": resp.model_dump(exclude_none=True)})

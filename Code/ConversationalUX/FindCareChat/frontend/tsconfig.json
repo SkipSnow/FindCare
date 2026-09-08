@@ -12,14 +12,7 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "strict": true,
-    "baseUrl": "../../../../",
-    "paths": {
-      "@providers/*": ["FindCare/ProviderManagement/*"],
-      "@findcare/*": ["FindCare/*"],
-      "react": ["Code/ConversationalUX/FindCareChat/frontend/node_modules/@types/react"],
-      "react/*": ["Code/ConversationalUX/FindCareChat/frontend/node_modules/@types/react/*"]
-    }
+    "strict": true
   },
   "include": ["src"]
 }
