@@ -23,6 +23,13 @@ const TEAL_LIGHT_BG = '#e6f5ec'
 const TEAL_LIGHT_BORDER = '#c9e0d3'
 const ROW_DIVIDER = '#f0f0f0'
 
+interface SpecialtyGroups {
+  all_codes: string[]
+  prescriber_codes: string[]
+  homeopathic_codes: string[]
+  default_selected_codes: string[]
+}
+
 interface Specialty {
   code: string
   name: string
@@ -41,13 +48,18 @@ function buildFilterHtml(
   specs: Specialty[],
   checked: Record<string, boolean>,
   isDirty: boolean,
+  groups: SpecialtyGroups,
 ): string {
-  const allPossible    = specs.length
-  const allPrescribers = specs.filter(s => s.can_prescribe).length
-  const yourChoices    = specs.filter(s => checked[s.code]).length
+  // Which codes make up a set is the tool's answer, carried here. This
+  // panel groups by nothing and classifies nothing: it ticks the codes it
+  // was handed and counts what is ticked.
+  const allCodes         = groups.all_codes
+  const prescriberCodes  = groups.prescriber_codes
+  const homeopathicCodes = groups.homeopathic_codes
+  const allPossible    = allCodes.length
+  const allPrescribers = prescriberCodes.length
+  const yourChoices    = allCodes.filter(c => checked[c]).length
 
-  const prescriberCodes  = specs.filter(s => s.can_prescribe).map(s => s.code)
-  const homeopathicCodes = specs.filter(s => s.homeopathic).map(s => s.code)
   const prescribersChecked  = prescriberCodes.length > 0 &&
     prescriberCodes.every(c => checked[c])
   const homeopathicChecked  = homeopathicCodes.length > 0 &&
@@ -56,7 +68,7 @@ function buildFilterHtml(
   // Label per prod: "Check All" when not every row is checked (clicking
   // checks the remainder); "Uncheck All" only when every row is checked.
   // Disabled when nothing is checked (no Uncheck target).
-  const allChecked = specs.length > 0 && specs.every(s => checked[s.code])
+  const allChecked = allCodes.length > 0 && allCodes.every(c => checked[c])
   const anyChecked = yourChoices > 0
   const labelIsCheckAll = !allChecked
   const toggleAllLabel = labelIsCheckAll ? 'Check All' : 'Uncheck All'
@@ -170,6 +182,12 @@ export default function SpecialtyFilterWidget() {
   // round-trip. The applied selection is recorded server-side on the intent
   // when Apply fires; losing these on remount costs a redraw, not a fact.
   const specialtiesRef = useRef<Specialty[]>([])
+  // What the tool said the sets are. Held so every gesture answers from
+  // the same lists the panel was painted with.
+  const groupsRef = useRef<SpecialtyGroups>({
+    all_codes: [], prescriber_codes: [],
+    homeopathic_codes: [], default_selected_codes: [],
+  })
   const checkedRef = useRef<Record<string, boolean>>({})
   const pristineRef = useRef<Record<string, boolean>>({})
 
@@ -189,7 +207,8 @@ export default function SpecialtyFilterWidget() {
         target: TARGET,
         append: false,
         popup: false,
-        content: buildFilterHtml(specialtiesRef.current, checkedRef.current, isDirty()),
+        content: buildFilterHtml(specialtiesRef.current, checkedRef.current,
+                                 isDirty(), groupsRef.current),
       }, '*')
     }
 
@@ -217,15 +236,26 @@ export default function SpecialtyFilterWidget() {
         // none and falls back to the prescriber default. Without this a
         // return from EvaluateCare repainted the panel with the default
         // selection and silently discarded what they had chosen.
+        groupsRef.current = {
+          all_codes: Array.isArray(data.all_codes) ? data.all_codes : [],
+          prescriber_codes: Array.isArray(data.prescriber_codes) ? data.prescriber_codes : [],
+          homeopathic_codes: Array.isArray(data.homeopathic_codes) ? data.homeopathic_codes : [],
+          default_selected_codes: Array.isArray(data.default_selected_codes)
+            ? data.default_selected_codes : [],
+        }
+        // A restore carries the ticks the person left; a fresh panel
+        // carries none and takes the tool's default. Which codes that is
+        // was decided where the search rule lives, so the two cannot
+        // disagree about what a fresh panel searches under.
         const restored: string[] = Array.isArray(data.selected_codes)
           ? data.selected_codes : []
-        const hasRestored = restored.length > 0
-        for (const s of specialtiesRef.current) {
-          const seed = hasRestored
-            ? restored.indexOf(s.code) !== -1
-            : Boolean(s.can_prescribe)
-          checkedRef.current[s.code]  = seed
-          pristineRef.current[s.code] = seed
+        const seedCodes = restored.length > 0
+          ? restored : groupsRef.current.default_selected_codes
+        const ticked = new Set(seedCodes)
+        for (const code of groupsRef.current.all_codes) {
+          const seed = ticked.has(code)
+          checkedRef.current[code]  = seed
+          pristineRef.current[code] = seed
         }
         repaint()
         return
@@ -242,14 +272,15 @@ export default function SpecialtyFilterWidget() {
       }
 
       if (msg.action === 'filter:toggle-all') {
-        const allChecked = specialtiesRef.current.length > 0 && specialtiesRef.current.every(s => checkedRef.current[s.code])
-        toggleCodes(specialtiesRef.current.map(s => s.code), !allChecked)
+        const everyCode = groupsRef.current.all_codes
+        const allChecked = everyCode.length > 0 && everyCode.every(c => checkedRef.current[c])
+        toggleCodes(everyCode, !allChecked)
         repaint()
         return
       }
 
       if (msg.action === 'filter:macro-prescribers') {
-        const codes = specialtiesRef.current.filter(s => s.can_prescribe).map(s => s.code)
+        const codes = groupsRef.current.prescriber_codes
         const allOn = codes.length > 0 && codes.every(c => checkedRef.current[c])
         toggleCodes(codes, !allOn)
         repaint()
@@ -257,7 +288,7 @@ export default function SpecialtyFilterWidget() {
       }
 
       if (msg.action === 'filter:macro-homeopathic') {
-        const codes = specialtiesRef.current.filter(s => s.homeopathic).map(s => s.code)
+        const codes = groupsRef.current.homeopathic_codes
         const allOn = codes.length > 0 && codes.every(c => checkedRef.current[c])
         toggleCodes(codes, !allOn)
         repaint()
@@ -265,7 +296,7 @@ export default function SpecialtyFilterWidget() {
       }
 
       if (msg.action === 'filter:apply') {
-        const chosen = specialtiesRef.current.filter(s => checkedRef.current[s.code]).map(s => s.code)
+        const chosen = groupsRef.current.all_codes.filter(c => checkedRef.current[c])
         window.parent.postMessage({
           type: 'router:makeCall',
           op: 'apply_filter',

@@ -501,6 +501,12 @@ class ClinicalTrialsTool(ChatHealthyTool):
                 "data": {
                     "trials": [],
                     "chunk_index": 0,
+            # This chunk begins a set rather than adding to one,
+            # so whatever is showing belongs to a search that is
+            # over. Said here because the tool knows it; a reader
+            # comparing an index to zero is inferring it.
+            "starts_new_set": True,
+                    "starts_new_set": True,
                     "is_final": True,
                     "total_eligible": 0,
                     "is_partial": False,

@@ -131,6 +131,72 @@ def _state_of_the_page(page: str, missing: list[str], optional: list[str],
         f"Already in force: {'; '.join(held) or 'nothing'}")
 
 
+
+def _subscription_table() -> str:
+    """Every parameter and every tool that subscribes to it.
+
+    Read from the configuration, so a parameter added there -- or a
+    subscription changed from Optional to Required -- reaches the model
+    on the next deploy with no prompt edited and no code written.
+
+    A tool absent from a parameter has no business with it, and saying
+    so for every pair would be a great deal of table for a fact that
+    reads perfectly well as silence."""
+    from chathealthy_lib.runtime_data_collections import tool_configuration
+
+    lines = []
+    for parameter in tool_configuration().get("parameters") or []:
+        name = parameter.get("name")
+        if not name:
+            continue
+        for subscription in parameter.get("subscriptions") or []:
+            tool = subscription.get("tool")
+            use = subscription.get("use")
+            if tool and use:
+                lines.append(f"  {name} -- {tool}: {use}")
+    return chr(10).join(lines)
+
+
+# How to read the table, said once. The table itself is data and says
+# nothing about how to use it, so the reading is stated here and the
+# declaration stays free to change without a prompt being rewritten.
+_HOW_TO_READ = (
+    "EVERY PARAMETER, AND WHAT EACH TOOL MAKES OF IT."
+    " Each line reads: parameter -- tool: use."
+    " A tool that names no line for a parameter has no business with it."
+    " Required means that tool cannot run at all without it, so it is"
+    " what you must ask for."
+    " Optional means the tool will use it if the person gives it and will"
+    " run perfectly well without it, so you may say it is welcome but"
+    " never ask for it as though it were needed."
+    " A parameter that names no tool line is nothing to that tool."
+)
+
+
+def _refinement_agent(component: str):
+    """The agent that asks, with the declaration inside its system prompt.
+
+    Manufactured rather than taken from the shared cache: the record says
+    how to ask, and the declaration says what there is to ask about. The
+    two are joined here so neither has to restate the other."""
+    key = REFINEMENT_PROMPT_RECORD + ":manufactured"
+    if key not in _AGENTS:
+        from pydantic_ai import Agent
+        record = prompt_record(REFINEMENT_PROMPT_RECORD, component)
+        _AGENTS[key] = Agent(
+            f"openai:{_model_name(record, component)}",
+            output_type=RefinementRequest,
+            system_prompt=chr(10).join([
+                record.get("system_prompt", ""),
+                "",
+                _HOW_TO_READ,
+                "",
+                _subscription_table(),
+            ]),
+        )
+    return _AGENTS[key]
+
+
 def ask_for_missing(page: str, missing: list[str], optional: list[str],
                     in_force: dict, utterance: str, history: Optional[list],
                     *, component: str, call_site: str) -> str:
@@ -142,7 +208,7 @@ def ask_for_missing(page: str, missing: list[str], optional: list[str],
     here knows what any of them mean.
     """
     result = run_llm_sync(
-        _mining_agent(REFINEMENT_PROMPT_RECORD, RefinementRequest, component),
+        _refinement_agent(component),
         f"{_state_of_the_page(page, missing, optional, in_force)}\n\n"
         f"{user_message(utterance, history)}",
         call_site=call_site,

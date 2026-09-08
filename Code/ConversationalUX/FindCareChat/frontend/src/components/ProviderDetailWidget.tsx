@@ -108,9 +108,10 @@ function buildDetailHtml(data: any): string {
        </div>`
     : ''
   const rs = p.research_sites || {}
-  const rsEntries = Object.keys(rs)
-    .map(k => rs[k])
-    .filter((s: any) => s && s.url)
+  // Every destination carries a URL: the detail service builds a site
+  // only when it has one, and surfaces an unresolved state separately
+  // rather than emitting a destination that goes nowhere.
+  const rsEntries = Object.keys(rs).map(k => rs[k])
   const research = rsEntries.length
     ? rsEntries.map((s: any) =>
         `<div style="margin:0.3em 0;">
@@ -242,22 +243,20 @@ export default function ProviderDetailWidget() {
         return
       }
       if (msg.type === 'router:action' && msg.action === 'provider:detail') {
-        const d = msg.data || {}
-        const npi  = String(d.npi  || '').trim()
-        const name = String(d.name || '').trim()
+        const npi = String((msg.data || {}).npi || '').trim()
         if (!npi) return
         open = true
         postRender(buildLoadingHtml(npi))
+        // One record, named once. The card's name, specialty, address,
+        // phone and state used to travel with the click, so the same
+        // provider showed differently depending on which search painted
+        // the row -- and a row painted with less produced a detail with
+        // less. Everything on this panel comes from the record the NPI
+        // names, which is the only thing the detail needs.
         window.parent.postMessage({
           type: 'router:makeCall',
           op: 'provider-detail',
-          payload: {
-            npi, name,
-            specialty: d.specialty || null,
-            address:   d.address   || null,
-            phone:     d.phone     || null,
-            state:     d.state     || null,
-          },
+          payload: { npi, entity_type: '1' },
           call_id: 'pd-' + Date.now(),
         }, '*')
         return

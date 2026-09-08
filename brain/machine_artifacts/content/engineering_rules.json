@@ -56,7 +56,7 @@
           "rule_statement": [
             {
               "statement_number": 1,
-              "statement_body": "On SessionStart and PostCompact, the boot MUST read the 170 most recent utterance documents from MongoDB ClaudeCodeUtterances.utterances, trim each document to {actor, content}, order newest-to-oldest, and emit them as part of the hook's additionalContext so Claude resumes with recent conversation context. If the MongoDB read fails, the boot MUST fail open \u2014 log the failure and continue with remaining duties.",
+              "statement_body": "On SessionStart and PostCompact, the boot MUST read the 170 most recent utterance documents from MongoDB ClaudeCodeUtterances.utterances, trim each document to {actor, content}, order newest-to-oldest, and emit them as part of the hook's additionalContext so Claude resumes with recent conversation context. If the MongoDB read fails, the boot MUST fail open — log the failure and continue with remaining duties.",
               "req_id": "EPIC-008-F-002-S-007"
             },
             {
@@ -565,7 +565,7 @@
                   "_scan_business_logic",
                   "allowed_pattern",
                   [
-                    "\\.(js|html)$"
+                    "\\.(js|html|tsx|ts)$"
                   ]
                 ],
                 [

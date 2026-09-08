@@ -33,9 +33,45 @@ def primary_practice_address(p: dict) -> dict:
     return {}
 
 
-def primary_county(p: dict) -> dict:
-    """Return the county sub-doc on the primary practice address."""
-    return primary_practice_address(p).get("county") or {}
+def geography_asked_for(base_filter: dict) -> dict:
+    """The place the search was told to look, out of the filter it built."""
+    match = (base_filter or {}).get("practice_addresses") or {}
+    inner = match.get("$elemMatch") if isinstance(match, dict) else None
+    if not isinstance(inner, dict):
+        return {}
+    return {field: value for field, value in inner.items()
+            if field in ("state", "city", "zip") and isinstance(value, str)}
+
+
+def matched_practice_address(p: dict, asked_for: dict = None) -> dict:
+    """The address that answered the search, not the first one on file.
+
+    A provider is matched on ANY of their practice addresses, so the first
+    in the array is frequently somewhere else entirely -- a Long Beach
+    search returned rows whose first address was Honolulu, Star, Clancy.
+    Showing that one gives the person an address and a county for a place
+    they did not ask about, and where it carries no county nothing renders
+    at all.
+
+    Compared case-insensitively because the stored city case varies and the
+    query that matched was collated.
+    """
+    addresses = [a for a in (p.get("practice_addresses") or [])
+                 if isinstance(a, dict)]
+    wanted = {field: value.strip().lower()
+              for field, value in (asked_for or {}).items()
+              if isinstance(value, str) and value.strip()}
+    if wanted:
+        for address in addresses:
+            if all(str(address.get(field) or "").strip().lower() == value
+                   for field, value in wanted.items()):
+                return address
+    return addresses[0] if addresses else {}
+
+
+def primary_county(p: dict, asked_for: dict = None) -> dict:
+    """The county sub-doc on the address that answered the search."""
+    return matched_practice_address(p, asked_for).get("county") or {}
 
 
 DEFAULT_LIMIT = 25  # F-10: raised from 10
@@ -241,6 +277,29 @@ class FindCareService:
     # same strength so the comparison still uses an index.
     ADDRESS_COLLATION = {"locale": "en", "strength": 2}
 
+    # Which address fields vary in case, and therefore need the collation.
+    # State is two letters upper case and a ZIP is digits, so neither does.
+    # This matters because a collated query can only use a collated index:
+    # carrying the collation on a search that filters by state alone put
+    # idx_practice_state out of reach and scanned 9,322,332 records, which
+    # is why a search of one whole state took 52 seconds.
+    CASE_VARYING_ADDRESS_FIELDS = ("city", "county.name")
+
+    @classmethod
+    def address_collation(cls, base_filter: dict):
+        """The collation this filter needs, or none.
+
+        None is not an absence of care: it is the statement that nothing in
+        this filter varies in case, so the plain index is both correct and
+        the fastest thing available.
+        """
+        match = (base_filter or {}).get("practice_addresses") or {}
+        inner = match.get("$elemMatch") if isinstance(match, dict) else None
+        fields = set(inner or {})
+        if fields & set(cls.CASE_VARYING_ADDRESS_FIELDS):
+            return cls.ADDRESS_COLLATION
+        return None
+
     def _practice_address_filter(self, state: str = "", city: str = "",
                                   county: str = "", zip: str = "") -> dict:
         """Build {"addresses": {"$elemMatch": ...}} for the practice address
@@ -308,7 +367,8 @@ class FindCareService:
                 return code, self._taxonomy_name_cache.get(code, "")
         return "", ""
 
-    def _format_provider(self, p: dict, selected_specialty_codes: list = None) -> dict:
+    def _format_provider(self, p: dict, selected_specialty_codes: list = None,
+                         asked_for: dict = None) -> dict:
         if p.get("entity_type_code") == "1":
             parts = [
                 p.get("provider_name_prefix_text"), p.get("provider_first_name"),
@@ -320,12 +380,12 @@ class FindCareService:
                 name += f", {p['provider_credential_text']}"
         else:
             name = p.get("provider_organization_name_legal_business_name") or "Unknown Organization"
-        addr = primary_practice_address(p)
+        addr = matched_practice_address(p, asked_for)
         address = ", ".join(x for x in [addr.get("line1"), addr.get("city"), addr.get("state"), addr.get("zip")] if x)
         primary_code = p.get("primary_taxonomy_code")
         primary = next((t for t in p.get("taxonomies", [])
                         if t.get("code") == primary_code), None) if primary_code else None
-        county_obj = primary_county(p)
+        county_obj = primary_county(p, asked_for)
         county_name = county_obj.get("name") or ""
         raw_phone = addr.get("phone", "")
         phone = f"({raw_phone[:3]}) {raw_phone[3:6]}-{raw_phone[6:]}" if len(raw_phone) == 10 else raw_phone
@@ -349,7 +409,8 @@ class FindCareService:
             "lng": addr.get("lng"),
         }
 
-    def _format_facility(self, p: dict, _unused=None) -> dict:
+    def _format_facility(self, p: dict, _unused=None,
+                         asked_for: dict = None) -> dict:
         """The facility row: exactly five things and nothing else.
 
         EPIC-006-F-006-S-002-REQ-B-007 fixes the row exactly, so the
@@ -434,22 +495,23 @@ class FindCareService:
         # filtered). So we run count separately only when paginating.
         if cursor:
             total_count = collection.count_documents(
-                base_filter, collation=self.ADDRESS_COLLATION)
+                base_filter, collation=self.address_collation(base_filter))
             result = list(collection.aggregate([
                 {"$match": query_filter},
                 {"$sort": {"npi": sort_order}},
             ] + ([{"$limit": safe_limit}] if safe_limit > 0 else []) + [
                 {"$project": self._PROJECTION},
-            ], collation=self.ADDRESS_COLLATION))
+            ], collation=self.address_collation(base_filter)))
             if backward:
                 result.reverse()
             self._assert_entity_type(result, entity_type)
             project = row_formatter or self._format_provider
-            return [project(p, selected_specialty_codes)
+            asked_for = geography_asked_for(base_filter)
+            return [project(p, selected_specialty_codes, asked_for)
                     for p in result], total_count
 
         result = list(collection.aggregate(
-            pipeline, collation=self.ADDRESS_COLLATION))
+            pipeline, collation=self.address_collation(base_filter)))
         if not result:
             return [], 0
         total_count = result[0]["count"][0]["total"] if result[0]["count"] else 0
@@ -458,7 +520,9 @@ class FindCareService:
             page = list(reversed(page))
         self._assert_entity_type(page, entity_type)
         project = row_formatter or self._format_provider
-        providers = [project(p, selected_specialty_codes) for p in page]
+        asked_for = geography_asked_for(base_filter)
+        providers = [project(p, selected_specialty_codes, asked_for)
+                     for p in page]
         return providers, total_count
 
     def _assert_entity_type(self, docs, entity_type: str) -> None:
@@ -582,7 +646,7 @@ class FindCareService:
             raw = next(iter(collection.aggregate(
                 [{"$match": self._searchable(base_filter, entity_type)},
                  {"$facet": facets}], allowDiskUse=True,
-                collation=self.ADDRESS_COLLATION)))
+                collation=self.address_collation(base_filter))))
         except Exception as exc:
             # Mode 1: refinement counts are an aid, not the answer. A
             # failure here leaves the panel without hints and the result

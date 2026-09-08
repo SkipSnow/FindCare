@@ -91,6 +91,245 @@ _DOMAIN_TOKEN_RX = re.compile(
 )
 
 
+# A decision the display tier is not allowed to make.
+#
+# Matching domain words does not work on React: a widget that paints
+# providers says "provider" on nearly every line, and a rule that fires on
+# the subject rather than on the act can only be made to pass with an
+# exclusion list. What separates display from logic is not what a file
+# talks about, it is whether it decides.
+#
+# The act is narrow and it is visible: the display tier tests a value it
+# worked out for itself, where the tier that owns the fact could have sent
+# the answer. `Boolean(first_npi)` is worked out. `data.has_previous` is
+# sent. So a test whose operand is computed is a decision, and a test that
+# reads a flag straight off what arrived is not.
+#
+# Rendering never matches, because rendering is not a test: printing
+# `${count} found` reads a value and decides nothing.
+
+# Where a test begins. A conditional, a ternary, a guard, or a callback
+# whose whole purpose is to answer yes or no about each element.
+_TEST_CONTEXT = re.compile(
+    r"(?:\bif\s*\(|\breturn\s+|\?\s|&&|\|\||"
+    r"\.(?:filter|some|every|find|findIndex)\s*\()"
+)
+
+# Working a truth out rather than being told it: a cast to boolean, a
+# negation, a comparison, a count, or a membership test.
+_COMPUTED_TRUTH = re.compile(
+    r"\bBoolean\s*\(|"
+    r"[!=]==?|"
+    r"\.length\s*(?:[<>=!]|\))|"
+    r"\.(?:indexOf|includes)\s*\(|"
+    r"[<>]=?\s"
+)
+
+# A value that came from somewhere else -- a payload, a streamed event, a
+# record in a list. A truth worked out from one of these is a truth its
+# owner could have stated.
+_ARRIVED_VALUE = re.compile(
+    r"\b(?:data|payload|ctx|entry|row|item|s|f|p|d|oi|t)\."
+    r"[A-Za-z_][A-Za-z0-9_]*"
+)
+
+# Which message this is. A widget listens to one stream and has to know
+# whether an event is addressed to it, so comparing the envelope is how it
+# is delivered at all -- the same act ClientRouter performs on the way in.
+# It decides nothing about the person's care, and it reads nothing about
+# them: the envelope is the router's, not the domain's.
+_ENVELOPE_ONLY = re.compile(
+    r"\bmsg(?:\.data)?\.(?:type|action|kind)\b")
+
+
+# Guarding, measuring and defaulting -- not deciding.
+#
+# A widget that checks the shape of what arrived, or shortens a string to
+# fit, or takes the empty value when a field is absent, has made no
+# judgement about the person's care. Flagging those would force display
+# code to be contorted to satisfy the rule, which is worse than the rule
+# not existing: the next reader learns the gate can be argued with.
+_NOT_A_JUDGEMENT = (
+    # The shape of what arrived. A guard is how a display tier survives a
+    # payload it did not get to specify.
+    re.compile(r"\btypeof\s"),
+    # Absence. Taking '' or a default when a field is not there states no
+    # rule about the value that would have been there.
+    re.compile(r"[!=]=\s*null\b|[!=]==\s*(?:undefined|null)\b"),
+    # Fitting text to a space. A length compared against a limit or against
+    # another length is a measurement of the screen, not of the subject.
+    # Markup. A line of authored HTML is display by definition; whatever it
+    # interpolates was decided before it got here.
+    re.compile(r"^<|<(?:div|span|button|table|tr|td|ul|li|p)\b"),
+    # Reading an answer the owner sent -- out of a map by key, or off a
+    # field -- and comparing it to a boolean. The judgement was made where
+    # the value was set, and this is the shape the rule asks widgets for.
+    re.compile(r"(?:\[[a-z_][A-Za-z0-9_]*\]|\.[a-z_][A-Za-z0-9_]*)"
+               r"\s*===?\s*(?:true|false)\b"),
+    # Which action this is. Routing, the same as the message envelope.
+    re.compile(r"\.action\s*===")
+)
+
+
+_LENGTH_ORDERING = re.compile(r"[.]length[^=]*[<>]|[<>]=?[^=]*[.]length")
+_QUOTED = re.compile(r"'[^']*'|" + chr(34) + "[^" + chr(34) + "]*" + chr(34))
+
+
+def _measures_only_length(text: str) -> bool:
+    """Whether this line's comparison is about size and nothing else.
+
+    Fitting text to the space it has is display work: a string shortened
+    against a limit, or one length compared with another. It is a
+    judgement about the screen, not about the subject.
+
+    Guarded by the same vocabulary the window measurement uses, so a
+    clinical field cannot ride along beside the arithmetic and be excused
+    by it -- `specs.length > shown && specs[0].can_prescribe` reaches a
+    member that is not a size, and stays caught.
+    """
+    if ".length" not in text:
+        return False
+    # Only an ordering comparison. Fitting asks whether something is too
+    # long; `=== 0` asks whether a set is empty, which is a rule about the
+    # set -- an Evaluate button disabled by it is policy, not fitting.
+    if not _LENGTH_ORDERING.search(text):
+        return False
+    # Quoted text first: an ellipsis inside a string is not a member.
+    bare = _QUOTED.sub("", text)
+    reached = [part.split("(")[0].split(" ")[0].rstrip(")],;")
+               for part in bare.split(".")[1:]]
+    return bool(reached) and all(member in _WINDOW_MEMBERS
+                                 for member in reached)
+
+
+def _is_a_judgement(text: str) -> bool:
+    """Whether this line decides something, rather than guarding or fitting."""
+    if _measures_only_length(text):
+        return False
+    return not any(rx.search(text) for rx in _NOT_A_JUDGEMENT)
+
+
+def _tests_only_the_envelope(text: str) -> bool:
+    """Whether every comparison on this line is about which message it is."""
+    without_envelope = _ENVELOPE_ONLY.sub("", text)
+    return not _ARRIVED_VALUE.search(without_envelope)
+
+# A name that says the value decides what the person may do or see:
+# whether a control exists, whether it is allowed, whether something is
+# ticked. Naming a thing `hasPrevious` says the display tier is holding
+# the answer to a question, and the tier that owns the question is the one
+# that should have answered it.
+_CONTROL_STATE = re.compile(
+    r"\b((?:has|is|can|should|may)[A-Z][A-Za-z0-9_]*|"
+    r"[A-Za-z_][A-Za-z0-9_]*(?:Disabled|Enabled|Allowed))\s*=\s*(?!=)")
+
+
+# Managing a display cache.
+#
+# This is not business logic and never was. A widget handed a list is
+# handed the cache of it, and managing that cache -- which slice of it is
+# on screen -- is display work in the same way scrolling is. Asking a
+# server which part of its own copy the widget is showing would be a round
+# trip to be told something already in hand.
+#
+# A list NOT cached in the display tier is the other case entirely, and
+# there is nothing to manage: the boundary is a fact about a query the
+# tool holds, and the tool answers it. That is why a Previous control
+# worked out from a record identifier is still caught -- the provider list
+# is not cached here, so the answer was the search'"'"'s to give, and working
+# it out locally is how a Previous control came to be offered on the first
+# page.
+#
+# Deliberately the narrowest form that admits the cached case. Three
+# conditions, all required:
+#
+#   the name is a paging flag, so control state generally is untouched --
+#   an Evaluate button enabled by a count is a decision and stays caught;
+#
+#   the answer is arithmetic over the window: offsets, counts, lengths,
+#   literal numbers, and nothing else;
+#
+#   the answer reaches no member but the length of a list or the current
+#   value of a held reference, so a clinical field cannot ride along
+#   inside a line wearing a paging name.
+_PAGE_WINDOW_NAMES = ("hasprev", "hasmore", "hasnext")
+# What a window is measured with, and the only members it may reach.
+_WINDOW_MEMBERS = ("length", "current")
+_WINDOW_ARITHMETIC = set(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_. +-<>=()")
+
+
+def _is_a_window_measurement(name: str, answer: str) -> bool:
+    """Whether this says which slice of a cached list is showing."""
+    plain = name.lower()
+    if not any(plain.startswith(word) for word in _PAGE_WINDOW_NAMES):
+        return False
+    if "Boolean" in answer or chr(34) in answer or chr(39) in answer:
+        return False
+    if not all(ch in _WINDOW_ARITHMETIC for ch in answer.strip()):
+        return False
+    reached = [part.split("(")[0].split(" ")[0]
+               for part in answer.split(".")[1:]]
+    return all(member in _WINDOW_MEMBERS for member in reached)
+
+
+def _find_control_state_decisions(source: str) -> list[tuple[int, str]]:
+    """Control state the display tier worked out instead of being told.
+
+    Separate from a test, because this is an assignment and no conditional
+    appears on the line: `hasPreviousRef = Boolean(firstNpiRef)` decides
+    whether a control exists and reads as ordinary assignment.
+    """
+    src = _strip_js_comments(source)
+    hits: list[tuple[int, str]] = []
+    for number, line in enumerate(src.splitlines(), start=1):
+        text = line.strip()
+        match = _CONTROL_STATE.search(text)
+        if not match:
+            continue
+        answer = text[match.end():]
+        # Being told, not working out: the answer is a value that arrived,
+        # cast or not. `Boolean(data.has_more)` is the shape this rule
+        # wants widgets to use, so reading it must not be an offence.
+        told = re.sub(r"Boolean\s*\(\s*(" + _ARRIVED_VALUE.pattern +
+                      r")\s*\)", "", answer)
+        told = _ARRIVED_VALUE.sub("", told)
+        if not _COMPUTED_TRUTH.search(told) and "Boolean" not in told:
+            continue
+        if not _is_a_judgement(text):
+            continue
+        if _is_a_window_measurement(match.group(1), answer):
+            continue
+        hits.append((number, f"control-state-worked-out:{match.group(1)}"))
+    return hits
+
+
+def _find_display_tier_decisions(source: str) -> list[tuple[int, str]]:
+    """Places the display tier decides rather than paints.
+
+    One line at a time, because a decision is written on one line and the
+    surrounding lines are usually the painting it feeds.
+    """
+    src = _strip_js_comments(source)
+    hits: list[tuple[int, str]] = []
+    for number, line in enumerate(src.splitlines(), start=1):
+        text = line.strip()
+        if not text or text.startswith(("import ", "export type", "interface ")):
+            continue
+        if not _TEST_CONTEXT.search(text):
+            continue
+        if not _COMPUTED_TRUTH.search(text):
+            continue
+        if not _ARRIVED_VALUE.search(text):
+            continue
+        if _tests_only_the_envelope(text):
+            continue
+        if not _is_a_judgement(text):
+            continue
+        hits.append((number, "decision-on-arrived-value"))
+    return hits
+
+
 class _InlineScriptCollector(HTMLParser):
     """Collect inline <script> body text with source line offset."""
 
@@ -375,6 +614,14 @@ class ScanSeparationOfConcernsWorker(EnforcementWorker):
             hits = _scan_html_with_inline_scripts(source, _find_business_logic_violations)
         elif file_path.endswith(".js"):
             hits = _find_business_logic_violations(source)
+        elif file_path.endswith((".tsx", ".ts")):
+            # A .tsx is a display file -- React's alternative to .html --
+            # and carries no business logic for the same reason .html does
+            # not. What it may not do is decided differently, because a
+            # widget that paints providers necessarily says "provider":
+            # the subject is not the offence, deciding is.
+            hits = (_find_display_tier_decisions(source)
+                    + _find_control_state_decisions(source))
         else:
             return []
         return [self._make_violation(file_path, ln, marker,

@@ -294,7 +294,7 @@ async def _chathealthy_exception_to_response(request, exc: ChatHealthyException)
     return JSONResponse(status_code=status, content={"detail": exc.message})
 
 from chathealthy_lib.runtime_data_collections import (  # noqa: E402
-    optional_attributes, required_attributes)
+    declared_attributes, optional_parameters, required_parameters)
 from ProviderManagement.utterance_mining import ask_for_missing  # noqa: E402
 from chathealthy_lib.runtime_data_collections import (
     providers_coll,
@@ -724,11 +724,13 @@ def _facility_page_entries(mined, offered: list[dict],
                                   exclude_none=True)
 
     entries: dict = {}
-    geography = {name: value
-                 for name, value in mined.geography.model_dump().items()
-                 if value}
-    if geography:
-        entries["geography"] = entry(geography)
+    # A place is four facts, not one. The state is the fact a search
+    # needs -- healthcare is regulated per state -- and the rest narrow
+    # it. Declared separately so the declaration can say which is
+    # required, and so a page that cannot run can name the missing one.
+    for part, value in mined.geography.model_dump().items():
+        if part in ("state", "city", "zip", "county") and value:
+            entries[part] = entry(value)
     if mined.facility_type:
         entries["facilityType"] = entry(mined.facility_type)
     if mined.facility_name:
@@ -793,13 +795,14 @@ async def facility_find(body: FacilityFindRequest):
         geo = mined.geography
         # What a search needs is what the page declares it needs. The
         # declaration is edited and deployed; nothing here decides.
-        in_force = {"geography": geo.state or geo.zip or geo.city or geo.county,
+        in_force = {"state": geo.state, "city": geo.city,
+                    "zip": geo.zip, "county": geo.county,
                     "facilityType": mined.facility_type,
                     "facilityName": mined.facility_name,
                     "selectedTaxonomyCodes": codes,
                     "offeredFacilityTypes": offered}
         result: dict = {"providers": [], "total_count": 0}
-        unmet = _unmet_requirements(FACILITY_PAGE, in_force)
+        unmet = _unmet_requirements(FACILITY_SEARCH_TOOL, in_force)
         if not unmet:
             result = find_care.search_providers(
                 entity_type="2",
@@ -820,7 +823,8 @@ async def facility_find(body: FacilityFindRequest):
         result["unmet_requirements"] = unmet
         if unmet:
             result["refinement_question"] = _question_for(
-                FACILITY_PAGE, unmet, in_force, body.utterance, body.history)
+                FACILITY_SEARCH_TOOL, unmet, in_force,
+                body.utterance, body.history)
         return result
     except ChatHealthyException as exc:
         if exc.mode == "mongo_query_timeout":
@@ -842,6 +846,15 @@ async def facility_find(body: FacilityFindRequest):
         raise
 
 
+# Which tool each of this service's surfaces is, as the configuration
+# names them. A page is a list of tools and holds their values; what a
+# tool requires is the tool's, because a page carries several and a
+# search runs before any record is opened.
+PROVIDER_SEARCH_TOOL = "ProviderSearch"
+FACILITY_SEARCH_TOOL = "FacilitySearch"
+SPECIALTY_FILTER_TOOL = "SpecialtyFilter"
+CLINICAL_TRIALS_TOOL = "ClinicalTrials"
+
 INDIVIDUAL_PROVIDER_PAGE = "individualProvider"
 NUCC_PAGE = "NUCC"
 CLINICAL_TRIAL_PAGE = "clinicalTrial"
@@ -861,7 +874,7 @@ def _parameter_entry(value) -> dict:
                           determination="model").model_dump(exclude_none=True)
 
 
-def _unmet_requirements(page: str, in_force: dict) -> list[str]:
+def _unmet_requirements(tool: str, in_force: dict) -> list[str]:
     """Which of this page's declared requirements are not in force.
 
     Empty means the page can run. Otherwise these are the attributes to
@@ -880,7 +893,7 @@ def _unmet_requirements(page: str, in_force: dict) -> list[str]:
     say it.
     """
     missing = []
-    for name in required_attributes(page):
+    for name in required_parameters(tool):
         value = in_force.get(name)
         if value is None or value == "" or value == [] or value == {}:
             missing.append(name)
@@ -997,7 +1010,8 @@ async def facility_page(body: FacilityPageRequest):
                     "cursor was given")
 
     def _in_force() -> dict:
-        geo = _read_page_parameter(FACILITY_PAGE, "geography") or {}
+        geo = {part: _read_page_parameter(FACILITY_PAGE, part) or ""
+               for part in ("state", "city", "zip", "county")}
         administrator = _read_page_parameter(
             FACILITY_PAGE, "administratorName") or {}
         return {
@@ -1025,6 +1039,52 @@ async def facility_page(body: FacilityPageRequest):
             {"first": str(result.get("first_npi") or ""),
              "last": str(result.get("last_npi") or "")})})
     return result
+
+
+class WhatIsNeededRequest(BaseModel):
+    """A turn that produced nothing, asking what was lacking.
+
+    Both are named because they answer different halves. The page is the
+    scope the values live in -- a geography on the care-giver page is not
+    the geography on the facility page. The tool is what has requirements:
+    a page carries several, and a search runs before any record is opened.
+    """
+    session_token: dict
+    page: str
+    tool: str
+    utterance: str = ""
+    history: list = []
+
+
+@app.post("/page/what-is-needed")
+async def page_what_is_needed(body: WhatIsNeededRequest):
+    """What this page still needs, and the question that asks for it.
+
+    A turn that showed nothing and said nothing leaves the person with a
+    dead screen. The page is the only thing that knows why: it holds the
+    declaration saying which of its attributes it cannot run without, and
+    the session saying which are in force.
+
+    Read from the session rather than from the turn, because the turn may
+    have written nothing -- what matters is what the page has, however it
+    came to have it.
+    """
+    require_gateway_signature(body.session_token,
+                              posted=body.model_dump(exclude_none=True))
+
+    def _in_force() -> dict:
+        return {name: _read_page_parameter(body.page, name)
+                for name in declared_attributes(body.page)}
+
+    in_force = await asyncio.to_thread(_in_force)
+    unmet = _unmet_requirements(body.tool, in_force)
+    if not unmet:
+        return {"unmet_requirements": [], "refinement_question": ""}
+    return {
+        "unmet_requirements": unmet,
+        "refinement_question": _question_for(
+            body.tool, unmet, in_force, body.utterance, body.history),
+    }
 
 
 class DetailOpenRequest(BaseModel):
@@ -1117,20 +1177,20 @@ async def provider_exclusions(body: ProviderExclusionsRequest):
     return {"excluded": {npi: not (held[npi] & chosen) for npi in wanted}}
 
 
-def _question_for(page: str, missing: list[str], in_force: dict,
+def _question_for(tool: str, missing: list[str], in_force: dict,
                   utterance: str, history) -> str:
-    """What to ask the person when this page cannot run yet.
+    """What to ask the person when this tool cannot run yet.
 
-    The page authors it rather than the gateway, because the page is what
-    holds the declaration -- and a question about what a page needs is a
-    question only the page can be sure of. What is required, what is merely
-    allowed and what has already been said all reach the model as facts, so
-    an attribute made required is asked for with nothing written for it.
+    The tool authors it rather than the gateway, because the tool is what
+    holds the requirement. What it requires, what it merely accepts, and
+    what the person has already said all reach the model as facts from the
+    configuration -- so making a parameter Required is enough to have it
+    asked for, with nothing written for it.
     """
     return ask_for_missing(
-        page, missing, optional_attributes(page), in_force,
+        tool, missing, optional_parameters(tool), in_force,
         utterance, history,
-        component="FindCareApp", call_site=f"{page}_refinement_request")
+        component="FindCareApp", call_site=f"{tool}_refinement_request")
 
 
 def _write_page_parameters(page: str, entries: dict) -> None:
@@ -1206,6 +1266,29 @@ def _ticked(offered: list[dict]) -> list[str]:
     return [row["code"] for row in offered if row.get("can_prescribe")]
 
 
+def _specialty_groups(offered: list[dict]) -> dict:
+    """The sets the panel offers as one gesture, named by this service.
+
+    Which kinds of care giver may prescribe, and which are homeopathic, are
+    clinical facts about the records this service holds. The panel offers a
+    control that ticks each set at once, and it can do that knowing only
+    which codes are in the set -- so it is given the sets rather than the
+    classification, and never has to read a clinical field to group by it.
+
+    The default is here for the same reason: what a fresh panel arrives
+    ticked with is a rule about the search that follows it, and it is
+    already stated once by _ticked.
+    """
+    return {
+        "all_codes": [row["code"] for row in offered if row.get("code")],
+        "prescriber_codes": [row["code"] for row in offered
+                             if row.get("can_prescribe")],
+        "homeopathic_codes": [row["code"] for row in offered
+                              if row.get("homeopathic")],
+        "default_selected_codes": _ticked(offered),
+    }
+
+
 def _searched_codes(offered: list[dict], ticked: list[str]) -> list[str]:
     """Nothing ticked means nothing was narrowed, so the whole offered set
     applies."""
@@ -1246,11 +1329,9 @@ def _provider_page_entries(mined, complaint: str,
                            ticked: list[str]) -> dict:
     """The mined values as parameter entries, keyed by attribute."""
     entries: dict = {}
-    geography = {name: value
-                 for name, value in mined.geography.model_dump().items()
-                 if value}
-    if geography:
-        entries["geography"] = _parameter_entry(geography)
+    for part, value in mined.geography.model_dump().items():
+        if part in ("state", "city", "zip", "county") and value:
+            entries[part] = _parameter_entry(value)
     if complaint:
         entries["complaint"] = _parameter_entry(complaint)
     name = mined.provider_name
@@ -1308,14 +1389,15 @@ async def provider_find(body: ProviderFindRequest):
         # geography is in force when a state or a ZIP is known and not
         # before.
         result: dict = {"providers": [], "total_count": 0}
-        in_force = {"geography": geo.state or geo.zip,
+        in_force = {"state": geo.state, "city": geo.city,
+                    "zip": geo.zip, "county": geo.county,
                     "complaint": complaint,
                     "selectedSpecialtyCodes": codes,
                     "providerName": mined.provider_name.last,
                     "providerSex": mined.provider_sex,
                     "soleProprietor": mined.sole_proprietor,
                     "insurance": mined.insurance}
-        unmet = _unmet_requirements(INDIVIDUAL_PROVIDER_PAGE, in_force)
+        unmet = _unmet_requirements(PROVIDER_SEARCH_TOOL, in_force)
         if not unmet:
             name = mined.provider_name
             result = find_care.search_providers(
@@ -1341,9 +1423,10 @@ async def provider_find(body: ProviderFindRequest):
         result["complaint"] = complaint
         result["offered_specialties"] = offered
         result["selected_specialty_codes"] = ticked
+        result.update(_specialty_groups(offered))
         if unmet:
             result["refinement_question"] = _question_for(
-                INDIVIDUAL_PROVIDER_PAGE, unmet, in_force,
+                PROVIDER_SEARCH_TOOL, unmet, in_force,
                 body.utterance, body.history)
         return result
     except ChatHealthyException as exc:
@@ -1408,6 +1491,7 @@ async def specialty_find(body: SpecialtyFindRequest):
         "selected_codes": ticked,
         "complaint": complaint,
         "mined": mined.model_dump(),
+        **_specialty_groups(offered),
     }
 
 
@@ -1582,6 +1666,19 @@ async def trial_find(body: TrialFindRequest):
         sex=mined.sex or None,
         geographic_scope=scope,
     )
+    # What the person asked for, said back to them in words. Composed here
+    # because it is a sentence about this page's criteria: what "us" means
+    # to a reader, and which criteria are worth repeating, are decisions
+    # about the search rather than about the panel that shows it.
+    said_back = []
+    if mined.condition:
+        said_back.append(f"condition: {mined.condition}")
+    if mined.age_years is not None:
+        said_back.append(f"subject age: {mined.age_years}")
+    if mined.sex:
+        said_back.append(f"subject sex: {mined.sex}")
+    said_back.append("scope: US" if mined.united_states_only
+                     else "scope: international")
     announced = {
         "kind": "intent_classified",
         "data": {
@@ -1590,6 +1687,7 @@ async def trial_find(body: TrialFindRequest):
             "age_years": mined.age_years,
             "sex": mined.sex or None,
             "geographic_scope": scope,
+            "criteria_summary": ", ".join(said_back),
         },
     }
 

@@ -2992,8 +2992,17 @@ def deploy_one(
         # that never needed the admin API.
         staged = [f for f in target.files
                   if package_selection is None or f.package in package_selection]
-        document_only = bool(staged) and all(
-            f.handler_type == "json" for f in staged)
+        # Writing documents is not provisioning, however the documents
+        # arrive. A target whose whole job is config_collections stages no
+        # file at all -- the manifest carries the content -- and reading
+        # that as "provisioning something" sent it to the Atlas admin API
+        # for a write that only ever needed a certificate.
+        binding = next((e for e in target.environments
+                        if e.env_binding == env), None)
+        governs_documents = bool(binding and binding.config_collections)
+        document_only = (bool(staged) and all(
+            f.handler_type == "json" for f in staged)) or (
+            not staged and governs_documents)
         result = None if document_only else pad.verify_atlas(target, env)
         apply_config_documents(build_dir, target, env, coll, package_selection)
         reconcile_config_collections(target, env, coll)

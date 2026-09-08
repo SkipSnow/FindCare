@@ -56,17 +56,18 @@ _CONFIG_COLL = "DBVersions"
 _PROVIDER_SLOT = "PROVIDER_COLLECTION"
 _SPECIALTY_META_SLOT = "SPECIALTY_META_COLLECTION"
 
-# The parameter declaration: which attributes each page declares, and which
-# parameters carry over between which pages. A second document in the same
-# database, keyed by env exactly as DBVersions is, read by the same
-# connection under the same identity.
+# What the application is made of: every parameter with the tools that
+# subscribe to it and what each makes of it, every tool and where it is
+# served, and every page as the list of tools composing it. A second
+# document in the same database, keyed by env exactly as DBVersions is,
+# read by the same connection under the same identity.
 #
-# It is data rather than code because a change to which parameters carry
-# over must take effect without a software release
-# (EPIC-006-F-008-S-002-REQ-B-002). The runtime already reads its own
-# configuration from a place an operator can change, so this needs no new
-# component.
-_PARAMETER_DECLARATION_COLL = "ParameterDeclaration"
+# It is data rather than code because making a parameter required, or
+# adding one, must take effect without a software release. Everything that
+# needs to know -- the guard that refuses, the question that asks, the
+# prompt the model is given -- reads it here, so the record is the only
+# statement of the fact and nothing can disagree with it.
+_TOOL_CONFIGURATION_COLL = "ToolConfiguration"
 
 
 class _State:
@@ -83,7 +84,7 @@ class _State:
     # recovered from a string.
     bases: dict[tuple[str, str], str] = {}
     # The parameter declaration for this env: pages[] and carry_over[].
-    parameter_declaration: dict = {}
+    tool_configuration: dict = {}
 
 
 _state = _State()
@@ -274,7 +275,7 @@ def _coll_for(slot: str) -> Collection:
     return _mongo_client()[db_name][coll_name]
 
 
-def _read_parameter_declaration(env: str) -> dict:
+def _read_tool_configuration(env: str) -> dict:
     """The env's parameter declaration, validated against the closed page set.
 
     The four page names are not in the document. They are fixed in this
@@ -282,7 +283,7 @@ def _read_parameter_declaration(env: str) -> dict:
     closed set held as data is a set an edit can open.
     """
     from .authentication.user_parameters import PAGES
-    coll = _mongo_client()[_CONFIG_DB][_PARAMETER_DECLARATION_COLL]
+    coll = _mongo_client()[_CONFIG_DB][_TOOL_CONFIGURATION_COLL]
     doc = coll.find_one({"env": env})
     if doc is None:
         raise ChatHealthyException(
@@ -290,7 +291,7 @@ def _read_parameter_declaration(env: str) -> dict:
             component="runtime_data_collections",
             message=(
                 f"runtime_data_collections: {_CONFIG_DB}."
-                f"{_PARAMETER_DECLARATION_COLL} has no document for env={env!r}. "
+                f"{_TOOL_CONFIGURATION_COLL} has no document for env={env!r}. "
                 "Seed the declaration before starting the runtime "
                 "(EPIC-006-F-008-S-001)."),
         )
@@ -318,8 +319,8 @@ def _read_parameter_declaration(env: str) -> dict:
     return doc
 
 
-def parameter_declaration() -> dict:
-    """The declaration, read where it is used and held after the first read.
+def tool_configuration() -> dict:
+    """What the application is made of, read where it is used and held after the first read.
 
     Read on first use rather than at startup. bind_from_manifest binds
     collection slots, and services that bind slots are not the same set as
@@ -332,7 +333,7 @@ def parameter_declaration() -> dict:
     carry over takes effect on the next turn without a build
     (EPIC-006-F-008-S-002-REQ-B-002).
     """
-    if not _state.parameter_declaration:
+    if not _state.tool_configuration:
         env = _state.env or os.environ.get("ENV_PREFIX", "").strip()
         if not env:
             raise ChatHealthyException(
@@ -343,53 +344,82 @@ def parameter_declaration() -> dict:
                          "could be read."),
             )
         _state.env = env
-        _state.parameter_declaration = _read_parameter_declaration(env)
-    return _state.parameter_declaration
+        _state.tool_configuration = _read_tool_configuration(env)
+    return _state.tool_configuration
+
+
+def _subscriptions(parameter: dict) -> list[dict]:
+    return parameter.get("subscriptions") or []
+
+
+def parameters_used_by(tool: str) -> dict[str, str]:
+    """parameter -> value_type for one tool, from its subscriptions.
+
+    Everything the tool registered for as Required or Optional. What it
+    registered NotUsed for is nothing to it, and a read of one is a read
+    of a parameter this tool declared it has no business with.
+    """
+    used = {}
+    for parameter in tool_configuration().get("parameters") or []:
+        name = parameter.get("name")
+        if not name:
+            continue
+        for subscription in _subscriptions(parameter):
+            if subscription.get("tool") == tool and subscription.get("use") in (
+                    "Required", "Optional"):
+                used[name] = parameter.get("value_type", "string")
+    return used
+
+
+def required_parameters(tool: str) -> list[str]:
+    """What this tool cannot run without.
+
+    Per tool and never per page. A page carries several tools -- a search,
+    a filter, a detail, a selection -- and each has its own answer: a
+    search runs before any record is opened, so requiring the detail's
+    parameter of the page would stop the search that comes first.
+
+    Making a parameter required is an edit to the configuration and a
+    deploy. No code changes, and nothing can enforce a requirement the
+    record does not state.
+    """
+    return [parameter["name"]
+            for parameter in tool_configuration().get("parameters") or []
+            if parameter.get("name")
+            and any(s.get("tool") == tool and s.get("use") == "Required"
+                    for s in _subscriptions(parameter))]
+
+
+def optional_parameters(tool: str) -> list[str]:
+    """What this tool will use if it has it, and runs correctly without.
+
+    Read by the question a tool asks when it cannot run: what is optional
+    is what must be offered rather than demanded.
+    """
+    return [parameter["name"]
+            for parameter in tool_configuration().get("parameters") or []
+            if parameter.get("name")
+            and any(s.get("tool") == tool and s.get("use") == "Optional"
+                    for s in _subscriptions(parameter))]
+
+
+def tools_on(page: str) -> list[str]:
+    """Which tools compose one page."""
+    for entry in tool_configuration().get("pages") or []:
+        if entry.get("page") == page:
+            return list(entry.get("tools") or [])
+    return []
 
 
 def declared_attributes(page: str) -> dict[str, str]:
-    """attribute -> value_type for one page, from the declaration.
-
-    The declaration is the allowlist: a write naming an attribute the page
-    does not declare is refused, exactly as one naming a fifth page is.
+    """parameter -> value_type for every parameter any tool on this page
+    uses. The allowlist for a write: a page holds the values of the
+    parameters its tools subscribe to, and nothing else.
     """
-    for entry in parameter_declaration().get("pages") or []:
-        if entry.get("page") == page:
-            return {a["name"]: a.get("value_type", "string")
-                    for a in (entry.get("attributes") or []) if a.get("name")}
-    return {}
-
-
-def required_attributes(page: str) -> list[str]:
-    """The attributes this page cannot run without, from the declaration.
-
-    A page states which of its attributes are required, and code asks here
-    rather than deciding for itself. Making a parameter required or optional
-    is then an edit to the declaration and a deploy -- no code changes, and
-    nothing can enforce a requirement the record does not state.
-
-    An attribute that does not say is not required: the declaration states
-    what it demands, and silence demands nothing.
-    """
-    for entry in parameter_declaration().get("pages") or []:
-        if entry.get("page") == page:
-            return [a["name"] for a in (entry.get("attributes") or [])
-                    if a.get("name") and a.get("required") is True]
-    return []
-
-
-def optional_attributes(page: str) -> list[str]:
-    """The attributes this page will use but can run without.
-
-    Asked for by the question a page puts to a person when it cannot run:
-    what is optional is what must not be asked for, and that is a fact about
-    the declaration rather than about any page.
-    """
-    for entry in parameter_declaration().get("pages") or []:
-        if entry.get("page") == page:
-            return [a["name"] for a in (entry.get("attributes") or [])
-                    if a.get("name") and a.get("required") is not True]
-    return []
+    held: dict[str, str] = {}
+    for tool in tools_on(page):
+        held.update(parameters_used_by(tool))
+    return held
 
 
 def carry_over_triples(destination: str) -> list[dict]:
@@ -400,7 +430,7 @@ def carry_over_triples(destination: str) -> list[dict]:
     rule that a parameter of the same name carries between pages, because
     that is precisely the system-wide rule S-002-REQ-B-001 forbids.
     """
-    return [t for t in (parameter_declaration().get("carry_over") or [])
+    return [t for t in (tool_configuration().get("carry_over") or [])
             if t.get("to") == destination]
 
 
@@ -483,7 +513,7 @@ def admin_swap(
     # read picks up a change to which parameters carry over and it takes
     # effect on the next turn without a build
     # (EPIC-006-F-008-S-002-REQ-B-002).
-    _state.parameter_declaration = {}
+    _state.tool_configuration = {}
     return {"status": "ok", "target_id": _state.target_id, "env": _state.env, "bindings": new_bindings}
 
 

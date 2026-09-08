@@ -97,6 +97,11 @@ class Response(BaseModel):
     # never dropped -- a filter that silently discards a person's own choice
     # is the failure this exists to prevent.
     excluded_by_filter: dict[str, bool] = Field(default_factory=dict)
+    # Whether the evaluation may be asked for at all. A set of none is
+    # nothing to evaluate, and that is a rule about the evaluation rather
+    # than about the strip that shows the set -- so it is answered here and
+    # the strip is told.
+    evaluate_enabled: bool = False
     error: Optional[str] = None
 
 
@@ -135,6 +140,7 @@ class ProviderSelectionTool(ChatHealthyTool):
             max_selected=MAX_SELECTED,
             full=len(current) >= MAX_SELECTED,
             excluded_by_filter=await _excluded_by_filter(deps, current),
+            evaluate_enabled=len(current) > 0,
             error=error,
         )
         deps.stream({"kind": "selection_changed", "data": resp.model_dump(exclude_none=True)})

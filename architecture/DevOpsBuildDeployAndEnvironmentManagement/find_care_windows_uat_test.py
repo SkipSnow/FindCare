@@ -335,6 +335,22 @@ def _fresh(page):
     return page
 
 
+def _new_session(page):
+    """Start a session, rather than resume the one already in the tab.
+
+    A reload is not a new session. The browser remembers the session in
+    sessionStorage and offers the same one back, and the server keeps the
+    form factor it was established with -- deliberately, because a window
+    resized mid-session is still the same person on the same device.
+
+    So anything asking what a session establishes AT BOOT has to boot one.
+    """
+    page.evaluate("() => { try { sessionStorage.clear() } catch (e) {} }")
+    page.reload(wait_until="domcontentloaded")
+    _ready(page)
+    return page
+
+
 # ── Being the person on the other side of the question ───────────────
 # When the system asks, the test answers as the person whose goal it
 # carries, and the scenario goes on.
@@ -2347,7 +2363,7 @@ class TestTheSessionKnowsItsFormFactor:
 
     def test_a_phone_session_says_phone(self, page):
         _at(page, PHONE_SIZE)
-        _fresh(page)
+        _new_session(page)
         page.wait_for_timeout(1_200)
         got = _session_form_factor(page)
         _at(page, VIEWPORT)
@@ -2355,7 +2371,7 @@ class TestTheSessionKnowsItsFormFactor:
 
     def test_a_computer_session_says_desktop(self, page):
         _at(page, COMPUTER_SIZE)
-        _fresh(page)
+        _new_session(page)
         page.wait_for_timeout(1_200)
         got = _session_form_factor(page)
         _at(page, VIEWPORT)
@@ -2363,7 +2379,7 @@ class TestTheSessionKnowsItsFormFactor:
 
     def test_it_does_not_change_when_the_window_does(self, page):
         _at(page, PHONE_SIZE)
-        _fresh(page)
+        _new_session(page)
         page.wait_for_timeout(1_200)
         first = _session_form_factor(page)
         _at(page, COMPUTER_SIZE)
@@ -2688,3 +2704,126 @@ class TestAnEmergencyLocksAndTheOperatorUnlocks:
         _wait_for_panel(locked)
         assert locked.locator("[data-testid='provider-card']").count() > 0, (
             "the operator literal did not restore service")
+
+
+class TestACityWithoutAStateIsAskedAbout:
+    """A: "find me a shrink in San Fransisco" -- no state.
+
+    Healthcare is regulated per state, so the state is the fact a search
+    cannot do without: it decides which board licenses the provider. A
+    city alone does not supply it, and city names repeat across states.
+
+    So this turn must not search. It must ask -- naming the state as what
+    is needed, and saying that a city, a ZIP or a county are welcome but
+    not required. The wording is authored by a model from the declaration,
+    so what is asserted is that it asks and what it asks about, never the
+    words themselves.
+    """
+
+    @pytest.fixture(scope="class")
+    def asked(self, page):
+        _new_session(page)
+        _ask(page, "find me a shrink in San Fransisco")
+        page.wait_for_timeout(25_000)
+        return _record(page, "20a_no_state_asks")
+
+    def test_no_search_ran(self, asked):
+        cards = _marks(asked, "frame_MainWindow").get("provider-card", 0)
+        assert cards == 0, (
+            f"a search ran without a state and put {cards} care givers on "
+            f"screen; which state decides which board licenses them")
+
+    def test_the_person_is_asked_a_question(self, asked):
+        message = _window(asked, "frame_UserMessage")["digest"]
+        assert "?" in message, (
+            f"the turn asked nothing, so the person has nothing to answer: "
+            f"{message!r}")
+
+    def test_the_question_asks_for_the_state(self, asked):
+        message = _window(asked, "frame_UserMessage")["digest"].lower()
+        assert "state" in message, (
+            f"the question does not ask for the state, which is the one "
+            f"thing the search cannot run without: {message!r}")
+
+    def test_the_question_offers_the_rest_without_demanding_them(self, asked):
+        message = _window(asked, "frame_UserMessage")["digest"].lower()
+        assert any(word in message for word in ("city", "zip", "county")), (
+            f"the question does not say what else would be accepted, so the "
+            f"person cannot tell what narrowing is available: {message!r}")
+
+    def test_a_spelling_note_is_not_offered_as_the_answer(self, asked):
+        message = _window(asked, "frame_UserMessage")["digest"]
+        assert not ("corrected from" in message.lower() and "?" not in message), (
+            "the turn ended having told the person how their spelling was "
+            "read, which answers nothing they asked")
+
+
+class TestAStateMakesTheSearchRun:
+    """B: "find me a shrink in San Fransico CA" -- a state is given.
+
+    The same request with the state supplied searches, and searches that
+    city rather than the country. A misspelling of the city does not stop
+    it: the state is what the search needs.
+    """
+
+    @pytest.fixture(scope="class")
+    def searched(self, page):
+        _new_session(page)
+        _ask(page, "find me a shrink in San Fransico CA")
+        _wait_for_results(page)
+        page.wait_for_timeout(3_000)
+        return _record(page, "20b_state_searches")
+
+    def test_care_givers_are_found(self, searched):
+        cards = _marks(searched, "frame_MainWindow").get("provider-card", 0)
+        assert cards > 0, "a search with a state found nobody"
+
+    def test_it_did_not_search_the_whole_country(self, searched):
+        text = _window(searched, "frame_MainWindow")["digest"]
+        found = [int(t.replace(",", "")) for t in
+                 __import__("re").findall(r"([\d,]+) providers? found", text)]
+        assert found, f"the window does not say how many were found: {text[:160]!r}"
+        assert found[0] < 50_000, (
+            f"{found[0]} care givers were found for one city, so the place "
+            f"was dropped and the search ran nationwide")
+
+    def test_the_rows_carry_the_place_that_was_asked_for(self, searched):
+        rows = _rows(searched)
+        assert rows, "no rows to inspect"
+        elsewhere = [r for r in rows
+                     if "CA" not in r.upper() and r.strip()]
+        assert not elsewhere, (
+            f"{len(elsewhere)} row(s) show an address outside the state "
+            f"that was searched: {elsewhere[:2]}")
+
+
+class TestTheDetailIsTheSameFromEitherPath:
+    """One NPI, one detail.
+
+    The detail tool takes one input and reads the rest from the record, so
+    what it shows cannot depend on which search painted the row it was
+    opened from. It used to: the row carried name, specialty, address,
+    phone and state on the click, so a row painted with less produced a
+    detail with less.
+    """
+
+    @pytest.fixture(scope="class")
+    def opened(self, page):
+        _new_session(page)
+        _ask(page, "find me a shrink in San Fransico CA")
+        _wait_for_results(page)
+        page.wait_for_timeout(2_000)
+        page.get_by_text("provider detail").first.click()
+        page.wait_for_timeout(8_000)
+        return _record(page, "20c_detail_from_a_search")
+
+    def test_the_detail_names_the_record(self, opened):
+        text = _window(opened, "frame_RightPanel")["digest"]
+        assert "NPI:" in text and any(ch.isdigit() for ch in text), (
+            f"the detail carries no NPI: {text[:200]!r}")
+
+    def test_the_detail_shows_an_address(self, opened):
+        text = _window(opened, "frame_RightPanel")["digest"]
+        assert "No address on file" not in text, (
+            "the detail says there is no address, for a provider a search "
+            "just returned with one")

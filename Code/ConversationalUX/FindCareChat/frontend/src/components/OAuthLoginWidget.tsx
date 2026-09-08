@@ -57,7 +57,10 @@ export default function OAuthLoginWidget() {
       if (!msg || typeof msg !== 'object') return
       if (msg.type !== 'router:action') return
       if (msg.action !== 'oauth_start') return
-      const flow = (msg.data && msg.data.flow) === 'register' ? "'register'" : "'login'"
+      // Which flows exist is not this widget's to know. It carries the
+      // one it was handed, quoted for the snippet, and falls back only
+      // when none arrived at all.
+      const flow = JSON.stringify(String((msg.data && msg.data.flow) || 'login'))
       window.parent.postMessage({
         type: 'router:exec',
         code: START_LOGIN_REGISTER_JS.replace('__FLOW__', flow),

@@ -529,10 +529,16 @@ def geography_of(params, page: str):
     unchanged; the model is rebuilt where it is read.
     """
     from chathealthy_lib.authentication.user_parameters import Geography
-    got = params.get(page, "geography") if params else None
-    if not got:
+    if not params:
         return None
-    return got if isinstance(got, Geography) else Geography(**dict(got))
+    # A place is four parameters, each declared and each writable on its
+    # own, because only one of them -- the state -- is required. Assembled
+    # here into the shape a search takes.
+    parts = {part: params.get(page, part) or ""
+             for part in ("state", "city", "county", "zip")}
+    if not any(parts.values()):
+        return None
+    return Geography(**parts)
 
 
 def provider_name_of(params):
@@ -1656,24 +1662,13 @@ class UniversalNavigationTool(ChatHealthyTool):
                         exception=exc,
                     )
 
-        if target_action == "findAProvider":
-            geo_arg = next(
-                (a for a in target_intent_entry.arguments if a.name == "geography"), None,
-            )
-            if geo_arg is None:
-                raise ChatHealthyException(
-            mode="runtime_error",
-            component="universal_navigation_tool",
-            message="UR compliance: findAProvider missing geography argument")
-            geo = json.loads(geo_arg.value)
-            zip_code = (geo.get("zip") or "").strip()
-            state = (geo.get("state") or "").strip()
-            if not zip_code and not state:
-                raise ChatHealthyException(
-            mode="runtime_error",
-            component="universal_navigation_tool",
-            message="UR compliance: findAProvider geography insufficient — needs "
-                    "zip OR state (city/county without state are not enough)")
+        # Nothing here judges whether a tool has enough to work with.
+        # Routing is this component's job; sufficiency belongs to the tool,
+        # which holds its own declaration, refuses on its own terms and
+        # asks the person for what it lacks. This used to refuse a
+        # care-giver search that named a city and no state, so the turn
+        # died at dispatch instead of arriving at the page that would have
+        # asked which state.
 
     async def _dispatch_llm_unavailable_dialogue(
         self, deps: AgentDeps, exc: ChatHealthyException,
@@ -1735,6 +1730,7 @@ class UniversalNavigationTool(ChatHealthyTool):
         data = {
             "facilities": facilities,
             "has_more": bool(raw.get("has_more", False)),
+            "has_previous": bool(raw.get("has_previous", False)),
             "first_npi": raw.get("first_npi"),
             "last_npi": raw.get("last_npi"),
             "count": int(raw.get("count", 0) or 0),
@@ -1760,6 +1756,7 @@ class UniversalNavigationTool(ChatHealthyTool):
         is the page's business, and naming one here would be this component
         holding a fact it has no use for.
         """
+        import httpx
         from authentication import provider_search_tool
         url = provider_search_tool.findcare_url() + path
         try:
@@ -1815,6 +1812,62 @@ class UniversalNavigationTool(ChatHealthyTool):
         deps.stream({"kind": "prompt", "data": {"text": question}})
         append_system_utterance(deps.user_object, question)
 
+    # Which page a turn with nothing to show should be asked about. A
+    # gesture names its page; an utterance that produced nothing was about
+    # finding a care giver, which is the page every unnamed turn lands on.
+    _PAGE_OF_OP = {
+        "provider_page": (INDIVIDUAL_PROVIDER, "ProviderSearch"),
+        "facility_page": (FACILITY, "FacilitySearch"),
+        "apply_filter": (INDIVIDUAL_PROVIDER, "ProviderSearch"),
+        "utterance": (INDIVIDUAL_PROVIDER, "ProviderSearch"),
+    }
+
+    @staticmethod
+    def _answers_the_turn(event: dict) -> bool:
+        """Whether this event is an answer, or only an annotation of the ask.
+
+        A prompt that says how a word was read -- "San Francisco (corrected
+        from 'san fransisco')" -- tells the person nothing about their
+        request. Counted as an answer it ends the turn, and a search that
+        could not run because no state was named leaves the person holding
+        a spelling note and no way forward.
+
+        So a prompt carrying corrections answers only if it also asks.
+        Everything else answers as it always did.
+        """
+        if event.get("kind") != "prompt":
+            return True
+        data = event.get("data") or {}
+        if not data.get("corrections"):
+            return True
+        return "?" in str(data.get("text") or "")
+
+    async def _ask_the_page_what_it_needs(self, deps: AgentDeps,
+                                          op: str) -> bool:
+        """Ask the page why it had nothing, and say so to the person.
+
+        True when the page asked something. False when it had nothing to
+        ask, which leaves the manufactured question as it was.
+        """
+        placed = self._PAGE_OF_OP.get(op)
+        if not placed:
+            return False
+        utterance, dialogue = latest_utterance_and_prior_dialogue(
+            deps.user_object)
+        page, tool = placed
+        raw = await self._tell_page(
+            deps, "/page/what-is-needed",
+            {"page": page, "tool": tool,
+             "utterance": utterance, "history": dialogue})
+        question = (raw or {}).get("refinement_question")
+        if not question:
+            return False
+        from chathealthy_lib.authentication.agent_deps import (
+            append_system_utterance)
+        deps.stream({"kind": "prompt", "data": {"text": question}})
+        append_system_utterance(deps.user_object, question)
+        return True
+
     async def _ensure_the_turn_answered(
         self, deps: AgentDeps, op: str, kinds_seen: set[str],
     ) -> None:
@@ -1862,6 +1915,14 @@ class UniversalNavigationTool(ChatHealthyTool):
             "UR: op=%s ended with nothing on any window; asking instead. %s",
             op, reason)
 
+        # The page is asked first, because the page is what knows: it holds
+        # the declaration naming what it cannot run without, and it reads
+        # its own parameters to see which are missing. The question names
+        # the thing by the word the declaration uses, so making an
+        # attribute required is enough to have it asked for.
+        answered = await self._ask_the_page_what_it_needs(deps, op)
+        if answered:
+            return
         from UtteranceManager import utterance_manager as utterance_manager_module
         await utterance_manager_module.TOOL.run_and_log(
             deps,
@@ -1976,6 +2037,11 @@ class UniversalNavigationTool(ChatHealthyTool):
                         "homeopathic_generalists": [],
                         "selected_codes": raw.get("selected_codes") or [],
                         "complaint": raw.get("complaint") or "",
+                        "all_codes": raw.get("all_codes") or [],
+                        "prescriber_codes": raw.get("prescriber_codes") or [],
+                        "homeopathic_codes": raw.get("homeopathic_codes") or [],
+                        "default_selected_codes":
+                            raw.get("default_selected_codes") or [],
                     },
                 })
             # No inner "final" emission — _run_pipeline_then_finalize
@@ -2076,6 +2142,14 @@ class UniversalNavigationTool(ChatHealthyTool):
                         "homeopathic_generalists": [],
                         "selected_codes": raw.get("selected_specialty_codes") or [],
                         "complaint": raw.get("complaint") or "",
+                        # The sets the panel ticks as one gesture, and what
+                        # a fresh panel arrives ticked with. Carried, not
+                        # read: which codes are in a set is the page's.
+                        "all_codes": raw.get("all_codes") or [],
+                        "prescriber_codes": raw.get("prescriber_codes") or [],
+                        "homeopathic_codes": raw.get("homeopathic_codes") or [],
+                        "default_selected_codes":
+                            raw.get("default_selected_codes") or [],
                     },
                 })
             providers = raw.get("providers") or []
@@ -2083,6 +2157,7 @@ class UniversalNavigationTool(ChatHealthyTool):
                 data = {
                     "providers": providers,
                     "has_more": bool(raw.get("has_more", False)),
+            "has_previous": bool(raw.get("has_previous", False)),
                     "first_npi": raw.get("first_npi"),
                     "last_npi": raw.get("last_npi"),
                     "count": int(raw.get("count", 0) or 0),
@@ -2106,10 +2181,12 @@ class UniversalNavigationTool(ChatHealthyTool):
             # canonical final event with full payload.
 
         else:
-            raise ChatHealthyException(
-            mode="runtime_error",
-            component="universal_navigation_tool",
-            message=f"UR compliance: out-of-catalog target_action {target_action!r}")
+            # An action naming no tool here is a turn nobody can serve, and
+            # the person is owed a question rather than an exception. The
+            # end-of-turn path asks, because nothing was shown and nothing
+            # was said.
+            log.warning("UR: no tool for target_action %r; asking instead",
+                        target_action)
 
     async def _run_or_cache_specialty_filter(
             self, deps: AgentDeps, complaint: str,
@@ -2448,7 +2525,7 @@ class UniversalNavigationTool(ChatHealthyTool):
 
         def stream_sink(event: dict) -> None:
             kind = event.get("kind")
-            if isinstance(kind, str):
+            if isinstance(kind, str) and self._answers_the_turn(event):
                 kinds_seen.add(kind)
             event_queue.put_nowait(event)
 

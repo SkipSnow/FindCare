@@ -58,14 +58,13 @@ function buildResultsAreaHtml(providers: any[], totalCount?: number,
     // where both the provider's taxonomy list and the chosen set are held.
     // The client holds no rule about which specialty is shown.
     const spec = _esc(p.matched_specialty_label || '')
+    // The link carries the record's identity and nothing about how this
+    // row happens to be painted. What the detail shows is the record's to
+    // say, and a detail that varied with the row it was opened from was a
+    // detail describing the search rather than the provider.
     const detailAttrs =
       `data-router-action="provider:detail"` +
-      ` data-npi="${_esc(p.npi || '')}"` +
-      ` data-name="${_esc(p.name || '')}"` +
-      ` data-specialty="${spec}"` +
-      ` data-address="${_esc(p.address || '')}"` +
-      ` data-phone="${_esc(p.phone || '')}"` +
-      ` data-state="${_esc(p.state || '')}"`
+      ` data-npi="${_esc(p.npi || '')}"`
     return (
       `<div data-testid="provider-card" data-npi="${_esc(p.npi || '')}" draggable="true" data-drag-payload="${_esc(p.npi || '')}" style="padding:0.5em 1em;border-bottom:0.0625em solid #eee;display:flex;justify-content:space-between;align-items:center;gap:1em;cursor:grab;">` +
         `<div style="flex:1;min-width:0;">` +
@@ -230,10 +229,10 @@ export default function ProviderResultsWidget() {
         firstNpiRef = String(data.first_npi || '')
         lastNpiRef = String(data.last_npi || '')
         hasMoreRef = Boolean(data.has_more)
-        // Back is offered wherever a position exists to page back from.
-        // It is the same keyset query with the comparison and the sort
-        // inverted, so nothing new is computed to decide it.
-        hasPreviousRef = Boolean(firstNpiRef)
+        // Whether a page precedes this one is the search's answer, not
+        // this widget's. Deriving it from first_npi said yes on page one,
+        // because page one has a first row like every other page.
+        hasPreviousRef = Boolean(data.has_previous)
         postRender(buildScaffoldHtml())
         postMergeResults(buildResultsAreaHtml(providers, data.total_count,
                                               data.summary_message, hasMoreRef,

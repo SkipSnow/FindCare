@@ -48,15 +48,10 @@ function buildLeftPanel(
   isPartial: boolean = false,
 ): string {
   const ctx = searchContext || {}
-  const queryParts: string[] = []
-  if (ctx.condition) queryParts.push(`condition: ${ctx.condition}`)
-  if (ctx.age_years != null) queryParts.push(`subject age: ${ctx.age_years}`)
-  if (ctx.sex) queryParts.push(`subject sex: ${ctx.sex}`)
-  if (ctx.geographic_scope) {
-    const scopeLabel = ctx.geographic_scope === 'us' ? 'US' : ctx.geographic_scope
-    queryParts.push(`scope: ${scopeLabel}`)
-  }
-  const queryStr = queryParts.join(', ')
+  // The criteria, said back in the tool's words. Composing them here meant
+  // this panel decided what 'us' reads as and which criteria were worth
+  // repeating, both of which are about the search, not about the panel.
+  const queryStr = String(ctx.criteria_summary || '')
   const end = pageStart + trials.length - 1
   // Quantity-suffix gating: render "showing X to Y of Z" (or "of many"
   // when the tool capped its pre-filter fetch) ONLY after the final

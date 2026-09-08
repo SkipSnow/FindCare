@@ -35,6 +35,10 @@ class Response(BaseModel):
     selected: list[str] = Field(default_factory=list)
     max_selected: int = MAX_SELECTED
     full: bool = False
+    # Whether the evaluation may be asked for at all. A set of none is
+    # nothing to evaluate, and that is a rule about the evaluation rather
+    # than about the strip that shows the set.
+    evaluate_enabled: bool = False
     error: Optional[str] = None
 
 
@@ -72,6 +76,7 @@ class ClinicalTrialSelectionTool(ChatHealthyTool):
             selected=current,
             max_selected=MAX_SELECTED,
             full=len(current) >= MAX_SELECTED,
+            evaluate_enabled=len(current) > 0,
             error=error,
         )
         deps.stream({"kind": "trial_selection_changed", "data": resp.model_dump(exclude_none=True)})

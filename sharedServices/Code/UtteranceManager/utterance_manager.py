@@ -163,8 +163,8 @@ CANONICAL_INTENT_DOCUMENT_SCHEMA = r"""{
 PERSISTENCE: this document lives on the session as `user_object.intent`. UM's first action on every invocation is to read user_object.intent and construct the Pydantic object from it; if the field is empty (first turn of the session), UM constructs a fresh document and assigns it to user_object.intent. UM updates the document over the course of its classification work and writes the updated version back to user_object.intent BEFORE returning control to UR. The document survives across turns — UM accumulates intents and arguments turn-by-turn rather than starting fresh each time.
 
 DIVISION OF RESPONSIBILITY:
-  * UM (producing side) — before emitting, validates that the chosen target_action's intent entry exists in intents[] and that every required argument for that intent has a value that parses to its declared type. UM enforces every semantic rule the JSON Schema cannot reach (e.g., the sufficiency rule on findAProvider.geography). If any required argument cannot be filled, UM streams a clarification prompt to the user and sets target_action to closeConnection200.
-  * UR (dispatch + compliance check) — UR validates the document before dispatching: target_action MUST be one of the catalog enum values; target_action MUST correspond to a name in intents[]; that intent entry MUST have all of its required: true arguments present with non-empty values that parse to their declared types; every semantic rule the JSON Schema cannot reach (e.g., findAProvider.geography sufficiency) MUST hold. If any check fails UR raises immediately at the smallest possible scope. UR is responsible for not making bad calls.
+  * UM (producing side) — decides which tool the turn is for and emits the intent entry for it, carrying whatever the person said. UM does NOT judge whether the tool has enough to work with: what a tool requires is declared where that tool lives, the tool enforces it against its own declaration, and the tool asks the person for what it lacks. Routing is UM's whole job.
+  * UR (dispatch) — UR checks that target_action is in the catalog and names an entry in intents[], and dispatches it. UR does NOT judge sufficiency either: a tool that cannot run says so and asks, which is an answer to the person rather than an exception in a log.
   * Each tool (consuming side) — receives the document (or its intent's slice), reads the arguments it cares about, applies any tool-specific business rules, executes its work. Tools add their own defensive asserts without relying on UR having pre-validated.
 
 STREAMING CONTRACT: every dispatched tool flushes the stream (awaits at least one event-loop tick after its last deps.stream(...) call) before returning control to UR, so when closeConnection200 is the next dispatch all bytes prior tools wrote are on the wire before the StreamingResponse terminates.
@@ -227,7 +227,7 @@ CATALOG (this deploy's closed set): specialtySearch, findAProvider, findAFacilit
         },
         "required": {
           "type": "boolean",
-          "description": "True when the dispatched tool cannot run without this argument's value being present and parseable. False when the argument is optional (tool has a default or can proceed without it). UM MUST NOT emit a target_action whose required: true arguments are missing or whose values fail to parse to their declared type; UM's fallback when any required is unfillable is to set target_action to closeConnection200 after streaming a clarification prompt."
+          "description": "Whether the dispatched tool treats this argument as required. It is a note about the tool, not an instruction to you: emit the action the turn is for and carry whatever the person gave, even when an argument marked required is empty. The tool holds its own declaration, refuses on its own terms, and asks the person for what it needs."
         }
       }
     },
@@ -294,7 +294,7 @@ CATALOG (this deploy's closed set): specialtySearch, findAProvider, findAFacilit
       "type": "object",
       "additionalProperties": false,
       "required": ["name", "arguments"],
-      "description": "Intent entry for an utterance UM classified as the user looking for a healthcare provider. When target_action is findAProvider, UR dispatches SpecialtyFilter (if nucc_codes has not been cached) and then ProviderSearch. When pending_disambiguation is set on this entry, target_action stays at specialtySearch (or another partial-information state) until the user resolves the disambiguation; geography may be partial on the entry while pending_disambiguation is set, and UR enforces the geography sufficiency rule only when it is about to dispatch the findAProvider action. The optional nucc_codes argument carries the SpecialtyFilter output across turns so UR can skip re-running SpecialtyFilter on the resolution turn.",
+      "description": "Intent entry for an utterance UM classified as the person looking for a care giver. Emit it whenever that is what the turn is about, however much or little of a place they named: what a search needs is the care-giver page's to declare and to ask about. pending_disambiguation may be set alongside it when a place name was given without a state and there is a plausible candidate to propose. The optional nucc_codes argument carries the SpecialtyFilter output across turns.",
       "properties": {
         "name": {
           "const": "findAProvider"
@@ -334,7 +334,7 @@ CATALOG (this deploy's closed set): specialtySearch, findAProvider, findAFacilit
                     }
                   }
                 ],
-                "description": "Structured location facts. value is a JSON-encoded object the consumer parses with json.loads. The parsed object MUST have at minimum one of: (a) zip as a 5-digit ZIP code, (b) state as a 2-letter USPS code, (c) state plus city, or (d) state plus county when target_action is findAProvider. While pending_disambiguation is set on this entry the geography may be partial (e.g., city alone) and UR does not enforce the sufficiency rule because the entry's action is not being dispatched."
+                "description": "Structured location facts. value is a JSON-encoded object the consumer parses with json.loads. Carry whatever the person named -- a state, a city, a ZIP, a county, or only one of them. There is no minimum to meet here: which of these a search cannot run without is declared where the search lives, and that page asks the person for it."
               },
               {
                 "allOf": [
@@ -801,23 +801,29 @@ DECISION RULES (apply in this order):
      "Find me a doctor in Long Beach CA" -> findAProvider, because a
      doctor is a person.
 
-  3. If the utterance is a real request with a clear healthcare
-     complaint AND a fully usable geography (zip, state, state+city, or
-     state+county), set target_action to "findAProvider" and populate
-     complaint + geography. user_message optional.
+  3. If the person is looking for a care giver, set target_action to
+     "findAProvider" and populate complaint and whatever geography they
+     gave. Do this whether or not the place is complete. How much of a
+     place is enough is not yours to judge: the care-giver page holds
+     that rule, asks the person for what it lacks, and records what they
+     said so their next answer resolves it.
 
-  4. If the utterance is a real request with a complaint and the
-     geography mentions a place name but NOT a state (e.g., "milwaukee"
-     alone), set target_action to "specialtySearch" so SpecialtyFilter
-     still renders. Populate complaint and a PARTIAL geography (city
-     only). Set pending_disambiguation = {"kind":"geography_state",
-     "candidate":{"state": YOUR-BEST-GUESS}} and set user_message to
-     propose the candidate (e.g., "Did you mean Milwaukee, Wisconsin?").
+     Judging it here sent an incomplete place to specialtySearch
+     instead, and that page owns no location -- so nothing recorded the
+     city the person named, nothing searched when they supplied the
+     state, and "yes" had nothing to attach itself to.
 
-  5. If the utterance has a complaint but no location at all, set
-     target_action to "specialtySearch". Populate complaint. Set
-     user_message asking for a location. Do NOT set
-     pending_disambiguation (there's nothing to confirm).
+  4. If a place name is given without a state (e.g., "milwaukee" alone),
+     still set target_action to "findAProvider" and populate the city.
+     Set pending_disambiguation = {"kind":"geography_state",
+     "candidate":{"state": YOUR-BEST-GUESS}} and propose the candidate
+     in user_message (e.g., "Did you mean Milwaukee, Wisconsin?").
+
+  5. Use "specialtySearch" only when the person is asking what kinds of
+     care giver exist rather than for a care giver -- "what sort of
+     doctor treats this?". A request for care with no place named is
+     still a request for care: target_action is "findAProvider", and
+     the page asks where.
 
   5b. CLINICAL TRIALS. If the user is asking for clinical trials,
       research studies, "trials", "studies", "experimental treatment",
@@ -829,41 +835,33 @@ DECISION RULES (apply in this order):
       The participant's age and sex are OPTIONAL inputs that refine
       the CT.gov search when present. geographic_scope (international
       vs US) is the fourth optional refinement. Encourage the user to
-      supply them, but condition remains the only required minimum —
-      never block the search waiting on any refinement if the user
-      has already supplied some (or explicitly skipped).
+      supply them. The condition is the only thing the search needs,
+      and nothing waits on a refinement.
 
-        - The four refinement fields are: age, sex, location, and
-          scope. NONE of these is required by the system; condition
-          is the only required field. Each refinement is treated
-          equally — none is "bonus", none is "primary". Gender is
-          NOT a refinement in this flow — ASK only for sex.
+        - The four refinements are age, sex, location and scope.
+          None is required and none is asked for. Gender is not a
+          refinement in this flow; sex is.
 
-          On the FIRST turn where the user expresses clinical-trial
-          interest, you MUST ASK for every refinement field that is
-          NOT already known — either from the current utterance OR
-          from the prior IntentDocument. Apply the SAME extraction
-          rules listed under "On the FOLLOW-UP turn" below WHEN
-          parsing the first utterance — in particular, a refinement
-          implied by family/relational words ("son" → sex=m, age
-          from "9 years old"), pronouns ("she has migraines" →
-          sex=f), or location/scope phrases ("Las Vegas NV",
-          "US-based trial") COUNTS AS KNOWN and you MUST NOT
-          ask for it again. Set target_action="closeConnection200"
-          and emit a user_message that names each STILL-MISSING
-          field by its literal word ("age", "sex", "location",
-          "scope") — for "scope" ask whether the user wants
-          international (all trials worldwide) or US-only trials.
-          Acknowledge any field the user already supplied. Tell the
-          user that condition alone is enough — they can answer
-          "skip" for any field. Park a pending_disambiguation with
-          kind="clinical_trial_demographics".
+          On the FIRST turn where the person expresses
+          clinical-trial interest, set
+          target_action="findClinicalTrials" and route. Extract
+          whatever they gave -- age, sex, location, scope -- from the
+          current utterance or the prior IntentDocument, including
+          what is implied by family words ("son" -> sex=m, age from
+          "9 years old"), pronouns ("she has migraines" -> sex=f),
+          or place and scope phrases ("Las Vegas NV", "US-based
+          trial").
 
-          You may skip the ask and proceed directly to
-          target_action="findClinicalTrials" ONLY when all four
-          refinements are already known (including ones inferred
-          from family words, pronouns, location, or scope phrasing
-          per the rules above).
+          Do not stop to collect any of them. The condition is the
+          only thing the trials page requires; those four are
+          refinements it uses when it has them and searches
+          perfectly well without. Scope left unset means every trial
+          worldwide, which is the widest answer and the safest one
+          to give somebody who did not say.
+
+          Interrogating the person for four optional facts before
+          searching made them answer a questionnaire to see results
+          that the condition alone would have produced.
 
           RULE 1.5 STILL APPLIES TO THIS user_message AND TO
           corrections[]. If the user's condition contained a
@@ -1394,10 +1392,15 @@ def session_state_block(parameters) -> str:
 def _geography_of(parameters, page: str):
     """The geography in force on one page, as its model."""
     from chathealthy_lib.authentication.user_parameters import Geography
-    got = parameters.get(page, "geography") if parameters else None
-    if not got:
+    if not parameters:
         return None
-    return got if isinstance(got, Geography) else Geography(**dict(got))
+    # Four declared parameters, one shape. Only the state is required, so
+    # they are declared and written separately and assembled where read.
+    parts = {part: parameters.get(page, part) or ""
+             for part in ("state", "city", "county", "zip")}
+    if not any(parts.values()):
+        return None
+    return Geography(**parts)
 
 
 def _known_parameters_block(parameters) -> str:
@@ -1616,14 +1619,6 @@ def build_safety_lockout_intent(lockout_reason: str) -> "IntentSafetyLockout":
             ),
         ],
     )
-
-
-def geography_sufficient(geo: Optional[dict[str, Any]]) -> bool:
-    if not geo:
-        return False
-    state = (geo.get("state") or "").strip()
-    zip_code = (geo.get("zip") or "").strip()
-    return bool(zip_code or state)
 
 
 def merge_intents(
@@ -1872,15 +1867,11 @@ class UtteranceManagerTool(ChatHealthyTool):
             )
 
         elif target_action == "specialtySearch":
-            if not complaint:
-                raise ChatHealthyException(
-                    mode="um_classifier_specialtysearch_missing_complaint",
-                    message=(
-                        "UtteranceManager classifier set target_action=specialtySearch "
-                        "but produced no complaint"
-                    ),
-                    component="UtteranceManager",
-                )
+                # Routing is this component's whole job. Whether the tool it
+                # routes to has enough to work with is that tool's to judge,
+                # against its own declaration, and to ask about when it does not.
+                # Refusing here left the person with an exception where a question
+                # belonged.
             built: list[Any] = [
                 build_specialty_search_intent(complaint, cached_nucc),
             ]
@@ -1901,25 +1892,21 @@ class UtteranceManagerTool(ChatHealthyTool):
             # output validator rejects it and the agent retries. Enforcing
             # it there rather than recovering from it here keeps one
             # statement of the rule, in the contract the model answers to.
-            if not complaint:
-                raise ChatHealthyException(
-                    mode="um_classifier_findaprovider_missing_complaint",
-                    message=(
-                        "UtteranceManager classifier set target_action=findAProvider "
-                        "but produced no complaint"
-                    ),
-                    component="UtteranceManager",
-                )
-            if not geography_sufficient(geography):
-                raise ChatHealthyException(
-                    mode="um_classifier_findaprovider_insufficient_geography",
-                    message=(
-                        "UtteranceManager classifier set target_action=findAProvider "
-                        "but geography is insufficient (need zip, state, state+city, "
-                        "or state+county)"
-                    ),
-                    component="UtteranceManager",
-                )
+                # Routing is this component's whole job. Whether the tool it
+                # routes to has enough to work with is that tool's to judge,
+                # against its own declaration, and to ask about when it does not.
+                # Refusing here left the person with an exception where a question
+                # belonged.
+            # Whether a place is enough to search on is not decided here.
+            # It is declared -- the care-giver page requires a state and
+            # accepts a city, a ZIP or a county -- and the page enforces
+            # its own declaration, asks for what is missing, and writes
+            # what was said.
+            #
+            # Refusing here sent the turn to specialtySearch instead, so
+            # the page never ran: nothing wrote the city the person named,
+            # nothing searched once they supplied the state, and the
+            # answer to the question had nothing to attach itself to.
             built = [
                 build_specialty_search_intent(complaint, cached_nucc),
                 build_find_a_provider_intent(
@@ -1938,16 +1925,11 @@ class UtteranceManagerTool(ChatHealthyTool):
                 "first": (llm_result.administrator_first_name or "").strip(),
                 "middle": (llm_result.administrator_middle_name or "").strip(),
             }
-            if not (facility_type or facility_name or any(administrator.values())):
-                raise ChatHealthyException(
-                    mode="um_classifier_findafacility_named_nothing",
-                    message=(
-                        "UtteranceManager classifier set target_action="
-                        "findAFacility but named neither a facility, a kind "
-                        "of place, nor the person who administers one"
-                    ),
-                    component="UtteranceManager",
-                )
+                # Routing is this component's whole job. Whether the tool it
+                # routes to has enough to work with is that tool's to judge,
+                # against its own declaration, and to ask about when it does not.
+                # Refusing here left the person with an exception where a question
+                # belonged.
             new_doc = merge_intents(
                 base_doc,
                 [build_find_a_facility_intent(
@@ -1959,15 +1941,11 @@ class UtteranceManagerTool(ChatHealthyTool):
                 target_action, user_message)
 
         elif target_action == "findClinicalTrials":
-            if not complaint:
-                raise ChatHealthyException(
-                    mode="um_classifier_findclinicaltrials_missing_complaint",
-                    message=(
-                        "UtteranceManager classifier set target_action="
-                        "findClinicalTrials but produced no complaint"
-                    ),
-                    component="UtteranceManager",
-                )
+                # Routing is this component's whole job. Whether the tool it
+                # routes to has enough to work with is that tool's to judge,
+                # against its own declaration, and to ask about when it does not.
+                # Refusing here left the person with an exception where a question
+                # belonged.
             new_doc = merge_intents(
                 base_doc,
                 [build_find_clinical_trials_intent(
@@ -1982,15 +1960,6 @@ class UtteranceManagerTool(ChatHealthyTool):
             )
 
         elif target_action == "closeConnection200":
-            if not user_message:
-                raise ChatHealthyException(
-                    mode="um_classifier_closeconnection200_missing_user_message",
-                    message=(
-                        "UtteranceManager classifier set target_action=closeConnection200 "
-                        "but produced no user_message"
-                    ),
-                    component="UtteranceManager",
-                )
             new_doc = merge_intents(
                 base_doc,
                 [build_close_connection_200_intent()],
@@ -1999,13 +1968,19 @@ class UtteranceManagerTool(ChatHealthyTool):
             )
 
         else:
-            raise ChatHealthyException(
-                mode="um_classifier_out_of_catalog_target_action",
-                message=(
-                    f"UtteranceManager classifier returned out-of-catalog "
-                    f"target_action {target_action!r}"
+            # No route. Not an error -- a turn this component could not
+            # place, which is the one thing it is entitled to conclude.
+            # It hands the turn to the path that asks the person, rather
+            # than raising and leaving them with a dead screen.
+            return await self._run_manufacture(
+                deps,
+                Request(
+                    trigger_type="manufacture",
+                    manufacture_utterance_reason={
+                        "outcome": "no tool could be chosen for this turn",
+                        "unplaced_target_action": target_action,
+                    },
                 ),
-                component="UtteranceManager",
             )
 
         # Stream the LLM-authored user_message before returning, per
@@ -2056,14 +2031,22 @@ class UtteranceManagerTool(ChatHealthyTool):
             # reaches the facility page is a stated carry-over triple and
             # not a second write here: a parameter of the same name does
             # not carry between pages by being called the same thing.
-            await user_parameters_tool.TOOL.run_and_log(
-                deps,
-                user_parameters_tool.Request(
-                    verb="set", page="individualProvider", name="geography",
-                    value=live_geo,
-                    route="utterance_manager", origin="non_deterministic",
-                ),
-            )
+            stated = live_geo if isinstance(live_geo, dict) else (
+                live_geo.model_dump() if hasattr(live_geo, "model_dump") else {})
+            changes = [
+                user_parameters_tool.Change(
+                    page="individualProvider", name=part, value=value)
+                for part, value in stated.items()
+                if part in ("state", "city", "zip", "county") and value]
+            if changes:
+                await user_parameters_tool.TOOL.run_and_log(
+                    deps,
+                    user_parameters_tool.Request(
+                        verb="set", changes=changes,
+                        route="utterance_manager",
+                        origin="non_deterministic",
+                    ),
+                )
 
         # The classifier already produced this. It reads the utterance and
         # emits what the user is asking about, which is the definition of

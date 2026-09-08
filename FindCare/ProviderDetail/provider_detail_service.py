@@ -483,6 +483,10 @@ class ProviderDetailService:
     ) -> tuple[dict, str]:
         """The destinations, and the practice state that resolved to none.
 
+        Every destination returned carries a URL. A destination without one
+        goes nowhere, so it is not built rather than built and filtered out
+        later by whoever paints it.
+
         The second value is empty when the table covered the state. It is
         the state itself when it did not, so a gap in the table surfaces
         instead of quietly removing a link.

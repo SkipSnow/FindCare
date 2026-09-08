@@ -23,6 +23,7 @@ function _esc(s: any): string {
 }
 
 function buildStripHtml(selected: string[], max: number, lookup: Record<string, any>,
+                        evaluateEnabled: boolean,
                         excluded: Record<string, boolean>): string {
   const cards = selected.map(npi => {
     const p = lookup[npi] || { npi }
@@ -49,7 +50,9 @@ function buildStripHtml(selected: string[], max: number, lookup: Record<string, 
     : ''
   // Evaluate button stays visible always so its target is obvious; disabled
   // until at least one provider is selected.
-  const evalDisabled = selected.length === 0
+  // Whether the evaluation may be asked for is the selection tool's
+  // answer. This strip shows the state; it does not decide it.
+  const evalDisabled = !evaluateEnabled
   const evalBtn =
     `<button data-router-action="evaluate:selected" ${evalDisabled ? 'disabled' : ''} ` +
     `style="background:${evalDisabled ? '#d1d5db' : '#d97706'};color:#fff;border:none;border-radius:0.375em;` +
@@ -82,6 +85,7 @@ export default function SelectedProvidersWidget() {
     let maxSelected = 5
     let selectedCache: string[] = []
     let excludedByFilter: Record<string, boolean> = {}
+    let evaluateEnabled = false
     let lastQuery = ''
 
     function postMerge(content: string) {
@@ -127,12 +131,14 @@ export default function SelectedProvidersWidget() {
         const selected: string[] = Array.isArray(msg.data?.selected) ? msg.data.selected : []
         if (typeof msg.data?.max_selected === 'number') maxSelected = msg.data.max_selected
         selectedCache = selected
+        evaluateEnabled = msg.data?.evaluate_enabled === true
         // Computed on the server, where the selected provider's full
         // taxonomy list is held. The widget renders the flag; it does not
         // decide it.
         excludedByFilter = (msg.data?.excluded_by_filter && typeof msg.data.excluded_by_filter === 'object')
           ? msg.data.excluded_by_filter : {}
-        postMerge(buildStripHtml(selected, maxSelected, providerLookup, excludedByFilter))
+        postMerge(buildStripHtml(selected, maxSelected, providerLookup,
+                                 evaluateEnabled, excludedByFilter))
         return
       }
 

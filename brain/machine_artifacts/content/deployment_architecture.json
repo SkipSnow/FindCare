@@ -1211,7 +1211,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/runtime_data_collections.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "1b199b88c26b8a29c43f33a1ee4473b5b914e2b0e324c5720e4acecf3aa89d4f",
+          "content_hash": "ad1b2a0cb87faabfe36938bcb2827f224fc44d5885fe48bd1c49b3112341ba69",
           "package": "service_runtime"
         },
         {
@@ -1726,7 +1726,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/runtime_data_collections.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "1b199b88c26b8a29c43f33a1ee4473b5b914e2b0e324c5720e4acecf3aa89d4f",
+          "content_hash": "ad1b2a0cb87faabfe36938bcb2827f224fc44d5885fe48bd1c49b3112341ba69",
           "package": "service_runtime"
         },
         {
@@ -1798,7 +1798,7 @@
           "source_location": "Code/ConversationalUX/FindCareChat/backend/app.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "6035828538f68e5a02fc2490d87a8a72fc551aeb61c9ac43d21bf5e053097309",
+          "content_hash": "91b9a094ac5349c63a7d1298926735a4a95390cb8262c8d0f9c4445443c0a62f",
           "package": "service_runtime"
         },
         {
@@ -2086,7 +2086,7 @@
           "source_location": "Code/ConversationalUX/FindCareChat/frontend/src/components/ClinicalTrialsWidget.tsx",
           "handler_type": "static_asset",
           "disposition": "referenced",
-          "content_hash": "5a8b53ab8b29bf967dee96020aef71dd003433e71c102b4599467d8115ab0e0a",
+          "content_hash": "1b44bbdd40c637f9d4b25ad0ab1ff42428bc0b9b6075d7e32d4ab7caa5cfa3ec",
           "package": "service_runtime"
         },
         {
@@ -2142,7 +2142,7 @@
           "source_location": "Code/ConversationalUX/FindCareChat/frontend/src/components/OAuthLoginWidget.tsx",
           "handler_type": "static_asset",
           "disposition": "referenced",
-          "content_hash": "c177f50e8a849f033f09e062afc8b9da1439b0cda48ab1c44d62cfa903fdc3a7",
+          "content_hash": "0acaf5b7cac4247535d3afcb3d302927ab398eb9526017961ba2b1485fb29d26",
           "package": "service_runtime"
         },
         {
@@ -2150,7 +2150,7 @@
           "source_location": "Code/ConversationalUX/FindCareChat/frontend/src/components/ProviderDetailWidget.tsx",
           "handler_type": "static_asset",
           "disposition": "referenced",
-          "content_hash": "f6835e07ce631b280f53de11b395ab317c49bfcce607868bb0569677082fe8f2",
+          "content_hash": "f73488b0a3b971a5fae64ff0f302118a3fd031a99922f9e712b486cadbbdb786",
           "package": "service_runtime"
         },
         {
@@ -2158,7 +2158,7 @@
           "source_location": "Code/ConversationalUX/FindCareChat/frontend/src/components/ProviderResultsWidget.tsx",
           "handler_type": "static_asset",
           "disposition": "referenced",
-          "content_hash": "f8b9104799527d6864ee9ae929af4bb8fc61766a2e298992b498e385efa89358",
+          "content_hash": "86f371da7f20eaa85afdbbe512b1844936f0e4ef123af943ff2f43ece4d6263e",
           "package": "service_runtime"
         },
         {
@@ -2166,7 +2166,7 @@
           "source_location": "Code/ConversationalUX/FindCareChat/frontend/src/components/SelectedProvidersWidget.tsx",
           "handler_type": "static_asset",
           "disposition": "referenced",
-          "content_hash": "a24542d9e2ea29ab708aa5e7bfddc2f83acbb644f6b2bb68a1fbca37673e7384",
+          "content_hash": "874cdb0666ef2780e60d3d14755d070f186b8ebc1ed9bd093a08ffaa7788d44a",
           "package": "service_runtime"
         },
         {
@@ -2182,7 +2182,7 @@
           "source_location": "Code/ConversationalUX/FindCareChat/frontend/src/components/SpecialtyFilterWidget.tsx",
           "handler_type": "static_asset",
           "disposition": "referenced",
-          "content_hash": "49f8c6b3bf2c4af4122a47494868a0ebf0b85212450d3529f02f25f32d43342f",
+          "content_hash": "950d6707fd4a5f92da2d1b60c656315cec11ea991aced25bcbff6ded37807944",
           "package": "service_runtime"
         },
         {
@@ -2238,7 +2238,7 @@
           "source_location": "Code/ConversationalUX/FindCareChat/frontend/tsconfig.json",
           "handler_type": "json",
           "disposition": "referenced",
-          "content_hash": "7a27a6f8321b4e4c4ad45c637790ea542d6d334a2c365eb5dbf46a58d60db5f2",
+          "content_hash": "16a7486d5ec79f414c309c0788fcef79d2bcaa49e3ceaaab9de92c4d5857bb0b",
           "package": "service_runtime"
         },
         {
@@ -2403,7 +2403,7 @@
           "source_location": "FindCare/ClinicalTrials/clinical_trials_tool.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "28907baa9261c50106d2d418528a22e8af06a2f0e27b65c0b8917aaf602e3d2d",
+          "content_hash": "bdf7c5008d6d59dd968ea1dbb37c734e8544acc23434f2ef73d482c100f4823d",
           "package": "service_runtime"
         },
         {
@@ -2427,7 +2427,7 @@
           "source_location": "FindCare/ProviderDetail/provider_detail_service.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "34028aee48a10fba254b4c3cdd2aa0012a31f3baa5020e319eaaf4760582ad8f",
+          "content_hash": "bbfcd0a96532c62b8019491a82f5923c026bd3384965ff073af0975ce35709ae",
           "package": "service_runtime"
         },
         {
@@ -2443,7 +2443,7 @@
           "source_location": "FindCare/ProviderManagement/provider_search_service.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "b05be2c02cd9d35fc932e68bc69f8709e659b899aa07a517c28bd82f03802ca8",
+          "content_hash": "0425c23e3f0b18c3b300d92de92033a7be273610c3645debcc62933f4dfe9af3",
           "package": "service_runtime"
         },
         {
@@ -2542,7 +2542,7 @@
           "source_location": "brain/machine_artifacts/content/prompts.json",
           "handler_type": "json",
           "disposition": "referenced",
-          "content_hash": "fb9ade48b1a709cd8e3aedd8d8c9484db52b1eb6cf0ef33c93ac05c9a101a035",
+          "content_hash": "495876b78864f162c85b509d7094703917bd146747a3746e79e691720f0aace1",
           "package": "service_runtime"
         },
         {
@@ -3041,7 +3041,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/runtime_data_collections.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "1b199b88c26b8a29c43f33a1ee4473b5b914e2b0e324c5720e4acecf3aa89d4f",
+          "content_hash": "ad1b2a0cb87faabfe36938bcb2827f224fc44d5885fe48bd1c49b3112341ba69",
           "package": "service_runtime"
         },
         {
@@ -3209,7 +3209,7 @@
           "source_location": "sharedServices/Code/AuthorizationsAndAuthentications/universal_navigation_tool.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "3679297c0731ef940502131fa662160fa3f54babe2a32de502aaf2dda7f758ad",
+          "content_hash": "878d00a464a838628e9901a49164d8340e81e00585d1b2de8ebeb7b323633ea3",
           "package": "service_runtime"
         },
         {
@@ -3225,7 +3225,7 @@
           "source_location": "sharedServices/Code/ClinicalTrialSelection/clinical_trial_selection_tool.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "c91979ccbd7ef286ba0f39fddffaf67568ac1231c7fcf9035db69382edb211b4",
+          "content_hash": "87f2947a9ab28a2efb76f2f3ca3ab38cc085932f051f01af6ca0bdff135fe4c6",
           "package": "service_runtime"
         },
         {
@@ -3430,7 +3430,7 @@
           "source_location": "sharedServices/Code/ProviderSelection/provider_selection_tool.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "50c00cd4191374f67342c302a9089eaa53a4a9dc8e7640c3b493ef4fcf24864f",
+          "content_hash": "dc9a4b095c952dff0f16c7538a57dc4ea501ab116cad3a97ee3139b971d70129",
           "package": "service_runtime"
         },
         {
@@ -3470,7 +3470,7 @@
           "source_location": "sharedServices/Code/UtteranceManager/utterance_manager.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "2d8db6c37c87a3299da0006783e37ea94b129b6226be72e886fa51fca69ea973",
+          "content_hash": "32a16c3a3dd1fb497ad7d934cd532a6076d920e548de4c1f483dbc3136f00e30",
           "package": "service_runtime"
         },
         {
@@ -6213,195 +6213,6 @@
           ],
           "config_collections": [
             {
-              "address": "ChatHealthyConfig.ParameterDeclaration",
-              "identity_key": [
-                "env"
-              ],
-              "records": [
-                {
-                  "env": "local",
-                  "pages": [
-                    {
-                      "page": "individualProvider",
-                      "consumed_by": [
-                        "EPIC-006-F-001",
-                        "EPIC-006-F-002"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "geography",
-                          "value_type": "geography",
-                          "required": true
-                        },
-                        {
-                          "name": "complaint",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list",
-                          "required": true
-                        },
-                        {
-                          "name": "providerName",
-                          "value_type": "provider_name",
-                          "required": false
-                        },
-                        {
-                          "name": "providerSex",
-                          "value_type": "sex_code",
-                          "required": false
-                        },
-                        {
-                          "name": "soleProprietor",
-                          "value_type": "boolean",
-                          "required": false
-                        },
-                        {
-                          "name": "insurance",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedNpis",
-                          "value_type": "string_list",
-                          "required": false
-                        },
-                        {
-                          "name": "openNpi",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "position",
-                          "value_type": "position",
-                          "required": false
-                        }
-                      ]
-                    },
-                    {
-                      "page": "facility",
-                      "consumed_by": [
-                        "EPIC-006-F-006",
-                        "EPIC-006-F-007"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "geography",
-                          "value_type": "geography",
-                          "required": true
-                        },
-                        {
-                          "name": "facilityName",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "facilityType",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "offeredFacilityTypes",
-                          "value_type": "specialties",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedTaxonomyCodes",
-                          "value_type": "string_list",
-                          "required": true
-                        },
-                        {
-                          "name": "administratorName",
-                          "value_type": "provider_name",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedNpis",
-                          "value_type": "string_list",
-                          "required": false
-                        },
-                        {
-                          "name": "openNpi",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "position",
-                          "value_type": "position",
-                          "required": false
-                        }
-                      ]
-                    },
-                    {
-                      "page": "NUCC",
-                      "consumed_by": [
-                        "EPIC-006-F-003"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "complaint",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "offeredSpecialties",
-                          "value_type": "specialties",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list",
-                          "required": true
-                        }
-                      ]
-                    },
-                    {
-                      "page": "clinicalTrial",
-                      "consumed_by": [
-                        "EPIC-006-F-005",
-                        "EPIC-006-F-004"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "condition",
-                          "value_type": "string",
-                          "required": true
-                        },
-                        {
-                          "name": "ageYears",
-                          "value_type": "integer",
-                          "required": false
-                        },
-                        {
-                          "name": "sex",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "unitedStatesOnly",
-                          "value_type": "boolean",
-                          "required": false
-                        },
-                        {
-                          "name": "openNctId",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "position",
-                          "value_type": "position",
-                          "required": false
-                        }
-                      ]
-                    }
-                  ],
-                  "carry_over": []
-                }
-              ]
-            },
-            {
               "address": "ChatHealthyConfig.DBVersions",
               "identity_key": [
                 "env"
@@ -6513,6 +6324,410 @@
                       ]
                     }
                   ]
+                }
+              ]
+            },
+            {
+              "address": "ChatHealthyConfig.ToolConfiguration",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "_record_id": "ToolConfiguration",
+                  "description": "What the application is made of, stated once. Three lists and nothing nested: a tool appears in all three, which is why the record is named for it. Parameters name the tools that subscribe to them and what each makes of them; tools name where they are served; pages name which tools compose them.\n\nRequirements are per tool and never per page. A page carries several tools -- a search, a filter, a detail, a selection -- each with its own answer, and a search runs before any record is opened. A page is the scope a parameter's VALUE lives in, which is why a geography on the care-giver page is not the geography on the facility page.\n\nNothing is stated twice, so nothing can disagree with itself.",
+                  "uses": {
+                    "Required": "The tool cannot run without it. It refuses, and asks the person for it.",
+                    "Optional": "The tool uses it when it has it and runs correctly without it. It is never asked for as though it were needed.",
+                    "(absent)": "A tool that does not appear in a parameter's subscriptions has no business with it. Not registered, because listing every tool against every parameter is a great deal of record to carry for a fact that reads perfectly well as silence."
+                  },
+                  "parameters": [
+                    {
+                      "name": "state",
+                      "value_type": "string",
+                      "description": "The two-letter USPS code. Healthcare is regulated per state, so this is not a narrowing: it decides which board licenses the care giver.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "city",
+                      "value_type": "string",
+                      "description": "Written by its real name, not by the letters the person typed: a stored address is matched letter for letter, so a misspelling finds the few records carrying the same mistake and misses the rest.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "zip",
+                      "value_type": "string",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "county",
+                      "value_type": "string",
+                      "description": "Held with the kind-word appended and it varies by state -- County, Parish, Borough, Municipio. The name alone is what is carried; the tool asks for every stored form.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "complaint",
+                      "value_type": "string",
+                      "description": "What the person needs care for, in clinical terms rather than the words they used. A named kind of care giver is itself an answer: asking for an acupuncturist is asking for acupuncture.",
+                      "subscriptions": [
+                        {
+                          "tool": "SpecialtyFilter",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "offeredSpecialties",
+                      "value_type": "specialties",
+                      "description": "The kinds of care giver the complaint resolved to. Offered, not chosen.",
+                      "subscriptions": [
+                        {
+                          "tool": "SpecialtyFilter",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "selectedSpecialtyCodes",
+                      "value_type": "string_list",
+                      "description": "The NUCC codes in force. A search runs under these and shows what it ran under.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "SpecialtyFilter",
+                          "use": "Optional",
+                          "note": "This tool produces them. It carries them when a panel is restored, and runs without them when it is resolving a complaint for the first time."
+                        },
+                        {
+                          "tool": "ProviderSelection",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "providerName",
+                      "value_type": "provider_name",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "providerSex",
+                      "value_type": "sex_code",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "soleProprietor",
+                      "value_type": "boolean",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "insurance",
+                      "value_type": "string",
+                      "description": "A payer identifier the care giver carries. It is not a statement that they accept that insurance.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "npi",
+                      "value_type": "string",
+                      "description": "One record, named. The only thing a detail needs: everything it shows is read from the record this names, so what it shows cannot vary with the search that produced the row.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderDetail",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "FacilityDetail",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "selectedNpis",
+                      "value_type": "string_list",
+                      "description": "The set the person curated for evaluation.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSelection",
+                          "use": "Required"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "position",
+                      "value_type": "position",
+                      "description": "Where in a list the person is. Held as the first and last key on screen, which is what both directions of paging need.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "facilityName",
+                      "value_type": "string",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "facilityType",
+                      "value_type": "string",
+                      "description": "The kind of place, in the person's own words. Resolved to taxonomy codes by the tool, not by the person.",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "offeredFacilityTypes",
+                      "value_type": "specialties",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "selectedTaxonomyCodes",
+                      "value_type": "string_list",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Required"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "administratorName",
+                      "value_type": "provider_name",
+                      "description": "The person who administers the organization.",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "condition",
+                      "value_type": "string",
+                      "description": "The condition trials are sought for. A symptom is expanded to the conditions it commonly names, because a symptom string returns nothing usable.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Required"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "ageYears",
+                      "value_type": "integer",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "sex",
+                      "value_type": "string",
+                      "description": "The subject's sex, as the registry records eligibility. Distinct from providerSex, which is a preference about the care giver.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "unitedStatesOnly",
+                      "value_type": "boolean",
+                      "description": "Absent means every trial worldwide, which is the widest answer and the one to give somebody who did not say. It is never asked for.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "openNctId",
+                      "value_type": "string",
+                      "description": "The trial whose detail is on screen. The trial analogue of npi.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    }
+                  ],
+                  "tools": [
+                    {
+                      "tool": "ProviderSearch",
+                      "server": "find_care",
+                      "endpoint": "/provider/find"
+                    },
+                    {
+                      "tool": "ProviderDetail",
+                      "server": "find_care",
+                      "endpoint": "/provider-detail"
+                    },
+                    {
+                      "tool": "FacilitySearch",
+                      "server": "find_care",
+                      "endpoint": "/facility/find"
+                    },
+                    {
+                      "tool": "FacilityDetail",
+                      "server": "find_care",
+                      "endpoint": "/provider-detail"
+                    },
+                    {
+                      "tool": "SpecialtyFilter",
+                      "server": "find_care",
+                      "endpoint": "/specialty/find"
+                    },
+                    {
+                      "tool": "ClinicalTrials",
+                      "server": "find_care",
+                      "endpoint": "/trial/find"
+                    },
+                    {
+                      "tool": "ProviderSelection",
+                      "server": "shared_services",
+                      "endpoint": "provider_selection"
+                    }
+                  ],
+                  "pages": [
+                    {
+                      "page": "individualProvider",
+                      "tools": [
+                        "ProviderSearch",
+                        "SpecialtyFilter",
+                        "ProviderDetail",
+                        "ProviderSelection"
+                      ]
+                    },
+                    {
+                      "page": "facility",
+                      "tools": [
+                        "FacilitySearch",
+                        "FacilityDetail"
+                      ]
+                    },
+                    {
+                      "page": "NUCC",
+                      "tools": [
+                        "SpecialtyFilter"
+                      ]
+                    },
+                    {
+                      "page": "clinicalTrial",
+                      "tools": [
+                        "ClinicalTrials"
+                      ]
+                    }
+                  ],
+                  "env": "local"
                 }
               ]
             }
@@ -6573,195 +6788,6 @@
           ],
           "config_collections": [
             {
-              "address": "ChatHealthyConfig.ParameterDeclaration",
-              "identity_key": [
-                "env"
-              ],
-              "records": [
-                {
-                  "env": "dev",
-                  "pages": [
-                    {
-                      "page": "individualProvider",
-                      "consumed_by": [
-                        "EPIC-006-F-001",
-                        "EPIC-006-F-002"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "geography",
-                          "value_type": "geography",
-                          "required": true
-                        },
-                        {
-                          "name": "complaint",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list",
-                          "required": true
-                        },
-                        {
-                          "name": "providerName",
-                          "value_type": "provider_name",
-                          "required": false
-                        },
-                        {
-                          "name": "providerSex",
-                          "value_type": "sex_code",
-                          "required": false
-                        },
-                        {
-                          "name": "soleProprietor",
-                          "value_type": "boolean",
-                          "required": false
-                        },
-                        {
-                          "name": "insurance",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedNpis",
-                          "value_type": "string_list",
-                          "required": false
-                        },
-                        {
-                          "name": "openNpi",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "position",
-                          "value_type": "position",
-                          "required": false
-                        }
-                      ]
-                    },
-                    {
-                      "page": "facility",
-                      "consumed_by": [
-                        "EPIC-006-F-006",
-                        "EPIC-006-F-007"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "geography",
-                          "value_type": "geography",
-                          "required": true
-                        },
-                        {
-                          "name": "facilityName",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "facilityType",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "offeredFacilityTypes",
-                          "value_type": "specialties",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedTaxonomyCodes",
-                          "value_type": "string_list",
-                          "required": true
-                        },
-                        {
-                          "name": "administratorName",
-                          "value_type": "provider_name",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedNpis",
-                          "value_type": "string_list",
-                          "required": false
-                        },
-                        {
-                          "name": "openNpi",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "position",
-                          "value_type": "position",
-                          "required": false
-                        }
-                      ]
-                    },
-                    {
-                      "page": "NUCC",
-                      "consumed_by": [
-                        "EPIC-006-F-003"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "complaint",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "offeredSpecialties",
-                          "value_type": "specialties",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list",
-                          "required": true
-                        }
-                      ]
-                    },
-                    {
-                      "page": "clinicalTrial",
-                      "consumed_by": [
-                        "EPIC-006-F-005",
-                        "EPIC-006-F-004"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "condition",
-                          "value_type": "string",
-                          "required": true
-                        },
-                        {
-                          "name": "ageYears",
-                          "value_type": "integer",
-                          "required": false
-                        },
-                        {
-                          "name": "sex",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "unitedStatesOnly",
-                          "value_type": "boolean",
-                          "required": false
-                        },
-                        {
-                          "name": "openNctId",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "position",
-                          "value_type": "position",
-                          "required": false
-                        }
-                      ]
-                    }
-                  ],
-                  "carry_over": []
-                }
-              ]
-            },
-            {
               "address": "ChatHealthyConfig.DBVersions",
               "identity_key": [
                 "env"
@@ -6873,6 +6899,410 @@
                       ]
                     }
                   ]
+                }
+              ]
+            },
+            {
+              "address": "ChatHealthyConfig.ToolConfiguration",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "_record_id": "ToolConfiguration",
+                  "description": "What the application is made of, stated once. Three lists and nothing nested: a tool appears in all three, which is why the record is named for it. Parameters name the tools that subscribe to them and what each makes of them; tools name where they are served; pages name which tools compose them.\n\nRequirements are per tool and never per page. A page carries several tools -- a search, a filter, a detail, a selection -- each with its own answer, and a search runs before any record is opened. A page is the scope a parameter's VALUE lives in, which is why a geography on the care-giver page is not the geography on the facility page.\n\nNothing is stated twice, so nothing can disagree with itself.",
+                  "uses": {
+                    "Required": "The tool cannot run without it. It refuses, and asks the person for it.",
+                    "Optional": "The tool uses it when it has it and runs correctly without it. It is never asked for as though it were needed.",
+                    "(absent)": "A tool that does not appear in a parameter's subscriptions has no business with it. Not registered, because listing every tool against every parameter is a great deal of record to carry for a fact that reads perfectly well as silence."
+                  },
+                  "parameters": [
+                    {
+                      "name": "state",
+                      "value_type": "string",
+                      "description": "The two-letter USPS code. Healthcare is regulated per state, so this is not a narrowing: it decides which board licenses the care giver.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "city",
+                      "value_type": "string",
+                      "description": "Written by its real name, not by the letters the person typed: a stored address is matched letter for letter, so a misspelling finds the few records carrying the same mistake and misses the rest.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "zip",
+                      "value_type": "string",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "county",
+                      "value_type": "string",
+                      "description": "Held with the kind-word appended and it varies by state -- County, Parish, Borough, Municipio. The name alone is what is carried; the tool asks for every stored form.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "complaint",
+                      "value_type": "string",
+                      "description": "What the person needs care for, in clinical terms rather than the words they used. A named kind of care giver is itself an answer: asking for an acupuncturist is asking for acupuncture.",
+                      "subscriptions": [
+                        {
+                          "tool": "SpecialtyFilter",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "offeredSpecialties",
+                      "value_type": "specialties",
+                      "description": "The kinds of care giver the complaint resolved to. Offered, not chosen.",
+                      "subscriptions": [
+                        {
+                          "tool": "SpecialtyFilter",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "selectedSpecialtyCodes",
+                      "value_type": "string_list",
+                      "description": "The NUCC codes in force. A search runs under these and shows what it ran under.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "SpecialtyFilter",
+                          "use": "Optional",
+                          "note": "This tool produces them. It carries them when a panel is restored, and runs without them when it is resolving a complaint for the first time."
+                        },
+                        {
+                          "tool": "ProviderSelection",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "providerName",
+                      "value_type": "provider_name",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "providerSex",
+                      "value_type": "sex_code",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "soleProprietor",
+                      "value_type": "boolean",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "insurance",
+                      "value_type": "string",
+                      "description": "A payer identifier the care giver carries. It is not a statement that they accept that insurance.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "npi",
+                      "value_type": "string",
+                      "description": "One record, named. The only thing a detail needs: everything it shows is read from the record this names, so what it shows cannot vary with the search that produced the row.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderDetail",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "FacilityDetail",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "selectedNpis",
+                      "value_type": "string_list",
+                      "description": "The set the person curated for evaluation.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSelection",
+                          "use": "Required"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "position",
+                      "value_type": "position",
+                      "description": "Where in a list the person is. Held as the first and last key on screen, which is what both directions of paging need.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "facilityName",
+                      "value_type": "string",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "facilityType",
+                      "value_type": "string",
+                      "description": "The kind of place, in the person's own words. Resolved to taxonomy codes by the tool, not by the person.",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "offeredFacilityTypes",
+                      "value_type": "specialties",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "selectedTaxonomyCodes",
+                      "value_type": "string_list",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Required"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "administratorName",
+                      "value_type": "provider_name",
+                      "description": "The person who administers the organization.",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "condition",
+                      "value_type": "string",
+                      "description": "The condition trials are sought for. A symptom is expanded to the conditions it commonly names, because a symptom string returns nothing usable.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Required"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "ageYears",
+                      "value_type": "integer",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "sex",
+                      "value_type": "string",
+                      "description": "The subject's sex, as the registry records eligibility. Distinct from providerSex, which is a preference about the care giver.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "unitedStatesOnly",
+                      "value_type": "boolean",
+                      "description": "Absent means every trial worldwide, which is the widest answer and the one to give somebody who did not say. It is never asked for.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "openNctId",
+                      "value_type": "string",
+                      "description": "The trial whose detail is on screen. The trial analogue of npi.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    }
+                  ],
+                  "tools": [
+                    {
+                      "tool": "ProviderSearch",
+                      "server": "find_care",
+                      "endpoint": "/provider/find"
+                    },
+                    {
+                      "tool": "ProviderDetail",
+                      "server": "find_care",
+                      "endpoint": "/provider-detail"
+                    },
+                    {
+                      "tool": "FacilitySearch",
+                      "server": "find_care",
+                      "endpoint": "/facility/find"
+                    },
+                    {
+                      "tool": "FacilityDetail",
+                      "server": "find_care",
+                      "endpoint": "/provider-detail"
+                    },
+                    {
+                      "tool": "SpecialtyFilter",
+                      "server": "find_care",
+                      "endpoint": "/specialty/find"
+                    },
+                    {
+                      "tool": "ClinicalTrials",
+                      "server": "find_care",
+                      "endpoint": "/trial/find"
+                    },
+                    {
+                      "tool": "ProviderSelection",
+                      "server": "shared_services",
+                      "endpoint": "provider_selection"
+                    }
+                  ],
+                  "pages": [
+                    {
+                      "page": "individualProvider",
+                      "tools": [
+                        "ProviderSearch",
+                        "SpecialtyFilter",
+                        "ProviderDetail",
+                        "ProviderSelection"
+                      ]
+                    },
+                    {
+                      "page": "facility",
+                      "tools": [
+                        "FacilitySearch",
+                        "FacilityDetail"
+                      ]
+                    },
+                    {
+                      "page": "NUCC",
+                      "tools": [
+                        "SpecialtyFilter"
+                      ]
+                    },
+                    {
+                      "page": "clinicalTrial",
+                      "tools": [
+                        "ClinicalTrials"
+                      ]
+                    }
+                  ],
+                  "env": "dev"
                 }
               ]
             }
@@ -6933,195 +7363,6 @@
           ],
           "config_collections": [
             {
-              "address": "ChatHealthyConfig.ParameterDeclaration",
-              "identity_key": [
-                "env"
-              ],
-              "records": [
-                {
-                  "env": "qa",
-                  "pages": [
-                    {
-                      "page": "individualProvider",
-                      "consumed_by": [
-                        "EPIC-006-F-001",
-                        "EPIC-006-F-002"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "geography",
-                          "value_type": "geography",
-                          "required": true
-                        },
-                        {
-                          "name": "complaint",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list",
-                          "required": true
-                        },
-                        {
-                          "name": "providerName",
-                          "value_type": "provider_name",
-                          "required": false
-                        },
-                        {
-                          "name": "providerSex",
-                          "value_type": "sex_code",
-                          "required": false
-                        },
-                        {
-                          "name": "soleProprietor",
-                          "value_type": "boolean",
-                          "required": false
-                        },
-                        {
-                          "name": "insurance",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedNpis",
-                          "value_type": "string_list",
-                          "required": false
-                        },
-                        {
-                          "name": "openNpi",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "position",
-                          "value_type": "position",
-                          "required": false
-                        }
-                      ]
-                    },
-                    {
-                      "page": "facility",
-                      "consumed_by": [
-                        "EPIC-006-F-006",
-                        "EPIC-006-F-007"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "geography",
-                          "value_type": "geography",
-                          "required": true
-                        },
-                        {
-                          "name": "facilityName",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "facilityType",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "offeredFacilityTypes",
-                          "value_type": "specialties",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedTaxonomyCodes",
-                          "value_type": "string_list",
-                          "required": true
-                        },
-                        {
-                          "name": "administratorName",
-                          "value_type": "provider_name",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedNpis",
-                          "value_type": "string_list",
-                          "required": false
-                        },
-                        {
-                          "name": "openNpi",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "position",
-                          "value_type": "position",
-                          "required": false
-                        }
-                      ]
-                    },
-                    {
-                      "page": "NUCC",
-                      "consumed_by": [
-                        "EPIC-006-F-003"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "complaint",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "offeredSpecialties",
-                          "value_type": "specialties",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list",
-                          "required": true
-                        }
-                      ]
-                    },
-                    {
-                      "page": "clinicalTrial",
-                      "consumed_by": [
-                        "EPIC-006-F-005",
-                        "EPIC-006-F-004"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "condition",
-                          "value_type": "string",
-                          "required": true
-                        },
-                        {
-                          "name": "ageYears",
-                          "value_type": "integer",
-                          "required": false
-                        },
-                        {
-                          "name": "sex",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "unitedStatesOnly",
-                          "value_type": "boolean",
-                          "required": false
-                        },
-                        {
-                          "name": "openNctId",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "position",
-                          "value_type": "position",
-                          "required": false
-                        }
-                      ]
-                    }
-                  ],
-                  "carry_over": []
-                }
-              ]
-            },
-            {
               "address": "ChatHealthyConfig.DBVersions",
               "identity_key": [
                 "env"
@@ -7233,6 +7474,410 @@
                       ]
                     }
                   ]
+                }
+              ]
+            },
+            {
+              "address": "ChatHealthyConfig.ToolConfiguration",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "_record_id": "ToolConfiguration",
+                  "description": "What the application is made of, stated once. Three lists and nothing nested: a tool appears in all three, which is why the record is named for it. Parameters name the tools that subscribe to them and what each makes of them; tools name where they are served; pages name which tools compose them.\n\nRequirements are per tool and never per page. A page carries several tools -- a search, a filter, a detail, a selection -- each with its own answer, and a search runs before any record is opened. A page is the scope a parameter's VALUE lives in, which is why a geography on the care-giver page is not the geography on the facility page.\n\nNothing is stated twice, so nothing can disagree with itself.",
+                  "uses": {
+                    "Required": "The tool cannot run without it. It refuses, and asks the person for it.",
+                    "Optional": "The tool uses it when it has it and runs correctly without it. It is never asked for as though it were needed.",
+                    "(absent)": "A tool that does not appear in a parameter's subscriptions has no business with it. Not registered, because listing every tool against every parameter is a great deal of record to carry for a fact that reads perfectly well as silence."
+                  },
+                  "parameters": [
+                    {
+                      "name": "state",
+                      "value_type": "string",
+                      "description": "The two-letter USPS code. Healthcare is regulated per state, so this is not a narrowing: it decides which board licenses the care giver.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "city",
+                      "value_type": "string",
+                      "description": "Written by its real name, not by the letters the person typed: a stored address is matched letter for letter, so a misspelling finds the few records carrying the same mistake and misses the rest.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "zip",
+                      "value_type": "string",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "county",
+                      "value_type": "string",
+                      "description": "Held with the kind-word appended and it varies by state -- County, Parish, Borough, Municipio. The name alone is what is carried; the tool asks for every stored form.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "complaint",
+                      "value_type": "string",
+                      "description": "What the person needs care for, in clinical terms rather than the words they used. A named kind of care giver is itself an answer: asking for an acupuncturist is asking for acupuncture.",
+                      "subscriptions": [
+                        {
+                          "tool": "SpecialtyFilter",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "offeredSpecialties",
+                      "value_type": "specialties",
+                      "description": "The kinds of care giver the complaint resolved to. Offered, not chosen.",
+                      "subscriptions": [
+                        {
+                          "tool": "SpecialtyFilter",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "selectedSpecialtyCodes",
+                      "value_type": "string_list",
+                      "description": "The NUCC codes in force. A search runs under these and shows what it ran under.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "SpecialtyFilter",
+                          "use": "Optional",
+                          "note": "This tool produces them. It carries them when a panel is restored, and runs without them when it is resolving a complaint for the first time."
+                        },
+                        {
+                          "tool": "ProviderSelection",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "providerName",
+                      "value_type": "provider_name",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "providerSex",
+                      "value_type": "sex_code",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "soleProprietor",
+                      "value_type": "boolean",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "insurance",
+                      "value_type": "string",
+                      "description": "A payer identifier the care giver carries. It is not a statement that they accept that insurance.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "npi",
+                      "value_type": "string",
+                      "description": "One record, named. The only thing a detail needs: everything it shows is read from the record this names, so what it shows cannot vary with the search that produced the row.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderDetail",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "FacilityDetail",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "selectedNpis",
+                      "value_type": "string_list",
+                      "description": "The set the person curated for evaluation.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSelection",
+                          "use": "Required"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "position",
+                      "value_type": "position",
+                      "description": "Where in a list the person is. Held as the first and last key on screen, which is what both directions of paging need.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "facilityName",
+                      "value_type": "string",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "facilityType",
+                      "value_type": "string",
+                      "description": "The kind of place, in the person's own words. Resolved to taxonomy codes by the tool, not by the person.",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "offeredFacilityTypes",
+                      "value_type": "specialties",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "selectedTaxonomyCodes",
+                      "value_type": "string_list",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Required"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "administratorName",
+                      "value_type": "provider_name",
+                      "description": "The person who administers the organization.",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "condition",
+                      "value_type": "string",
+                      "description": "The condition trials are sought for. A symptom is expanded to the conditions it commonly names, because a symptom string returns nothing usable.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Required"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "ageYears",
+                      "value_type": "integer",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "sex",
+                      "value_type": "string",
+                      "description": "The subject's sex, as the registry records eligibility. Distinct from providerSex, which is a preference about the care giver.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "unitedStatesOnly",
+                      "value_type": "boolean",
+                      "description": "Absent means every trial worldwide, which is the widest answer and the one to give somebody who did not say. It is never asked for.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "openNctId",
+                      "value_type": "string",
+                      "description": "The trial whose detail is on screen. The trial analogue of npi.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    }
+                  ],
+                  "tools": [
+                    {
+                      "tool": "ProviderSearch",
+                      "server": "find_care",
+                      "endpoint": "/provider/find"
+                    },
+                    {
+                      "tool": "ProviderDetail",
+                      "server": "find_care",
+                      "endpoint": "/provider-detail"
+                    },
+                    {
+                      "tool": "FacilitySearch",
+                      "server": "find_care",
+                      "endpoint": "/facility/find"
+                    },
+                    {
+                      "tool": "FacilityDetail",
+                      "server": "find_care",
+                      "endpoint": "/provider-detail"
+                    },
+                    {
+                      "tool": "SpecialtyFilter",
+                      "server": "find_care",
+                      "endpoint": "/specialty/find"
+                    },
+                    {
+                      "tool": "ClinicalTrials",
+                      "server": "find_care",
+                      "endpoint": "/trial/find"
+                    },
+                    {
+                      "tool": "ProviderSelection",
+                      "server": "shared_services",
+                      "endpoint": "provider_selection"
+                    }
+                  ],
+                  "pages": [
+                    {
+                      "page": "individualProvider",
+                      "tools": [
+                        "ProviderSearch",
+                        "SpecialtyFilter",
+                        "ProviderDetail",
+                        "ProviderSelection"
+                      ]
+                    },
+                    {
+                      "page": "facility",
+                      "tools": [
+                        "FacilitySearch",
+                        "FacilityDetail"
+                      ]
+                    },
+                    {
+                      "page": "NUCC",
+                      "tools": [
+                        "SpecialtyFilter"
+                      ]
+                    },
+                    {
+                      "page": "clinicalTrial",
+                      "tools": [
+                        "ClinicalTrials"
+                      ]
+                    }
+                  ],
+                  "env": "qa"
                 }
               ]
             }
@@ -7293,195 +7938,6 @@
           ],
           "config_collections": [
             {
-              "address": "ChatHealthyConfig.ParameterDeclaration",
-              "identity_key": [
-                "env"
-              ],
-              "records": [
-                {
-                  "env": "prod",
-                  "pages": [
-                    {
-                      "page": "individualProvider",
-                      "consumed_by": [
-                        "EPIC-006-F-001",
-                        "EPIC-006-F-002"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "geography",
-                          "value_type": "geography",
-                          "required": true
-                        },
-                        {
-                          "name": "complaint",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list",
-                          "required": true
-                        },
-                        {
-                          "name": "providerName",
-                          "value_type": "provider_name",
-                          "required": false
-                        },
-                        {
-                          "name": "providerSex",
-                          "value_type": "sex_code",
-                          "required": false
-                        },
-                        {
-                          "name": "soleProprietor",
-                          "value_type": "boolean",
-                          "required": false
-                        },
-                        {
-                          "name": "insurance",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedNpis",
-                          "value_type": "string_list",
-                          "required": false
-                        },
-                        {
-                          "name": "openNpi",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "position",
-                          "value_type": "position",
-                          "required": false
-                        }
-                      ]
-                    },
-                    {
-                      "page": "facility",
-                      "consumed_by": [
-                        "EPIC-006-F-006",
-                        "EPIC-006-F-007"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "geography",
-                          "value_type": "geography",
-                          "required": true
-                        },
-                        {
-                          "name": "facilityName",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "facilityType",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "offeredFacilityTypes",
-                          "value_type": "specialties",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedTaxonomyCodes",
-                          "value_type": "string_list",
-                          "required": true
-                        },
-                        {
-                          "name": "administratorName",
-                          "value_type": "provider_name",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedNpis",
-                          "value_type": "string_list",
-                          "required": false
-                        },
-                        {
-                          "name": "openNpi",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "position",
-                          "value_type": "position",
-                          "required": false
-                        }
-                      ]
-                    },
-                    {
-                      "page": "NUCC",
-                      "consumed_by": [
-                        "EPIC-006-F-003"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "complaint",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "offeredSpecialties",
-                          "value_type": "specialties",
-                          "required": false
-                        },
-                        {
-                          "name": "selectedSpecialtyCodes",
-                          "value_type": "string_list",
-                          "required": true
-                        }
-                      ]
-                    },
-                    {
-                      "page": "clinicalTrial",
-                      "consumed_by": [
-                        "EPIC-006-F-005",
-                        "EPIC-006-F-004"
-                      ],
-                      "attributes": [
-                        {
-                          "name": "condition",
-                          "value_type": "string",
-                          "required": true
-                        },
-                        {
-                          "name": "ageYears",
-                          "value_type": "integer",
-                          "required": false
-                        },
-                        {
-                          "name": "sex",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "unitedStatesOnly",
-                          "value_type": "boolean",
-                          "required": false
-                        },
-                        {
-                          "name": "openNctId",
-                          "value_type": "string",
-                          "required": false
-                        },
-                        {
-                          "name": "position",
-                          "value_type": "position",
-                          "required": false
-                        }
-                      ]
-                    }
-                  ],
-                  "carry_over": []
-                }
-              ]
-            },
-            {
               "address": "ChatHealthyConfig.DBVersions",
               "identity_key": [
                 "env"
@@ -7595,19 +8051,415 @@
                   ]
                 }
               ]
+            },
+            {
+              "address": "ChatHealthyConfig.ToolConfiguration",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "_record_id": "ToolConfiguration",
+                  "description": "What the application is made of, stated once. Three lists and nothing nested: a tool appears in all three, which is why the record is named for it. Parameters name the tools that subscribe to them and what each makes of them; tools name where they are served; pages name which tools compose them.\n\nRequirements are per tool and never per page. A page carries several tools -- a search, a filter, a detail, a selection -- each with its own answer, and a search runs before any record is opened. A page is the scope a parameter's VALUE lives in, which is why a geography on the care-giver page is not the geography on the facility page.\n\nNothing is stated twice, so nothing can disagree with itself.",
+                  "uses": {
+                    "Required": "The tool cannot run without it. It refuses, and asks the person for it.",
+                    "Optional": "The tool uses it when it has it and runs correctly without it. It is never asked for as though it were needed.",
+                    "(absent)": "A tool that does not appear in a parameter's subscriptions has no business with it. Not registered, because listing every tool against every parameter is a great deal of record to carry for a fact that reads perfectly well as silence."
+                  },
+                  "parameters": [
+                    {
+                      "name": "state",
+                      "value_type": "string",
+                      "description": "The two-letter USPS code. Healthcare is regulated per state, so this is not a narrowing: it decides which board licenses the care giver.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "city",
+                      "value_type": "string",
+                      "description": "Written by its real name, not by the letters the person typed: a stored address is matched letter for letter, so a misspelling finds the few records carrying the same mistake and misses the rest.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "zip",
+                      "value_type": "string",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "county",
+                      "value_type": "string",
+                      "description": "Held with the kind-word appended and it varies by state -- County, Parish, Borough, Municipio. The name alone is what is carried; the tool asks for every stored form.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "complaint",
+                      "value_type": "string",
+                      "description": "What the person needs care for, in clinical terms rather than the words they used. A named kind of care giver is itself an answer: asking for an acupuncturist is asking for acupuncture.",
+                      "subscriptions": [
+                        {
+                          "tool": "SpecialtyFilter",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "offeredSpecialties",
+                      "value_type": "specialties",
+                      "description": "The kinds of care giver the complaint resolved to. Offered, not chosen.",
+                      "subscriptions": [
+                        {
+                          "tool": "SpecialtyFilter",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "selectedSpecialtyCodes",
+                      "value_type": "string_list",
+                      "description": "The NUCC codes in force. A search runs under these and shows what it ran under.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "SpecialtyFilter",
+                          "use": "Optional",
+                          "note": "This tool produces them. It carries them when a panel is restored, and runs without them when it is resolving a complaint for the first time."
+                        },
+                        {
+                          "tool": "ProviderSelection",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "providerName",
+                      "value_type": "provider_name",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "providerSex",
+                      "value_type": "sex_code",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "soleProprietor",
+                      "value_type": "boolean",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "insurance",
+                      "value_type": "string",
+                      "description": "A payer identifier the care giver carries. It is not a statement that they accept that insurance.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "npi",
+                      "value_type": "string",
+                      "description": "One record, named. The only thing a detail needs: everything it shows is read from the record this names, so what it shows cannot vary with the search that produced the row.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderDetail",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "FacilityDetail",
+                          "use": "Required"
+                        },
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "selectedNpis",
+                      "value_type": "string_list",
+                      "description": "The set the person curated for evaluation.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSelection",
+                          "use": "Required"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "position",
+                      "value_type": "position",
+                      "description": "Where in a list the person is. Held as the first and last key on screen, which is what both directions of paging need.",
+                      "subscriptions": [
+                        {
+                          "tool": "ProviderSearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        },
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "facilityName",
+                      "value_type": "string",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "facilityType",
+                      "value_type": "string",
+                      "description": "The kind of place, in the person's own words. Resolved to taxonomy codes by the tool, not by the person.",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "offeredFacilityTypes",
+                      "value_type": "specialties",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "selectedTaxonomyCodes",
+                      "value_type": "string_list",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Required"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "administratorName",
+                      "value_type": "provider_name",
+                      "description": "The person who administers the organization.",
+                      "subscriptions": [
+                        {
+                          "tool": "FacilitySearch",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "condition",
+                      "value_type": "string",
+                      "description": "The condition trials are sought for. A symptom is expanded to the conditions it commonly names, because a symptom string returns nothing usable.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Required"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "ageYears",
+                      "value_type": "integer",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "sex",
+                      "value_type": "string",
+                      "description": "The subject's sex, as the registry records eligibility. Distinct from providerSex, which is a preference about the care giver.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "unitedStatesOnly",
+                      "value_type": "boolean",
+                      "description": "Absent means every trial worldwide, which is the widest answer and the one to give somebody who did not say. It is never asked for.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "openNctId",
+                      "value_type": "string",
+                      "description": "The trial whose detail is on screen. The trial analogue of npi.",
+                      "subscriptions": [
+                        {
+                          "tool": "ClinicalTrials",
+                          "use": "Optional"
+                        }
+                      ]
+                    }
+                  ],
+                  "tools": [
+                    {
+                      "tool": "ProviderSearch",
+                      "server": "find_care",
+                      "endpoint": "/provider/find"
+                    },
+                    {
+                      "tool": "ProviderDetail",
+                      "server": "find_care",
+                      "endpoint": "/provider-detail"
+                    },
+                    {
+                      "tool": "FacilitySearch",
+                      "server": "find_care",
+                      "endpoint": "/facility/find"
+                    },
+                    {
+                      "tool": "FacilityDetail",
+                      "server": "find_care",
+                      "endpoint": "/provider-detail"
+                    },
+                    {
+                      "tool": "SpecialtyFilter",
+                      "server": "find_care",
+                      "endpoint": "/specialty/find"
+                    },
+                    {
+                      "tool": "ClinicalTrials",
+                      "server": "find_care",
+                      "endpoint": "/trial/find"
+                    },
+                    {
+                      "tool": "ProviderSelection",
+                      "server": "shared_services",
+                      "endpoint": "provider_selection"
+                    }
+                  ],
+                  "pages": [
+                    {
+                      "page": "individualProvider",
+                      "tools": [
+                        "ProviderSearch",
+                        "SpecialtyFilter",
+                        "ProviderDetail",
+                        "ProviderSelection"
+                      ]
+                    },
+                    {
+                      "page": "facility",
+                      "tools": [
+                        "FacilitySearch",
+                        "FacilityDetail"
+                      ]
+                    },
+                    {
+                      "page": "NUCC",
+                      "tools": [
+                        "SpecialtyFilter"
+                      ]
+                    },
+                    {
+                      "page": "clinicalTrial",
+                      "tools": [
+                        "ClinicalTrials"
+                      ]
+                    }
+                  ],
+                  "env": "prod"
+                }
+              ]
             }
           ]
         }
       ],
-      "files": [
-        {
-          "feature_id": "EPIC-006-F-008",
-          "source_location": "FindCare/ParameterDeclaration/parameter_declaration.json",
-          "handler_type": "json",
-          "disposition": "referenced",
-          "package": "front_end_configuration"
-        }
-      ]
+      "files": []
     }
   ],
   "firm": {

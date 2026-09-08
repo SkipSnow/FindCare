@@ -35,7 +35,8 @@ function _truncate(s: string, n: number): string {
   return t.slice(0, n) + '…'
 }
 
-function buildStripHtml(selected: string[], max: number, lookup: Record<string, any>): string {
+function buildStripHtml(selected: string[], max: number, lookup: Record<string, any>,
+                        evaluateEnabled: boolean): string {
   const cards = selected.map(nct => {
     const t = lookup[nct] || { nct_id: nct }
     // Row 1: name (truncated 60). Row 2: NCT ID. Row 3: sponsor.
@@ -56,7 +57,9 @@ function buildStripHtml(selected: string[], max: number, lookup: Record<string, 
   const emptyMsg = selected.length === 0
     ? `<div style="padding:1.5em 1em;text-align:center;color:#9ca3af;font-style:italic;">Click ↓ Choose for evaluation or drag trials here (max ${max})</div>`
     : ''
-  const evalDisabled = selected.length === 0
+  // Whether the evaluation may be asked for is the selection tool's
+  // answer. This strip shows the state; it does not decide it.
+  const evalDisabled = !evaluateEnabled
   const evalBtn =
     `<button data-router-action="evaluate:selected-trials" ${evalDisabled ? 'disabled' : ''} ` +
     `style="background:${evalDisabled ? '#d1d5db' : '#d97706'};color:#fff;border:none;border-radius:0.375em;` +
@@ -86,6 +89,7 @@ export default function SelectedClinicalTrialsWidget() {
     // alone.
     const trialLookup: Record<string, any> = {}
     let maxSelected = 5
+    let evaluateEnabled = false
     let selectedCache: string[] = []
     let lastQuery = ''
 
@@ -111,13 +115,13 @@ export default function SelectedClinicalTrialsWidget() {
         for (const t of trials) {
           if (t && t.nct_id) trialLookup[t.nct_id] = t
         }
-        if (data.chunk_index === 0) {
+        if (data.starts_new_set === true) {
           // Paint the strip immediately with the last-known selection so the
           // "Selected for Evaluation" surface is present on the initial trial
           // detail screen (uniform with the provider page). Then ask the
           // server for authoritative state — trial_selection_changed will
           // overwrite this paint with the fresh answer.
-          postMerge(buildStripHtml(selectedCache, maxSelected, trialLookup))
+          postMerge(buildStripHtml(selectedCache, maxSelected, trialLookup, evaluateEnabled))
           makeCall('clinical_trial_selection', { verb: 'list' })
         }
         return
@@ -127,7 +131,8 @@ export default function SelectedClinicalTrialsWidget() {
         const selected: string[] = Array.isArray(msg.data?.selected) ? msg.data.selected : []
         if (typeof msg.data?.max_selected === 'number') maxSelected = msg.data.max_selected
         selectedCache = selected
-        postMerge(buildStripHtml(selected, maxSelected, trialLookup))
+        evaluateEnabled = msg.data?.evaluate_enabled === true
+        postMerge(buildStripHtml(selected, maxSelected, trialLookup, evaluateEnabled))
         return
       }
 
