@@ -6388,6 +6388,55 @@
                   ]
                 }
               ]
+            },
+            {
+              "address": "ChatHealthyConfig.LibraryPermissions",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "env": "local",
+                  "lib_permissions": [
+                    {
+                      "component": "findcare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "evaluatecare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "sharedservices",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    }
+                  ]
+                }
+              ]
             }
           ]
         },
@@ -6637,6 +6686,55 @@
                       ]
                     }
                   ],
+                  "lib_permissions": [
+                    {
+                      "component": "findcare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "evaluatecare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "sharedservices",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "address": "ChatHealthyConfig.LibraryPermissions",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "env": "dev",
                   "lib_permissions": [
                     {
                       "component": "findcare",
@@ -6966,6 +7064,55 @@
                   ]
                 }
               ]
+            },
+            {
+              "address": "ChatHealthyConfig.LibraryPermissions",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "env": "qa",
+                  "lib_permissions": [
+                    {
+                      "component": "findcare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "evaluatecare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "sharedservices",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    }
+                  ]
+                }
+              ]
             }
           ]
         },
@@ -7215,6 +7362,55 @@
                       ]
                     }
                   ],
+                  "lib_permissions": [
+                    {
+                      "component": "findcare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "evaluatecare",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    },
+                    {
+                      "component": "sharedservices",
+                      "excluded_modules": [
+                        "discrepancy_report",
+                        "discrepancy_pdf",
+                        "pipeline_boot",
+                        "pipeline_job_status",
+                        "human_authorization",
+                        "subprocess_utilities",
+                        "notification_client"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "address": "ChatHealthyConfig.LibraryPermissions",
+              "identity_key": [
+                "env"
+              ],
+              "records": [
+                {
+                  "env": "prod",
                   "lib_permissions": [
                     {
                       "component": "findcare",
