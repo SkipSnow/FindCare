@@ -8,9 +8,19 @@ Runs after AuthorizationsAndAuthentications has established the user
   * session_data      — render the session: identity, live parameters,
                         and the utterance/action history
   * record_ux_event   — append a UX-control event to ux_events[]
-  * utterance         — capture typed text + route to specialty_filter
-                        + provider_search (streams events
+  * utterance         — capture typed text, classify it, and hand the
+                        turn to the page the classification named, which
+                        reads the utterance itself (streams events
                         progressively to the FE)
+  * peer_urls, peer_health, session, verify_token,
+    transfer_to_findcare
+                      — where a peer is, whether it is answering, a fresh
+                        stamp on a token, and the handing back of page
+                        ownership. The HTTP route used to answer these
+                        itself, which left the door deciding what a peer is
+                        and when a token is valid; they are ordinary ops
+                        here and reach the client behind the same session
+                        verification as everything else.
 
 Every handler reads its input off deps.user_object (the working memory)
 and emits its result via deps.stream(...). The dispatcher returns a
@@ -49,6 +59,10 @@ from authentication import (
     evalcare_splash_tool,
     provider_detail_tool,
 )
+from chathealthy_lib.authentication.auth_token import (
+    AuthToken,
+    SessionRestampRequest,
+)
 from chathealthy_lib.authentication.nonce import Nonce
 from chathealthy_lib.authentication.session_token import SessionToken
 from chathealthy_lib.authentication.user_object import UserObject
@@ -74,6 +88,15 @@ TOOL_NAME = "universal_navigation"
 
 ENV = os.getenv("ENV_PREFIX", "dev")
 SESSION_TTL_SECONDS = 300
+
+# A peer has two addresses and they are not interchangeable: the one a
+# browser can reach and the one this process reaches it by. Both are named
+# here so neither is derived from the other. Stamped by the deploy, which is
+# why the wrapper can be served as static bytes with no substitution in them.
+CH_BROWSER_PEER_URL_FINDCARE = os.getenv("CH_BROWSER_PEER_URL_FINDCARE", "https://localhost:7860")
+CH_BROWSER_PEER_URL_EVALCARE = os.getenv("CH_BROWSER_PEER_URL_EVALCARE", "https://localhost:8001")
+FINDCARE_INTERNAL_URL_FOR_HEALTH = os.getenv("FINDCARE_INTERNAL_URL", "https://ch-findcare:7860")
+EVALCARE_INTERNAL_URL_FOR_HEALTH = os.getenv("EVALCARE_INTERNAL_URL", "https://ch-evalcare:7860")
 
 WIRE_INTENT_UTTERANCE = "utterance"
 KNOWN_WIRE_INTENTS = frozenset({WIRE_INTENT_UTTERANCE})
@@ -438,6 +461,67 @@ NUCC = "NUCC"
 CLINICAL_TRIAL = "clinicalTrial"
 
 
+def latest_utterance_and_prior_dialogue(user_object) -> tuple[str, list[dict]]:
+    """The utterance a page is to read, and the talk before it.
+
+    A page mines from these two things, so the gateway's whole part in a
+    mining turn is producing them: it takes the last thing the person
+    said, and hands over everything said before it as context. It reads
+    no parameter and forms no opinion about what the words mean.
+    """
+    dialogue: list[dict[str, str]] = []
+    for u in user_object.session_conversation_history.utterances:
+        actor = getattr(u, "actor", None) or (u.get("actor") if isinstance(u, dict) else None)
+        text = getattr(u, "text", None) or (u.get("text") if isinstance(u, dict) else "")
+        if actor not in ("person", "system") or not text:
+            continue
+        dialogue.append({"actor": actor, "text": str(text).strip()})
+    utterance = ""
+    for position in range(len(dialogue) - 1, -1, -1):
+        if dialogue[position]["actor"] == "person":
+            utterance = dialogue[position]["text"]
+            dialogue = dialogue[:position]
+            break
+    return utterance, dialogue
+
+
+async def post_to_findcare(page_route: str, deps: AgentDeps, mode: str) -> dict:
+    """Hand one turn's utterance and prior talk to the page that owns it.
+
+    One implementation because the gateway's side of every mining page is
+    the same: post the two things, raise if the page could not be reached,
+    and give back what it said. The mode names which page could not be
+    reached, so a failure says which search did not run.
+    """
+    import httpx
+    from authentication import provider_search_tool
+
+    utterance, dialogue = latest_utterance_and_prior_dialogue(deps.user_object)
+    url = provider_search_tool.findcare_url() + page_route
+    try:
+        async with httpx.AsyncClient(timeout=None, verify=False) as client:
+            r = await client.post(url, json={
+                # The token this hop already holds, forwarded so FindCare
+                # can verify the SharedServices signature.
+                "session_token": deps.session_token.model_dump(mode="json"),
+                "utterance": utterance,
+                "history": dialogue,
+            })
+            r.raise_for_status()
+            return r.json()
+    except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout,
+            httpx.WriteTimeout, httpx.PoolTimeout, httpx.ReadError,
+            httpx.WriteError, httpx.RemoteProtocolError,
+            httpx.HTTPStatusError) as exc:
+        raise ChatHealthyException(
+            mode=mode,
+            component="universal_navigation_tool",
+            message=f"FindCare {page_route} call failed: "
+                    f"{type(exc).__name__}: {exc}",
+            exception=exc,
+        )
+
+
 def geography_of(params, page: str):
     """The geography in force on one page, as its model.
 
@@ -492,6 +576,12 @@ class UniversalNavigationTool(ChatHealthyTool):
     other tools (via their `run_and_log()`); those calls auto-log to
     `deps.user_object.session_conversation_history` so the session render
     finds the per-tool invocation entries with `kind:"tool_invocation"`.
+
+    Every op the application has is here, including the wire-level ones --
+    peer addresses, peer health, token stamping and verification, the
+    handing back of page ownership. They were answered by the HTTP route
+    before this class was reached, so the door held an opinion about what a
+    peer is and when a token is valid; it holds none now.
     """
     TOOL_NAME = "universal_navigation"
     Request = Request
@@ -521,6 +611,11 @@ class UniversalNavigationTool(ChatHealthyTool):
         "clinical_trial_selection": "_handle_clinical_trial_selection",
         "claim_oauth_result":   "_handle_claim_oauth_result",
         "parameter_change":     "_handle_parameter_change",
+        "peer_urls":            "_handle_peer_urls",
+        "peer_health":          "_handle_peer_health",
+        "session":              "_handle_session",
+        "verify_token":         "_handle_verify_token",
+        "transfer_to_findcare": "_handle_transfer_to_findcare",
     }
 
     async def run(self, deps: AgentDeps, request: "Request") -> "Response":
@@ -687,14 +782,11 @@ class UniversalNavigationTool(ChatHealthyTool):
         # list, and an open detail belongs to the list that is being
         # replaced.
         #
-        # Cleared when this turn asks a NEW question. An earlier attempt made
-        # this conditional on the complaint and place merely looking
-        # unchanged, and it broke: the specialty step still re-resolved, so
-        # the carried codes did not match the codes on screen, the panel
-        # showed nothing ticked, and the search ran on codes the person could
-        # not see. What makes it safe now is that the two decisions are the
-        # same decision -- an unchanged complaint keeps the ticks AND keeps
-        # the panel, because the filter is not re-run at all.
+        # Cleared when this turn asks a NEW question. A turn that goes on to
+        # a page writes that page's ticks itself, from the panel it just
+        # resolved, so what this clearing decides is what a turn ending in
+        # no page dispatch leaves behind: a new question leaves no ticks
+        # from the old one.
         from UserParameters import user_parameters_tool
         carried = [(INDIVIDUAL_PROVIDER, "position"),
                    (INDIVIDUAL_PROVIDER, "openNpi")]
@@ -751,9 +843,7 @@ class UniversalNavigationTool(ChatHealthyTool):
                 break
 
             self._validate_document(document, target_action)
-            await self._dispatch_target_action(
-                deps, document, target_action,
-                complaint_changed=complaint_changed)
+            await self._dispatch_target_action(deps, document, target_action)
             last_target_action = target_action
         else:
             raise ChatHealthyException(
@@ -800,13 +890,13 @@ class UniversalNavigationTool(ChatHealthyTool):
         return Response(kind="provider-detail", result=resp.model_dump(exclude_none=True, mode='json'))
 
     async def _search_providers(self, deps: AgentDeps, **fields) -> Any:
-        """The one route to the provider search.
+        """The gestures' route to the provider search.
 
-        Every provider list the user is shown comes through here, which is
-        what lets the rule about an open detail be written once instead of
-        at each of the three places that used to call the tool directly.
-        Stated at each site it would be three copies of one rule, and the
-        site somebody adds next would not have it.
+        Paging, refining and restoring reach the search here; an utterance
+        reaches it through the individual-provider page, which mines the
+        utterance and searches on what it mined. Both ends put the list
+        they produced through _reconcile_open_detail, so the rule about an
+        open detail is written once rather than at each site.
         """
         # The preferences the person stated are read here, not at the three
         # call sites. They live on the session, every provider list comes
@@ -832,10 +922,11 @@ class UniversalNavigationTool(ChatHealthyTool):
         from authentication import provider_search_tool
         resp = await provider_search_tool.TOOL.run_and_log(
             deps, provider_search_tool.Request(**fields))
-        await self._reconcile_open_detail(deps, resp)
+        await self._reconcile_open_detail(deps, resp.providers or [])
         return resp
 
-    async def _reconcile_open_detail(self, deps: AgentDeps, search_response) -> None:
+    async def _reconcile_open_detail(self, deps: AgentDeps,
+                                     providers: list) -> None:
         """A detail belongs to a provider in the list being presented.
 
         Paging forward, narrowing the filter, or restoring to a different
@@ -845,14 +936,16 @@ class UniversalNavigationTool(ChatHealthyTool):
 
         Membership is checked against the page actually returned, not
         against the query that produced it, because the page is what the
-        user is looking at.
+        user is looking at. The rows are taken rather than the response
+        that carried them, so a list produced by the provider page and one
+        produced by the search tool are checked by the same rule.
         """
         npi = str(deps.user_object.userParameters.get(
             INDIVIDUAL_PROVIDER, "openNpi") or "").strip()
         if not npi:
             return
         presented = {str(p.get("npi") or "").strip()
-                     for p in (search_response.providers or [])}
+                     for p in (providers or [])}
         if npi in presented:
             return
         await self._handle_provider_detail_close(deps, {})
@@ -1030,9 +1123,10 @@ class UniversalNavigationTool(ChatHealthyTool):
 
         Apply Filter is a parameter change, not a flow. The user narrowed
         the specialty selection; nothing else about what they asked for
-        moved. So this writes one parameter and dispatches the same
-        findAProvider the utterance path dispatches — one route to the
-        provider search, which is what stops the two from drifting apart.
+        moved. So this writes one parameter and runs the search again on
+        the parameters in force. It does not take the utterance path: that
+        path hands the utterance to the individual-provider page, which
+        reads it, and this gesture produced no utterance to be read.
 
         It used to rebuild the IntentDocument from parts, carrying the
         complaint, the geography and the panel back onto a freshly
@@ -1103,15 +1197,24 @@ class UniversalNavigationTool(ChatHealthyTool):
                     "selected_specialty_count": len(selected_codes),
                 },
             })
-            # The same dispatch the utterance path uses. Re-running the
-            # specialty step is safe because it is keyed by the query, and
-            # Apply Filter produces no new utterance -- so the panel the
-            # user is choosing from is the panel they keep (2026-06-10).
-            # Apply Filter changes which boxes are ticked and nothing else.
-            # The complaint did not move, so the specialty filter is not
-            # handed off to and the panel on screen stands.
-            await self._dispatch_target_action(
-                deps, prior, "findAProvider", complaint_changed=False)
+            # The search under the parameters in force, and NOT the
+            # utterance path's dispatch. That path hands the utterance to
+            # the provider page, which mines it and re-resolves the panel
+            # -- and Apply Filter produces no utterance, so the words it
+            # would re-read are the previous turn's. The person's ticks
+            # would be replaced by a freshly resolved set they never chose
+            # (the shape of the 2026-06-10 defect). Apply Filter changes
+            # which boxes are ticked and nothing else, so the panel on
+            # screen stands and only the search runs again.
+            await self._search_providers(
+                deps,
+                specialty_codes=codes_in_force(params),
+                state=live_geo.state if live_geo else None,
+                city=live_geo.city if live_geo else None,
+                county=live_geo.county if live_geo else None,
+                zip=live_geo.zip if live_geo else None,
+                limit=25,
+            )
             return Response(
                 kind="apply_filter",
                 result={"target_action": "findAProvider"},
@@ -1377,6 +1480,88 @@ class UniversalNavigationTool(ChatHealthyTool):
         req = clinical_trial_selection_tool.Request(**(payload or {}))
         await clinical_trial_selection_tool.TOOL.run_and_log(deps, req)
         return Response(kind="clinical_trial_selection", result={"ok": True})
+
+    async def _handle_peer_urls(self, deps: AgentDeps, payload: dict[str, Any]) -> Response:
+        """Where the browser can reach each peer.
+
+        The wrapper is served as static bytes, so the addresses it gives its
+        iframe cannot be substituted into it at build time and are asked for
+        instead.
+        """
+        return Response(kind="peer_urls", result={
+            "findcare":       CH_BROWSER_PEER_URL_FINDCARE,
+            "evaluatecare":   CH_BROWSER_PEER_URL_EVALCARE,
+            "sharedservices": "",   # the wrapper already knows its own /gate origin
+        })
+
+    async def _handle_peer_health(self, deps: AgentDeps, payload: dict[str, Any]) -> Response:
+        """One peer's health, asked for on the caller's behalf.
+
+        A peer's internal address is not reachable from a browser, so the
+        question is put from here and the peer's own answer handed back
+        unchanged. A peer that does not answer is itself the answer.
+        """
+        peer = (payload or {}).get("peer", "").lower()
+        target_url = {
+            "findcare":       FINDCARE_INTERNAL_URL_FOR_HEALTH,
+            "evaluatecare":   EVALCARE_INTERNAL_URL_FOR_HEALTH,
+            "sharedservices": "self",
+        }.get(peer)
+        if target_url is None:
+            raise ChatHealthyException(
+                mode="gate_peer_health_unknown_peer",
+                message=f"/gate peer_health: unknown peer {peer!r}",
+                component="SharedServices",
+            )
+        if target_url == "self":
+            from healthcheck.health_endpoint import HealthEndpoint  # noqa: PLC0415
+            return Response(kind="peer_health", result=HealthEndpoint()())
+        import httpx  # noqa: PLC0415
+        try:
+            async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
+                r = await client.post(target_url + "/health")
+                r.raise_for_status()
+                return Response(kind="peer_health", result=r.json())
+        except (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.ConnectError,
+                httpx.HTTPStatusError) as exc:
+            return Response(kind="peer_health", result={
+                "status": "unreachable",
+                "service": peer,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+    async def _handle_session(self, deps: AgentDeps, payload: dict[str, Any]) -> Response:
+        """A fresh stamp on the token the caller already holds.
+
+        The GUID is per session and the nonce is per hop, so a caller that is
+        still here is restamped rather than given a second session.
+        """
+        body_obj = SessionRestampRequest.model_validate(payload or {})
+        return Response(kind="session", result=AuthToken.handle_session(
+            body_obj, origin=authn.ORIGIN, server_env=ENV).model_dump())
+
+    async def _handle_verify_token(self, deps: AgentDeps, payload: dict[str, Any]) -> Response:
+        """Whether a token the caller holds still verifies against us.
+
+        A peer that was handed a token asks here rather than carrying our
+        signing material, which is what keeps verification one component's
+        job.
+        """
+        body_obj = SessionRestampRequest.model_validate(payload or {})
+        return Response(kind="verify_token", result=AuthToken.handle_verify(
+            body_obj, origin=authn.ORIGIN, server_env=ENV).model_dump())
+
+    async def _handle_transfer_to_findcare(self, deps: AgentDeps, payload: dict[str, Any]) -> Response:
+        """SharedServices gives the page back to FindCare.
+
+        Ownership is named by the server so both sides read one answer rather
+        than each deciding who has the page.
+        """
+        from displayChrome.transfer_to_findcare_endpoint import (  # noqa: PLC0415
+            TransferToFindCareEndpoint,
+        )
+        return Response(kind="transfer_to_findcare",
+                        result=TransferToFindCareEndpoint()())
 
     # ── Orchestration helpers ─────────────────────────────────────
 
@@ -1676,22 +1861,11 @@ class UniversalNavigationTool(ChatHealthyTool):
                 ),
             )
 
-    async def _dispatch_target_action(self, deps: AgentDeps, document, target_action: str,
-                                      complaint_changed: bool = False) -> None:
+    async def _dispatch_target_action(self, deps: AgentDeps, document,
+                                      target_action: str) -> None:
         """Dispatch the tool that owns this target_action. Tools may mutate
         user_object.intent before returning; the caller loops and re-dispatches.
-
-        complaint_changed defaults to False because re-running the specialty
-        filter is the exceptional case and must be asserted. It defaulted to
-        True, and Apply Filter -- a gesture that produces no utterance and
-        cannot change the complaint -- did not pass it, so every filter
-        application re-derived the panel the person was choosing from.
         """
-        import json as json
-
-        target_intent_entry = next(
-            (i for i in document.intents if i.name == target_action), None,
-        )
 
         # Carry-over is applied at dispatch, per destination page, and
         # nowhere else.
@@ -1707,180 +1881,181 @@ class UniversalNavigationTool(ChatHealthyTool):
             await lockout_tool.TOOL.run_and_log(deps, lockout_tool.Request())
 
         elif target_action == "closeConnection200":
-            # Only a changed complaint or Apply Filter runs the
-            # specialty filter. The panel in force stands.
+            # The turn is over and no page was asked for anything. Nothing
+            # is resolved and nothing is repainted: the panel in force
+            # stands.
             from CloseConnection200Tool import close_connection_200_tool
             await close_connection_200_tool.TOOL.run_and_log(
                 deps, close_connection_200_tool.Request(),
             )
 
         elif target_action == "specialtySearch":
-            complaint = next(
-                (a.value for a in target_intent_entry.arguments if a.name == "complaint"),
-                "",
-            )
-            await self._run_or_cache_specialty_filter(
-                deps, complaint, complaint_changed=complaint_changed)
+            # The NUCC page mines its own complaint from the talk and
+            # writes it, the panel it offers and the codes that panel is
+            # ticked with to its own page. The gateway carries the turn
+            # across the wire and paints what comes back; it reads no
+            # specialty parameter and writes none.
+            raw = await post_to_findcare(
+                "/specialty/find", deps, "specialty_search_unavailable")
+            specialties = raw.get("specialties") or []
+            if specialties:
+                # A panel is painted when there are rows to paint. A run
+                # that matched nothing says nothing about the panel, so
+                # what the person is looking at stays and the turn -- having
+                # shown nothing new -- ends by asking rather than by going
+                # quiet.
+                deps.stream({
+                    "kind": "specialties",
+                    "data": {
+                        "specialties": specialties,
+                        "homeopathic_generalists": [],
+                        "selected_codes": raw.get("selected_codes") or [],
+                        "complaint": raw.get("complaint") or "",
+                    },
+                })
             # No inner "final" emission — _run_pipeline_then_finalize
             # emits the single canonical final event with full payload.
 
         elif target_action == "findClinicalTrials":
-            # EPIC-006-F-005 — dispatch to FindCare backend's
-            # /clinical_trials endpoint via the SS-side dispatcher.
-            # The clinical-trials tool itself lives in FindCare; SS
-            # carries only the cross-service forwarder.
+            # EPIC-006-F-005 — the clinical-trial page mines its own
+            # parameters from the talk and writes them to its own page.
+            # The dispatcher carries the utterance across and streams the
+            # trials back; the criteria are announced by the page, on the
+            # same stream, because this side has not read the utterance.
             from authentication import clinical_trials_dispatcher
-            complaint = next(
-                (a.value for a in target_intent_entry.arguments if a.name == "complaint"),
-                "",
+            utterance, dialogue = latest_utterance_and_prior_dialogue(
+                deps.user_object)
+            await clinical_trials_dispatcher.TOOL.run_and_log(
+                deps,
+                clinical_trials_dispatcher.Request(
+                    utterance=utterance, history=dialogue),
             )
-            age_years_raw = next(
-                (a.value for a in target_intent_entry.arguments if a.name == "age_years"),
-                None,
-            )
-            try:
-                age_years = int(age_years_raw) if age_years_raw is not None else None
-            except (TypeError, ValueError):
-                age_years = None
-            sex_filter = next(
-                (a.value for a in target_intent_entry.arguments if a.name == "sex"),
-                None,
-            )
-            geographic_scope = next(
-                (a.value for a in target_intent_entry.arguments if a.name == "geographic_scope"),
-                None,
-            )
-            # Emit the canonical criteria the moment classification is done
-            # so the client's searching banner can replace the raw utterance
-            # with what the system is actually about to fetch.
-            deps.stream({
-                "kind": "intent_classified",
-                "data": {
-                    "action": "findClinicalTrials",
-                    "condition": complaint,
-                    "age_years": age_years,
-                    "sex": sex_filter,
-                    "geographic_scope": geographic_scope,
-                },
-            })
-            ct_req = clinical_trials_dispatcher.Request(
-                condition=complaint,
-                age_years=age_years,
-                sex=sex_filter,
-                geographic_scope=geographic_scope,
-            )
-            await clinical_trials_dispatcher.TOOL.run_and_log(deps, ct_req)
 
         elif target_action == "findAFacility":
-            # The facility page's caller of the one provider search. It
-            # reads the page's own parameters -- geography included, which
-            # may have arrived by the carry-over applied on dispatch just
-            # above -- and passes nothing the page does not declare.
-            from FacilitySearch import facility_search_tool
+            # The facility page mines its own parameters from the talk and
+            # writes them to its own page. The gateway carries the turn
+            # across the wire and paints what comes back; it reads no
+            # facility parameter and writes none, so the domain knowledge
+            # of what a facility search is made of stays in FindCare.
+            import httpx
+            from authentication import provider_search_tool
 
-            params = deps.user_object.userParameters
-            geo = geography_of(params, FACILITY)
-            administrator = params.get(FACILITY, "administratorName") or {}
+            dialogue: list[dict[str, str]] = []
+            for u in deps.user_object.session_conversation_history.utterances:
+                actor = getattr(u, "actor", None) or (u.get("actor") if isinstance(u, dict) else None)
+                text = getattr(u, "text", None) or (u.get("text") if isinstance(u, dict) else "")
+                if actor not in ("person", "system") or not text:
+                    continue
+                dialogue.append({"actor": actor, "text": str(text).strip()})
+            utterance = ""
+            for position in range(len(dialogue) - 1, -1, -1):
+                if dialogue[position]["actor"] == "person":
+                    utterance = dialogue[position]["text"]
+                    dialogue = dialogue[:position]
+                    break
 
-            # The kind of place the person asked for, resolved by the same
-            # four-stage funnel the care-giver path runs, pointed at the
-            # catalogue's organization partition. Individual codes never
-            # reach here: this reads the facility page's own attribute and
-            # writes it from this resolution alone.
-            # The kind of place the person asked for, in their own words.
-            # Read from the facility page's own attribute -- never from a
-            # complaint, which is what is wrong with a person.
-            facility_type = params.get(FACILITY, "facilityType") or ""
-            if facility_type:
-                from SpecialtyFilter import specialty_filter_tool
-                kinds = await specialty_filter_tool.TOOL.run_and_log(
-                    deps,
-                    specialty_filter_tool.Request(
-                        query=facility_type, section="Non-Individual"),
+            url = provider_search_tool.findcare_url() + "/facility/find"
+            try:
+                async with httpx.AsyncClient(timeout=None, verify=False) as client:
+                    r = await client.post(url, json={
+                        # The token this hop already holds, forwarded so
+                        # FindCare can verify the SharedServices signature.
+                        "session_token": deps.session_token.model_dump(mode="json"),
+                        "utterance": utterance,
+                        "history": dialogue,
+                    })
+                    r.raise_for_status()
+                    raw = r.json()
+            except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout,
+                    httpx.WriteTimeout, httpx.PoolTimeout, httpx.ReadError,
+                    httpx.WriteError, httpx.RemoteProtocolError,
+                    httpx.HTTPStatusError) as exc:
+                raise ChatHealthyException(
+                    mode="facility_search_unavailable",
+                    component="universal_navigation_tool",
+                    message=f"FindCare /facility/find call failed: "
+                            f"{type(exc).__name__}: {exc}",
+                    exception=exc,
                 )
-                offered = [row.model_dump(exclude_none=True)
-                           for row in (kinds.specialties or [])]
-                codes = [row.get("code") for row in offered if row.get("code")]
-                if codes:
-                    from UserParameters import user_parameters_tool
-                    # What the funnel offered and what is in force, the
-                    # same pair the NUCC page holds for care givers.
-                    await user_parameters_tool.TOOL.run_and_log(
-                        deps,
-                        user_parameters_tool.Request(
-                            verb="set", route="gateway",
-                            origin="non_deterministic",
-                            changes=[
-                                user_parameters_tool.Change(
-                                    page=FACILITY, name="offeredFacilityTypes",
-                                    value=offered),
-                                user_parameters_tool.Change(
-                                    page=FACILITY, name="selectedTaxonomyCodes",
-                                    value=codes),
-                            ],
-                        ),
-                    )
-                    params = deps.user_object.userParameters
+
+            mined = raw.get("mined") or {}
             deps.stream({
                 "kind": "intent_classified",
                 "data": {
                     "action": "findAFacility",
-                    "criteria": (params.get(FACILITY, "facilityName")
-                                 or params.get(FACILITY, "facilityType")
+                    "criteria": (mined.get("facility_name")
+                                 or mined.get("facility_type")
                                  or "facilities"),
                 },
             })
-            resp = await facility_search_tool.TOOL.run_and_log(
-                deps,
-                facility_search_tool.Request(
-                    facility_name=params.get(FACILITY, "facilityName") or None,
-                    administrator_last_name=administrator.get("last") or None,
-                    administrator_first_name=administrator.get("first") or None,
-                    administrator_middle_name=administrator.get("middle") or None,
-                    taxonomy_codes=list(
-                        params.get(FACILITY, "selectedTaxonomyCodes") or []),
-                    state=geo.state if geo else None,
-                    city=geo.city if geo else None,
-                    county=geo.county if geo else None,
-                    zip=geo.zip if geo else None,
-                    limit=25,
-                ),
-            )
+            facilities = raw.get("providers") or []
+            if facilities:
+                data = {
+                    "facilities": facilities,
+                    "has_more": bool(raw.get("has_more", False)),
+                    "first_npi": raw.get("first_npi"),
+                    "last_npi": raw.get("last_npi"),
+                    "count": int(raw.get("count", 0) or 0),
+                    "total_count": int(raw.get("total_count", 0) or 0),
+                    "page_start": int(raw.get("page_start", 1) or 1),
+                    "page_end": int(raw.get("page_end", 0) or 0),
+                    "search_params": raw.get("search_params"),
+                    "state": raw.get("state"),
+                    "summary_message": raw.get("summary_message"),
+                }
+                deps.stream({
+                    "kind": "facilities",
+                    "data": {name: value for name, value in data.items()
+                             if value is not None},
+                })
             await self._write_position(deps, FACILITY,
-                                       resp.first_npi, resp.last_npi)
+                                       raw.get("first_npi"), raw.get("last_npi"))
 
         elif target_action == "findAProvider":
-            from authentication import provider_search_tool
-
-            complaint = next(
-                (a.value for a in target_intent_entry.arguments if a.name == "complaint"),
-                "",
-            )
-            specialties = await self._run_or_cache_specialty_filter(
-                deps, complaint, complaint_changed=complaint_changed)
+            # The individual-provider page mines its own parameters from
+            # the talk and writes them to its own page. The gateway
+            # carries the turn across the wire and paints what comes back;
+            # it reads no provider parameter and writes none, so the domain
+            # knowledge of what a care-giver search is made of stays in
+            # FindCare.
+            raw = await post_to_findcare(
+                "/provider/find", deps, "provider_search_unavailable")
+            specialties = raw.get("offered_specialties") or []
             if specialties:
-                # provider_search is a consumer: it reads the user's live
-                # parameters and writes none. Nothing is handed to it and
-                # nothing is dug back out of the intent, which is what lets
-                # geography named while looking at trials apply here.
-                params = deps.user_object.userParameters
-                geo = geography_of(params, INDIVIDUAL_PROVIDER)
-
-                # No selection means the user has not narrowed, so the whole
-                # offered panel applies. A selection narrows it.
-                specialty_codes = codes_in_force(params)
-
-                await self._search_providers(
-                    deps,
-                    specialty_codes=specialty_codes,
-                    state=geo.state if geo else None,
-                    city=geo.city if geo else None,
-                    county=geo.county if geo else None,
-                    zip=geo.zip if geo else None,
-                    limit=25,
-                )
-                # No inner "final" emission — outer pipeline emits the
-                # canonical final event with full payload.
+                deps.stream({
+                    "kind": "specialties",
+                    "data": {
+                        "specialties": specialties,
+                        "homeopathic_generalists": [],
+                        "selected_codes": raw.get("selected_specialty_codes") or [],
+                        "complaint": raw.get("complaint") or "",
+                    },
+                })
+            providers = raw.get("providers") or []
+            if providers:
+                data = {
+                    "providers": providers,
+                    "has_more": bool(raw.get("has_more", False)),
+                    "first_npi": raw.get("first_npi"),
+                    "last_npi": raw.get("last_npi"),
+                    "count": int(raw.get("count", 0) or 0),
+                    "total_count": int(raw.get("total_count", 0) or 0),
+                    "page_start": int(raw.get("page_start", 1) or 1),
+                    "page_end": int(raw.get("page_end", 0) or 0),
+                    "search_params": raw.get("search_params"),
+                    "specialization_options": raw.get("specialization_options"),
+                    "state": raw.get("state"),
+                    "refinements": raw.get("refinements"),
+                    "summary_message": raw.get("summary_message"),
+                }
+                deps.stream({
+                    "kind": "providers",
+                    "data": {name: value for name, value in data.items()
+                             if value is not None},
+                })
+            await self._reconcile_open_detail(deps, providers)
+            # No inner "final" emission — outer pipeline emits the
+            # canonical final event with full payload.
 
         else:
             raise ChatHealthyException(
@@ -1891,7 +2066,10 @@ class UniversalNavigationTool(ChatHealthyTool):
     async def _run_or_cache_specialty_filter(
             self, deps: AgentDeps, complaint: str,
             complaint_changed: bool = True) -> list[dict]:
-        """REQ-B-002 + REQ-B-003 + FindCare-UR REQ-B-001.
+        """No dispatch reaches this. The specialty resolution moved to the
+        pages that need it -- the NUCC page and the individual-provider
+        page, each resolving its own complaint on its own server -- so the
+        only callers left are the tests over this file.
 
         Look for a cached nucc_codes argument on the IntentDocument's
         specialtySearch and findAProvider entries. On a cache hit, parse

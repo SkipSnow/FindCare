@@ -449,7 +449,7 @@
           "source_location": "Website/ClientRouter.js",
           "handler_type": "static_asset",
           "disposition": "referenced",
-          "content_hash": "e403b34800f9001aa2bc4cc4182cc016529f4c087351685e92601ba11bc2892c",
+          "content_hash": "0d57cf315365e8e4ba6850389c8d685d94046c8ef7bf14a24848893071b240bb",
           "package": "runtime_driver"
         },
         {
@@ -537,7 +537,7 @@
           "source_location": "Website/index.html",
           "handler_type": "static_asset",
           "disposition": "referenced",
-          "content_hash": "9348097a3770d93785f6363eeef93ebd930194853f3616b3b09e6f59cfe35c01",
+          "content_hash": "30e1478508bd2eb5a7eced7ab206a74b7142ad3d72d4934433f3c6fc9af93110",
           "package": "runtime_driver"
         },
         {
@@ -1132,7 +1132,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/authentication/session_token.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "2c53b76b736748bb12a0057aa2b862f31b2c4cb0477307fb5d3188fee6d6daa5",
+          "content_hash": "ed60e67bde2670d204152c12f0fdda86f57b2c346cabe8728c17bc9e986d947a",
           "package": "service_runtime"
         },
         {
@@ -1173,6 +1173,13 @@
           "handler_type": "python_source",
           "disposition": "referenced",
           "content_hash": "cea482c0e4aeeb9604500c026b9f6074a062b403dbf0ec650abf55b462ab1c5c",
+          "package": "service_runtime"
+        },
+        {
+          "feature_id": "EPIC-008-F-012",
+          "source_location": "ChatHealthyLib/src/chathealthy_lib/http_request_facts.py",
+          "handler_type": "python_source",
+          "disposition": "referenced",
           "package": "service_runtime"
         },
         {
@@ -1640,7 +1647,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/authentication/session_token.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "2c53b76b736748bb12a0057aa2b862f31b2c4cb0477307fb5d3188fee6d6daa5",
+          "content_hash": "ed60e67bde2670d204152c12f0fdda86f57b2c346cabe8728c17bc9e986d947a",
           "package": "service_runtime"
         },
         {
@@ -1689,6 +1696,13 @@
           "handler_type": "python_source",
           "disposition": "referenced",
           "content_hash": "cea482c0e4aeeb9604500c026b9f6074a062b403dbf0ec650abf55b462ab1c5c",
+          "package": "service_runtime"
+        },
+        {
+          "feature_id": "EPIC-008-F-012",
+          "source_location": "ChatHealthyLib/src/chathealthy_lib/http_request_facts.py",
+          "handler_type": "python_source",
+          "disposition": "referenced",
           "package": "service_runtime"
         },
         {
@@ -1784,7 +1798,7 @@
           "source_location": "Code/ConversationalUX/FindCareChat/backend/app.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "09ead5444f528f613fbe7092d93995314612c3e759a7019766e3fe661b6a298f",
+          "content_hash": "db5dbf86effcb28edc7e174c85b3b7f3eb053fcac360d910ebb7e3faf7a3fac9",
           "package": "service_runtime"
         },
         {
@@ -2429,7 +2443,42 @@
           "source_location": "FindCare/ProviderManagement/provider_search_service.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "d7beed4dd6d342f9c90f2c9d42d04d4a3d69212eff3442aa1a6281e270825e9d",
+          "content_hash": "b05be2c02cd9d35fc932e68bc69f8709e659b899aa07a517c28bd82f03802ca8",
+          "package": "service_runtime"
+        },
+        {
+          "feature_id": "EPIC-008-F-012",
+          "source_location": "FindCare/ProviderManagement/facility_utterance.py",
+          "handler_type": "python_source",
+          "disposition": "referenced",
+          "package": "service_runtime"
+        },
+        {
+          "feature_id": "EPIC-008-F-012",
+          "source_location": "FindCare/ProviderManagement/utterance_mining.py",
+          "handler_type": "python_source",
+          "disposition": "referenced",
+          "package": "service_runtime"
+        },
+        {
+          "feature_id": "EPIC-008-F-012",
+          "source_location": "FindCare/ProviderManagement/individual_provider_utterance.py",
+          "handler_type": "python_source",
+          "disposition": "referenced",
+          "package": "service_runtime"
+        },
+        {
+          "feature_id": "EPIC-008-F-012",
+          "source_location": "FindCare/ProviderManagement/nucc_utterance.py",
+          "handler_type": "python_source",
+          "disposition": "referenced",
+          "package": "service_runtime"
+        },
+        {
+          "feature_id": "EPIC-008-F-012",
+          "source_location": "FindCare/ProviderManagement/clinical_trial_utterance.py",
+          "handler_type": "python_source",
+          "disposition": "referenced",
           "package": "service_runtime"
         },
         {
@@ -2493,7 +2542,7 @@
           "source_location": "brain/machine_artifacts/content/prompts.json",
           "handler_type": "json",
           "disposition": "referenced",
-          "content_hash": "5478bf5af9a55150c3cf1c45df2f05ec717d25f969533322f06ae390be0f7aa1",
+          "content_hash": "8edf174a062ab7f7e39d825d470cf6e50ce84f5de99c69ea783ed35c067bfb6c",
           "package": "service_runtime"
         },
         {
@@ -2905,7 +2954,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/authentication/session_token.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "2c53b76b736748bb12a0057aa2b862f31b2c4cb0477307fb5d3188fee6d6daa5",
+          "content_hash": "ed60e67bde2670d204152c12f0fdda86f57b2c346cabe8728c17bc9e986d947a",
           "package": "service_runtime"
         },
         {
@@ -2954,6 +3003,13 @@
           "handler_type": "python_source",
           "disposition": "referenced",
           "content_hash": "cea482c0e4aeeb9604500c026b9f6074a062b403dbf0ec650abf55b462ab1c5c",
+          "package": "service_runtime"
+        },
+        {
+          "feature_id": "EPIC-008-F-012",
+          "source_location": "ChatHealthyLib/src/chathealthy_lib/http_request_facts.py",
+          "handler_type": "python_source",
+          "disposition": "referenced",
           "package": "service_runtime"
         },
         {
@@ -3089,7 +3145,7 @@
           "source_location": "sharedServices/Code/AuthorizationsAndAuthentications/authorizations_and_authentications_tool.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "24611516f72ba6d4b0c0d99762aabef99a56d5e1d5878525bb5bd92a3c287e6d",
+          "content_hash": "f0addb37f3ccf996a57164013f2fa9ac4637f1bd1827dd64bde73001c7782383",
           "package": "service_runtime"
         },
         {
@@ -3097,7 +3153,7 @@
           "source_location": "sharedServices/Code/AuthorizationsAndAuthentications/clinical_trials_dispatcher.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "e80d0ab7857b0f498b3efff0d495c02d819f5d99364941c6c5ba2a3a6f0fd596",
+          "content_hash": "7f3793f1e5a9d6a7a96f1627442c4f088f302c36dd8d79fef51212af25721118",
           "package": "service_runtime"
         },
         {
@@ -3153,7 +3209,7 @@
           "source_location": "sharedServices/Code/AuthorizationsAndAuthentications/universal_navigation_tool.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "0e4ef191d06a2b01e91e8d8e0a0a75d5e27018b20e6c860467939e9fa29083ab",
+          "content_hash": "8031b20e416b13517dafebf1390aeb8a895d4f8daa9cafb0d954f1eb50633c8a",
           "package": "service_runtime"
         },
         {
@@ -3390,7 +3446,7 @@
           "source_location": "sharedServices/Code/UserParameters/user_parameters_tool.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "6d5642fc1c195f1766e475c57e983b431bf332236054da614aec1ad68314e94c",
+          "content_hash": "08ae3cef19d5332b98404652611f3c6c9f39297c57dd0088330c41e7ee4d9636",
           "package": "service_runtime"
         },
         {
@@ -3422,7 +3478,7 @@
           "source_location": "sharedServices/Code/app.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "034e27ab7c5a79d3f9777bfbcd82d6192ab2997713162f8b6dc4bd50f8140d47",
+          "content_hash": "639fc967068a2b9ac278698759ecac3f87980fe9a94e2883e81d06462d229452",
           "package": "service_runtime"
         },
         {
@@ -6313,13 +6369,7 @@
                       ]
                     }
                   ],
-                  "carry_over": [
-                    {
-                      "parameter": "geography",
-                      "from": "individualProvider",
-                      "to": "facility"
-                    }
-                  ]
+                  "carry_over": []
                 }
               ]
             },
@@ -6651,13 +6701,7 @@
                       ]
                     }
                   ],
-                  "carry_over": [
-                    {
-                      "parameter": "geography",
-                      "from": "individualProvider",
-                      "to": "facility"
-                    }
-                  ]
+                  "carry_over": []
                 }
               ]
             },
@@ -6989,13 +7033,7 @@
                       ]
                     }
                   ],
-                  "carry_over": [
-                    {
-                      "parameter": "geography",
-                      "from": "individualProvider",
-                      "to": "facility"
-                    }
-                  ]
+                  "carry_over": []
                 }
               ]
             },
@@ -7327,13 +7365,7 @@
                       ]
                     }
                   ],
-                  "carry_over": [
-                    {
-                      "parameter": "geography",
-                      "from": "individualProvider",
-                      "to": "facility"
-                    }
-                  ]
+                  "carry_over": []
                 }
               ]
             },

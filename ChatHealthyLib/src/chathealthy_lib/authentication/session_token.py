@@ -98,6 +98,17 @@ class SessionToken(BaseModel):
             message=f"token length {len(self.token)} < {GUID_OFFSET}; cannot extract nonce")
         return self.token[NONCE_OFFSET:GUID_OFFSET]
 
+    def session_guid(self) -> str:
+        """The session this token names.
+
+        The GUID is the key of the session document, so any server holding
+        a token can reach the session: it is a row in Users.sessions and
+        this is its _id. Named for what it is, because the method that
+        extracts it is called get_auth_token and a caller reaching for a
+        session guid should not have to know that.
+        """
+        return self.get_auth_token()
+
     def put_nonce(self, origin: str) -> None:
         if len(self.token) < TOKEN_SIZE or not self.token.startswith(TOKEN_PREFIX):
             raise ChatHealthyException(

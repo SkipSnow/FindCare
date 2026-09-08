@@ -171,8 +171,22 @@ def user_id_for_guid(users_coll, guid: str) -> Optional[str]:
 
 
 def write_session_record(coll, users_coll, user_object: UserObject, fresh_mint: bool) -> None:
-    """Sole writer for Users.sessions (per-session, every persist) and
-    Users.users (mirror, only when user_object.is_registered == True)."""
+    """Persist the session, and mirror to Users.users when registered.
+
+    Not the only writer, and it carries no parameter. Every server writes
+    the parameters it owns when it writes them -- FindCare straight to the
+    page it mined, this process through user_parameters_tool -- so the
+    parameters in the document are always the newest, and a write-back of
+    this process's copy could only be older. What this writes is the rest
+    of the session: the token, the conversation, the intent, the selections.
+
+    It sets rather than replaces for the same reason: a replace would carry
+    this copy's view of everything over whatever another server wrote while
+    the turn ran.
+
+    A fresh mint is the exception and still replaces: there is no document
+    to preserve and nothing else has written one.
+    """
     ensure_indexes(coll)
     guid = user_object.current_session_token.get_auth_token()
     body = user_object.model_dump(mode="json", exclude_none=True)
@@ -183,11 +197,8 @@ def write_session_record(coll, users_coll, user_object: UserObject, fresh_mint: 
             upsert=True,
         )
     else:
-        coll.replace_one(
-            {"_id": guid},
-            {"_id": guid, **body},
-            upsert=True,
-        )
+        body.pop("userParameters", None)
+        coll.update_one({"_id": guid}, {"$set": body}, upsert=True)
 
     # Mirror to users collection when is_registered == True (REQ-T-010).
     if user_object.is_registered is True:
@@ -215,9 +226,11 @@ class AuthorizationsAndAuthenticationsTool(ChatHealthyTool):
         user_object.OAuthIdentities[0]. Mirror result into
         Users.sessions AND Users.users.
 
-    `persist()` is the sole writer for the post-utterance write-back of
-    user_object to Users.sessions (and to Users.users mirror when
-    is_registered).
+    `persist()` writes this process's user_object back to Users.sessions
+    (and mirrors to Users.users when is_registered). It is not the only
+    writer of that document and it carries no parameter: every server
+    writes the parameters it owns as it writes them, so the write-back
+    sets the rest of the session and never a page.
     """
     TOOL_NAME = "authn"
     Request = Request

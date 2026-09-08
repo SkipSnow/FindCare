@@ -264,48 +264,44 @@
     (function () {
       var SS = '__HF_URL_SHAREDSERVICES__';
       window._envServiceUrls = { sharedservices: SS, findcare: '', evaluatecare: '' };
-      // Bootstrap call: peer_urls is a /gate op that returns one complete
-      // JSON payload. Routed through ClientRouter.getFullPayload so every
-      // server call — bootstrap included — goes through the one canonical
-      // client-side gateway (FrontEndArchitecture deck contract).
-      // credentials:'include' is wired inside getFullPayload.
-      window.ClientRouter.getFullPayload({ op: 'peer_urls', payload: {} })
+      // The session comes first because everything else needs it.
+      // /auth/issue is the one un-authenticated door; it makes the session
+      // and returns its token, which ClientRouter holds and threads on
+      // every subsequent call. Without this call the user_object would be
+      // minted lazily on the first gesture and a visitor who lands and
+      // just looks would be invisible to SharedServices — no session row,
+      // no identity in the banner.
+      window.ClientRouter.bootstrap()
+        .then(function () {
+          // peer_urls is an ordinary /gate op behind session verification,
+          // so it can only be asked once the token is in hand — which is
+          // why it follows the session rather than preceding it. It is
+          // asked at all because this page is served as static bytes with
+          // no build-time substitution in them, so it does not know where
+          // its peers are until it is told.
+          return window.ClientRouter.getFullPayload({ op: 'peer_urls', payload: {} });
+        })
         .then(function (d) {
-          window._envServiceUrls.findcare     = (d && d.findcare)     || '';
-          window._envServiceUrls.evaluatecare = (d && d.evaluatecare) || '';
+          // /gate answers every op with the same envelope; the op's own
+          // answer is the result field.
+          var urls = (d && d.result) || {};
+          window._envServiceUrls.findcare     = urls.findcare     || '';
+          window._envServiceUrls.evaluatecare = urls.evaluatecare || '';
           var iframe = document.getElementById('coreReactFrame');
           if (iframe) {
             // The React application is served by this site, not by the
             // FindCare Space. The Space's address is no longer a browser
             // address at all: every route on it requires a SharedServices
             // signature, and a bundle route could not.
+            // Set last: the iframe reads _envServiceUrls as it loads.
             iframe.src = '/app/';
-          }
-          // Mint a signed SessionToken before any non-trivial /gate call
-          // fires. /gate validates the token on every non-trivial op, so
-          // ClientRouter must hold one before any non-trivial /gate
-          // call. /auth/issue
-          // is un-authenticated (pre-auth by design); every subsequent
-          // /gate call is validated using the token this returns.
-          //
-          // One call establishes the session. Without it the user_object
-          // would be minted lazily on the first gesture and a visitor who
-          // lands and just looks would be invisible to SharedServices —
-          // no session row, no identity in the banner. /auth/issue makes
-          // the session and returns its token; ClientRouter holds that
-          // token and threads it on every subsequent call.
-          if (window.ClientRouter && typeof window.ClientRouter.bootstrap === 'function') {
-            window.ClientRouter.bootstrap()
-              .catch(function () {
-                window.location.replace('/bootstrap-error.html');
-              });
           }
         })
         .catch(function (_err) {
-          // Bootstrap is the spine of the page — without peer_urls,
-          // React cannot mount and nothing renders. Per Rule-009 this
-          // file authors no display content; redirect to the static
-          // bootstrap-error.html instead. The underlying error is
+          // Either step is the spine of the page — with no session or no
+          // peer addresses, React cannot mount and nothing renders. Per
+          // Rule-009 this file authors no display content; redirect to the
+          // static bootstrap-error.html instead. The underlying error is
           // visible in this browser's developer-tools Network panel.
           window.location.replace('/bootstrap-error.html');
         });

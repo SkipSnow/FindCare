@@ -43,12 +43,22 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from application.tool_router import ToolRouter
 from application.facades.evaluate_care_facade import EvaluateCareFacade
 from ProviderManagement.provider_search_service import FindCareService
-from SpecialtyFilter.filter import SpecialtyFilter
+from SpecialtyFilter.filter import (
+    SpecialtyFilter, SECTION_INDIVIDUAL, SECTION_ORGANIZATION,
+)
 from domain.evaluate_care_quality.clinical_trials_service import ClinicalTrialsService
 from ProviderDetail.provider_detail_service import ProviderDetailService
 from domain.shared.safety.safety_service import SafetyService
 from domain.shared.content.about_service import AboutService
 from ProviderManagement.provider_search_models import ProviderSearchInput, SpecialtyInput
+from ProviderManagement.facility_utterance import mine_facility_parameters
+from ProviderManagement.individual_provider_utterance import (
+    mine_individual_provider_parameters,
+)
+from ProviderManagement.nucc_utterance import mine_nucc_parameters
+from ProviderManagement.clinical_trial_utterance import (
+    mine_clinical_trial_parameters,
+)
 from application.tool_models.clinical_trials_models import ClinicalTrialsInput, ProviderDetailInput
 from infrastructure.embeddings.embedding_client import EmbeddingClient
 from infrastructure.debug_logger import DebugLogger
@@ -58,6 +68,7 @@ load_dotenv(override=True)
 # Shared utilities
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "Shared"))
 from chathealthy_lib.mongo_utilities import ChatHealthyMongoUtilities
+from chathealthy_lib import http_request_facts as request_facts
 from chathealthy_lib.exceptions import ChatHealthyException
 from prompt_system_maker import PromptSystemMaker
 
@@ -534,8 +545,11 @@ class ChatResponse(BaseModel):
 SHARED_SERVICES_ORIGIN = "SharedServices"
 
 
-def require_gateway_signature(session_token: Optional[dict]) -> None:
-    """Refuse a request that did not arrive through the approved gateway.
+def require_gateway_signature(session_token: Optional[dict],
+                              posted: Optional[dict] = None,
+                              headers: Optional[dict] = None) -> None:
+    """Refuse a request that did not arrive through the approved gateway,
+    and state what it carries for the code that serves it.
 
     EPIC-006-F-001-S-003-REQ-B-004 has two halves. Arriving through the
     gateway is met by the client having no other address to call; refusing
@@ -567,6 +581,11 @@ def require_gateway_signature(session_token: Optional[dict]) -> None:
                     "signature",
             status_code=401,
         )
+    # This is the door, and every route passes through it, so this is where
+    # the request's facts are stated. Code below reads them from
+    # http_request_facts instead of taking them as arguments.
+    request_facts.state_the_facts(
+        token=token, posted=posted or {}, headers=headers or {})
 
 
 class SearchRequest(BaseModel):
@@ -617,7 +636,8 @@ async def search(body: SearchRequest):
     Local catch with mode discrimination per EPIC-008-F-002-S-009-REQ-B-008.
     Catcher classifies caught ChatHealthyException by mode and acts per the
     three-mode taxonomy."""
-    require_gateway_signature(body.session_token)
+    require_gateway_signature(body.session_token,
+                              posted=body.model_dump(exclude_none=True))
     params = body.model_dump(exclude_none=True)
     params.pop("session_token", None)
     try:
@@ -643,6 +663,446 @@ async def search(body: SearchRequest):
         # Mode 1 / Mode 2 / Mode 3 classification is the way to bring it
         # under local control.
         raise
+
+
+class FacilityFindRequest(BaseModel):
+    """The facility page's own request: an utterance and the talk before it.
+
+    The page mines what it needs from these two things; nothing upstream
+    assembles its parameters for it.
+    """
+    session_token: dict
+    utterance: str
+    history: list = []
+
+
+FACILITY_PAGE = "facility"
+SESSION_DB = "Users"
+SESSION_COLLECTION = "sessions"
+
+
+def _facility_kinds(facility_type: str) -> list[dict]:
+    """Extracted so the resolution raises without also logging (Rule-005
+    statement 3). find_specialties is its own single catch point and
+    answers with an error string rather than an exception; an unresolved
+    kind of place is not a search across every organization.
+
+    The rows leave in the shape the panel holds them in, the same one
+    /classify hands back, so a kind of place and a specialty are one shape
+    wherever they are read."""
+    resolved = specialty_service.find_specialties(
+        facility_type, None, SECTION_ORGANIZATION)
+    if "error" in resolved:
+        raise ChatHealthyException(
+            mode="facility_type_unresolved",
+            component="FindCareBackend",
+            message=f"facility type {facility_type!r} did not resolve: "
+                    f"{resolved['error']}",
+        )
+    return [{"code": row["Code"], "name": row["Display Name"],
+             "can_prescribe": row.get("can_prescribe", False),
+             "homeopathic": row.get("homeopathic", False),
+             "rank": row.get("rank", 0)}
+            for row in resolved.get("specialties", [])]
+
+
+def _facility_page_entries(mined, offered: list[dict],
+                           codes: list[str]) -> dict:
+    """The mined values as parameter entries, keyed by attribute.
+
+    The route is the tool because this tool mined them, and the
+    determination is the model because a model inferred them.
+    """
+    from chathealthy_lib.authentication.user_parameters import ParameterEntry
+
+    def entry(value):
+        return ParameterEntry(value=value, route="tool",
+                              determination="model").model_dump(
+                                  exclude_none=True)
+
+    entries: dict = {}
+    geography = {name: value
+                 for name, value in mined.geography.model_dump().items()
+                 if value}
+    if geography:
+        entries["geography"] = entry(geography)
+    if mined.facility_type:
+        entries["facilityType"] = entry(mined.facility_type)
+    if mined.facility_name:
+        entries["facilityName"] = entry(mined.facility_name)
+    if codes:
+        entries["offeredFacilityTypes"] = entry(offered)
+        entries["selectedTaxonomyCodes"] = entry(codes)
+    return entries
+
+
+def _write_facility_parameters(session_token: dict, entries: dict) -> None:
+    """The page that mined a parameter writes it, and writes it on its own
+    page: no other page of the session is addressed here, ever."""
+    if not entries:
+        return
+    db = get_db()
+    if db is None:
+        raise ChatHealthyException(
+            mode="mongo_network_failure",
+            component="FindCareBackend",
+            message="facility parameters mined but the session is "
+                    "unreachable to write them to",
+        )
+    guid = SessionToken.model_validate(session_token).session_guid()
+    result = db[SESSION_DB][SESSION_COLLECTION].update_one(
+        {"_id": guid},
+        {"$set": {f"userParameters.pages.{FACILITY_PAGE}.{name}": value
+                  for name, value in entries.items()}},
+    )
+    if result.matched_count == 0:
+        raise ChatHealthyException(
+            mode="session_not_found",
+            component="FindCareBackend",
+            message=f"no session {guid!r} to write the mined facility "
+                    f"parameters to",
+        )
+
+
+@app.post("/facility/find")
+async def facility_find(body: FacilityFindRequest):
+    """The facility page mines its own parameters and searches on them.
+
+    Local catch with mode discrimination per EPIC-008-F-002-S-009-REQ-B-008,
+    the same shape /search carries."""
+    require_gateway_signature(body.session_token,
+                              posted=body.model_dump(exclude_none=True))
+    try:
+        # Both the mining and the resolution make blocking model calls;
+        # this handler is async and already inside an event loop.
+        mined = await asyncio.to_thread(
+            mine_facility_parameters, body.utterance, body.history)
+        offered: list[dict] = []
+        if mined.facility_type:
+            offered = await asyncio.to_thread(
+                _facility_kinds, mined.facility_type)
+        codes = [row["code"] for row in offered]
+        # Written before the search, so what the answer was produced under
+        # is on the session whatever the search then does.
+        await asyncio.to_thread(
+            _write_facility_parameters, body.session_token,
+            _facility_page_entries(mined, offered, codes))
+        geo = mined.geography
+        result = find_care.search_providers(
+            entity_type="2",
+            nucc_codes=codes,
+            state=geo.state,
+            city=geo.city,
+            county=geo.county,
+            zip=geo.zip,
+            facility_name=mined.facility_name,
+        )
+        # What the search ran on, for a caller that has to say on screen
+        # what was searched for. Nothing downstream reads it to persist:
+        # the parameters are already written above.
+        result["mined"] = mined.model_dump()
+        return result
+    except ChatHealthyException as exc:
+        if exc.mode == "mongo_query_timeout":
+            # Mode 2 (REQ-B-008): resource temporarily unavailable (Mongo
+            # aggregate exceeded its timeout budget). Graceful user-facing
+            # 200 carrying an error string; NOT 503; no fatal_error tag.
+            log.error("facility_find Mode 2: mongo_query_timeout on %s.%s",
+                      exc.context.get("db"), exc.context.get("coll"),
+                      exc=exc, if_not_debug_log=True)
+            return {
+                "providers": [],
+                "total_count": 0,
+                "error": "Facility search is taking longer than usual. "
+                         "Please try the same search again in a moment.",
+                "error_mode": exc.mode,
+            }
+        # Unknown ChatHealthyException mode at this site → re-raise so the
+        # Mode 3 safety net handles it.
+        raise
+
+
+INDIVIDUAL_PROVIDER_PAGE = "individualProvider"
+NUCC_PAGE = "NUCC"
+CLINICAL_TRIAL_PAGE = "clinicalTrial"
+
+SEX_CODES = ("F", "M", "X", "U")
+
+
+def _parameter_entry(value) -> dict:
+    """A mined value as a parameter entry, ready to be stored.
+
+    The route is the tool because this tool mined it, and the
+    determination is the model because a model inferred it.
+    """
+    from chathealthy_lib.authentication.user_parameters import ParameterEntry
+
+    return ParameterEntry(value=value, route="tool",
+                          determination="model").model_dump(exclude_none=True)
+
+
+def _write_page_parameters(page: str, entries: dict) -> None:
+    """The page that mined a parameter writes it, and writes it on its own
+    page: no other page of the session is addressed here, ever.
+
+    Which session is read from the facts this request arrived with, so no
+    caller between the route and this line has to carry a token to reach
+    it.
+    """
+    if not entries:
+        return
+    db = get_db()
+    if db is None:
+        raise ChatHealthyException(
+            mode="mongo_network_failure",
+            component="FindCareBackend",
+            message=f"{page} parameters mined but the session is unreachable "
+                    f"to write them to",
+        )
+    guid = request_facts.facts().session_guid()
+    result = db[SESSION_DB][SESSION_COLLECTION].update_one(
+        {"_id": guid},
+        {"$set": {f"userParameters.pages.{page}.{name}": value
+                  for name, value in entries.items()}},
+    )
+    if result.matched_count == 0:
+        raise ChatHealthyException(
+            mode="session_not_found",
+            component="FindCareBackend",
+            message=f"no session {guid!r} to write the mined {page} "
+                    f"parameters to",
+        )
+
+
+def _resolve_specialties(complaint: str) -> dict:
+    """The kinds of care giver that treat a complaint.
+
+    Extracted so the resolution raises without also logging (Rule-005
+    statement 3). find_specialties is its own single catch point and
+    answers with an error string rather than an exception; an unresolved
+    complaint is not a search across every specialty.
+
+    The rows leave in the shape the panel holds them in, the same one
+    /classify hands back. The complaint comes back too, because the
+    pipeline reads the words clinically -- 'shrink' returns as
+    'psychological problem' -- and that reading is what the page records.
+    """
+    resolved = specialty_service.find_specialties(
+        complaint, None, SECTION_INDIVIDUAL)
+    if "error" in resolved:
+        raise ChatHealthyException(
+            mode="complaint_unresolved",
+            component="FindCareBackend",
+            message=f"complaint {complaint!r} did not resolve: "
+                    f"{resolved['error']}",
+        )
+    return {
+        "specialties": [{"code": row["Code"], "name": row["Display Name"],
+                         "can_prescribe": row.get("can_prescribe", False),
+                         "homeopathic": row.get("homeopathic", False),
+                         "rank": row.get("rank", 0)}
+                        for row in resolved.get("specialties", [])],
+        "complaint": str(resolved.get("complaint") or "").strip() or complaint,
+    }
+
+
+def _ticked(offered: list[dict]) -> list[str]:
+    """Which offered rows the panel paints ticked, and therefore which the
+    search must run under: the prescribers. The panel paints prescribers
+    checked and everything else clear, so a search over the whole offered
+    set would show one thing and do another."""
+    return [row["code"] for row in offered if row.get("can_prescribe")]
+
+
+def _searched_codes(offered: list[dict], ticked: list[str]) -> list[str]:
+    """Nothing ticked means nothing was narrowed, so the whole offered set
+    applies."""
+    return ticked or [row["code"] for row in offered]
+
+
+def _sex_code(mined_sex: str) -> str:
+    """NPPES records sex as F, M, X (neither male nor female) or U
+    (undisclosed). A model answering outside that set has not mined a sex,
+    and storing the answer would put a value on the session that no reader
+    of it can act on."""
+    code = str(mined_sex or "").strip().upper()
+    if not code:
+        return ""
+    if code not in SEX_CODES:
+        raise ChatHealthyException(
+            mode="value_error",
+            component="FindCareBackend",
+            message=f"{code!r} is not a sex code; NPPES uses "
+                    f"{', '.join(SEX_CODES)}",
+        )
+    return code
+
+
+class ProviderFindRequest(BaseModel):
+    """The individual-provider page's own request: an utterance and the
+    talk before it.
+
+    The page mines what it needs from these two things; nothing upstream
+    assembles its parameters for it.
+    """
+    session_token: dict
+    utterance: str
+    history: list = []
+
+
+def _provider_page_entries(mined, complaint: str,
+                           ticked: list[str]) -> dict:
+    """The mined values as parameter entries, keyed by attribute."""
+    entries: dict = {}
+    geography = {name: value
+                 for name, value in mined.geography.model_dump().items()
+                 if value}
+    if geography:
+        entries["geography"] = _parameter_entry(geography)
+    if complaint:
+        entries["complaint"] = _parameter_entry(complaint)
+    name = mined.provider_name
+    # Uppercased on the way in, because the records are uppercase and a
+    # case-insensitive match cannot use the name index.
+    parts = {"last": name.last.strip().upper(),
+             "first": name.first.strip().upper(),
+             "middle": name.middle.strip().upper()}
+    if any(parts.values()):
+        entries["providerName"] = _parameter_entry(parts)
+    sex = _sex_code(mined.provider_sex)
+    if sex:
+        entries["providerSex"] = _parameter_entry(sex)
+    if mined.sole_proprietor is not None:
+        entries["soleProprietor"] = _parameter_entry(bool(mined.sole_proprietor))
+    if mined.insurance:
+        entries["insurance"] = _parameter_entry(mined.insurance)
+    if ticked:
+        entries["selectedSpecialtyCodes"] = _parameter_entry(ticked)
+    return entries
+
+
+@app.post("/provider/find")
+async def provider_find(body: ProviderFindRequest):
+    """The individual-provider page mines its own parameters and searches
+    on them.
+
+    Local catch with mode discrimination per EPIC-008-F-002-S-009-REQ-B-008,
+    the same shape /search carries."""
+    require_gateway_signature(body.session_token,
+                              posted=body.model_dump(exclude_none=True))
+    try:
+        # Both the mining and the resolution make blocking model calls;
+        # this handler is async and already inside an event loop.
+        mined = await asyncio.to_thread(
+            mine_individual_provider_parameters, body.utterance, body.history)
+        offered: list[dict] = []
+        complaint = mined.complaint
+        if mined.complaint:
+            resolved = await asyncio.to_thread(
+                _resolve_specialties, mined.complaint)
+            offered = resolved["specialties"]
+            complaint = resolved["complaint"]
+        ticked = _ticked(offered)
+        codes = _searched_codes(offered, ticked)
+        # Written before the search, so what the answer was produced under
+        # is on the session whatever the search then does.
+        await asyncio.to_thread(
+            _write_page_parameters, INDIVIDUAL_PROVIDER_PAGE,
+            _provider_page_entries(mined, complaint, ticked))
+        geo = mined.geography
+        # A state or a ZIP, or no search. A city or a county alone does not
+        # locate anybody -- city names repeat across states -- and a search
+        # with neither is a search of the whole country. Nothing is shown
+        # for the turn, so the caller asks the person where they are.
+        result: dict = {"providers": [], "total_count": 0}
+        if codes and (geo.state or geo.zip):
+            name = mined.provider_name
+            result = find_care.search_providers(
+                entity_type="1",
+                nucc_codes=codes,
+                state=geo.state,
+                city=geo.city,
+                county=geo.county,
+                zip=geo.zip,
+                last_name=name.last.strip().upper(),
+                first_name=name.first.strip().upper(),
+                middle_name=name.middle.strip().upper(),
+                provider_sex=_sex_code(mined.provider_sex),
+                sole_proprietor=mined.sole_proprietor,
+                insurance=mined.insurance,
+            )
+        # What the search ran on, for a caller that has to say on screen
+        # what was searched for and paint the panel it was narrowed by.
+        # Nothing downstream reads it to persist: the parameters are
+        # already written above.
+        result["mined"] = mined.model_dump()
+        result["complaint"] = complaint
+        result["offered_specialties"] = offered
+        result["selected_specialty_codes"] = ticked
+        return result
+    except ChatHealthyException as exc:
+        if exc.mode == "mongo_query_timeout":
+            # Mode 2 (REQ-B-008): resource temporarily unavailable (Mongo
+            # aggregate exceeded its timeout budget). Graceful user-facing
+            # 200 carrying an error string; NOT 503; no fatal_error tag.
+            log.error("provider_find Mode 2: mongo_query_timeout on %s.%s",
+                      exc.context.get("db"), exc.context.get("coll"),
+                      exc=exc, if_not_debug_log=True)
+            return {
+                "providers": [],
+                "total_count": 0,
+                "error": "Provider search is taking longer than usual. "
+                         "Please try the same search again in a moment.",
+                "error_mode": exc.mode,
+            }
+        # Unknown ChatHealthyException mode at this site → re-raise so the
+        # Mode 3 safety net handles it.
+        raise
+
+
+class SpecialtyFindRequest(BaseModel):
+    """The NUCC page's own request: an utterance and the talk before it."""
+    session_token: dict
+    utterance: str
+    history: list = []
+
+
+@app.post("/specialty/find")
+async def specialty_find(body: SpecialtyFindRequest):
+    """The NUCC page mines its own complaint and offers the kinds of care
+    giver that treat it.
+
+    It finds nobody. This is the page the person is on while their
+    geography is not yet usable, so what it produces is the panel and the
+    codes that panel is ticked with, and nothing else.
+    """
+    require_gateway_signature(body.session_token,
+                              posted=body.model_dump(exclude_none=True))
+    # Both the mining and the resolution make blocking model calls; this
+    # handler is async and already inside an event loop.
+    mined = await asyncio.to_thread(
+        mine_nucc_parameters, body.utterance, body.history)
+    offered: list[dict] = []
+    complaint = mined.complaint
+    if mined.complaint:
+        resolved = await asyncio.to_thread(_resolve_specialties, mined.complaint)
+        offered = resolved["specialties"]
+        complaint = resolved["complaint"]
+    ticked = _ticked(offered)
+    entries: dict = {}
+    if complaint:
+        entries["complaint"] = _parameter_entry(complaint)
+    if offered:
+        entries["offeredSpecialties"] = _parameter_entry(offered)
+    if ticked:
+        entries["selectedSpecialtyCodes"] = _parameter_entry(ticked)
+    await asyncio.to_thread(_write_page_parameters, NUCC_PAGE, entries)
+    return {
+        "specialties": offered,
+        "selected_codes": ticked,
+        "complaint": complaint,
+        "mined": mined.model_dump(),
+    }
 
 
 class ClassifyRequest(BaseModel):
@@ -689,7 +1149,8 @@ async def classify(body: ClassifyRequest, request: Request):
     instantiated and unreachable -- so this is a restoration, not a
     rewrite, and the stages below are untouched.
     """
-    require_gateway_signature(body.session_token)
+    require_gateway_signature(body.session_token,
+                              posted=body.model_dump(exclude_none=True))
     ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
         request.client.host if request.client else "unknown")
 
@@ -743,32 +1204,62 @@ def welcome():
     return {"message": WELCOME_MESSAGE}
 
 
-# Clinical trials cross-service entry point. SharedServices dispatches
-# /findClinicalTrials utterances through this endpoint instead of
-# importing the tool directly, so the clinical-trials domain stays
-# inside FindCare. Streams the tool's chunk events as NDJSON; SS
-# forwards each line into the user's /gate stream.
-class _ClinicalTrialsRequest(BaseModel):
-    condition: str
-    # The gateway's signature, verified before anything else happens.
-    session_token: Optional[dict] = None
-    age_years: Optional[int] = None
-    sex: Optional[str] = None
-    geographic_scope: Optional[str] = None
-    page_size: int = 10
-    cursor: Optional[str] = None
+# Clinical trials cross-service entry point. SharedServices posts the
+# utterance and the talk before it here; this page reads them, so both
+# what a trial search is made of and the searching itself stay inside
+# FindCare. Streams the criteria and then the tool's chunk events as
+# NDJSON; SS forwards each line into the user's /gate stream.
+class TrialFindRequest(BaseModel):
+    """The clinical-trial page's own request: an utterance and the talk
+    before it.
+
+    The page mines what it needs from these two things; nothing upstream
+    assembles its parameters for it.
+    """
+    session_token: dict
+    utterance: str
+    history: list = []
 
 
-@app.post("/clinical_trials")
-async def clinical_trials(body: _ClinicalTrialsRequest):
-    require_gateway_signature(body.session_token)
-    import asyncio
+def _trial_page_entries(mined) -> dict:
+    """The mined values as parameter entries, keyed by attribute."""
+    entries: dict = {}
+    if mined.condition:
+        entries["condition"] = _parameter_entry(mined.condition)
+    if mined.age_years is not None:
+        entries["ageYears"] = _parameter_entry(int(mined.age_years))
+    if mined.sex:
+        entries["sex"] = _parameter_entry(mined.sex)
+    if mined.united_states_only is not None:
+        entries["unitedStatesOnly"] = _parameter_entry(
+            bool(mined.united_states_only))
+    return entries
+
+
+@app.post("/trial/find")
+async def trial_find(body: TrialFindRequest):
+    """The clinical-trial page mines its own parameters and searches on
+    them, streaming the trials as they arrive.
+
+    The criteria are announced on the same stream rather than by the
+    caller: the caller posted an utterance and has not read it, so it has
+    nothing to announce until this page says what the utterance meant.
+    """
+    require_gateway_signature(body.session_token,
+                              posted=body.model_dump(exclude_none=True))
     import json as _json
     from fastapi.responses import StreamingResponse
     try:
         from ClinicalTrials import clinical_trials_tool
     except ImportError:
         from FindCare.ClinicalTrials import clinical_trials_tool
+
+    # The mining makes a blocking model call; this handler is async and
+    # already inside an event loop.
+    mined = await asyncio.to_thread(
+        mine_clinical_trial_parameters, body.utterance, body.history)
+    await asyncio.to_thread(
+        _write_page_parameters, CLINICAL_TRIAL_PAGE, _trial_page_entries(mined))
 
     queue: asyncio.Queue = asyncio.Queue()
     sentinel = object()
@@ -778,9 +1269,23 @@ async def clinical_trials(body: _ClinicalTrialsRequest):
             queue.put_nowait(event)
 
     deps = _StreamCollector()
-    _tool_fields = body.model_dump()
-    _tool_fields.pop("session_token", None)
-    req = clinical_trials_tool.Request(**_tool_fields)
+    scope = "us" if mined.united_states_only else "international"
+    req = clinical_trials_tool.Request(
+        condition=mined.condition,
+        age_years=mined.age_years,
+        sex=mined.sex or None,
+        geographic_scope=scope,
+    )
+    announced = {
+        "kind": "intent_classified",
+        "data": {
+            "action": "findClinicalTrials",
+            "condition": mined.condition,
+            "age_years": mined.age_years,
+            "sex": mined.sex or None,
+            "geographic_scope": scope,
+        },
+    }
 
     async def runner():
         try:
@@ -791,6 +1296,7 @@ async def clinical_trials(body: _ClinicalTrialsRequest):
     asyncio.create_task(runner())
 
     async def gen():
+        yield _json.dumps(announced).encode() + b"\n"
         while True:
             item = await queue.get()
             if item is sentinel:
@@ -811,7 +1317,8 @@ def provider_detail(
     body: ProviderDetailInput,
     background_tasks: BackgroundTasks,
 ) -> ProviderDetailOutput:
-    require_gateway_signature(body.session_token)
+    require_gateway_signature(body.session_token,
+                              posted=body.model_dump(exclude_none=True))
     return provider_detail_service.lookup(
         entity_type=body.entity_type,
         provider_name=body.name or "",

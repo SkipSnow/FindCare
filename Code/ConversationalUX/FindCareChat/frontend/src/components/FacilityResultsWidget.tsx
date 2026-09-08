@@ -141,7 +141,7 @@ export default function FacilityResultsWidget() {
         postRender(buildResultsHtml(facilities, data.total_count,
                                     data.summary_message,
                                     Boolean(data.has_more),
-                                    Boolean(data.first_npi)))
+                                    Boolean(data.has_previous)))
         return
       }
       if (msg.type === 'router:action' && msg.action === 'facilities:next-page') {

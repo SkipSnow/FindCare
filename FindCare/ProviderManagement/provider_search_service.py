@@ -74,21 +74,29 @@ class FindCareService:
     def _searchable(self, base_filter: dict, entity_type: str) -> dict:
         """The filter plus what every result is implicitly constrained to.
 
-        The entity type the page asked for, and never a provider NPPES has
-        deactivated. _facet_query applied these to its own copy, so anything
-        computing counts off the raw filter counted providers the search
-        would not return -- the panel promised 482 where the result held 477.
+        The entity type the page asked for. _facet_query applied it to its
+        own copy, so anything computing counts off the raw filter counted
+        providers the search would not return -- the panel promised 482
+        where the result held 477.
 
         The entity type is written from what the caller was given rather than
         as a literal, because a facility page and an individual-provider page
         are the same query over the same collection differing in this one
         clause. It is a property of the page, not a filter a caller may omit.
+
+        Deactivation is not filtered on. `active` is a history of
+        deactivation and reactivation events, not a flag: a record carries
+        no field at all, or an empty history, or events. The clause here
+        tested for the field's absence, which hid 153 records with an empty
+        history and 18552 whose history ends in a reactivation -- every one
+        of them active. Not one record in the collection ends its history
+        deactivated, so the clause excluded 18705 live providers and no
+        dead ones. Whether a provider is currently active is a fact the
+        load can derive once into a boolean and index; asking it here means
+        reading the last element of an array, which no index can serve.
         """
         out = dict(base_filter)
         out["entity_type_code"] = entity_type
-        # active[] is written only when NPPES carries a deactivation or
-        # reactivation date, so its absence is the whole test.
-        out["active"] = {"$exists": False}
         return out
 
     # What NPPES appends to a county name. Louisiana has parishes, Alaska
@@ -133,9 +141,14 @@ class FindCareService:
         the first of those. $in on the second and third keys of
         idx_provider_name is a seek per value rather than a scan.
 
-        Everything is uppercased because NPPES stores names that way. A
-        case-insensitive match would make the index unusable and turn every
-        name search into a scan of 9.3M documents.
+        Everything is uppercased because NPPES stores names that way, and
+        because idx_provider_name carries no collation: a case-insensitive
+        comparison against it cannot use it, and every name search becomes
+        a scan of 9.3M documents. That is a property of the index, not of
+        case-insensitivity -- the city comparison is case-insensitive and
+        indexed, against idx_practice_state_city_ci which was built with
+        the same collation the query carries. A name search could have the
+        same, at the cost of a second index on three fields.
         """
         clause: dict = {}
         last = (last or "").strip().upper()
@@ -221,6 +234,13 @@ class FindCareService:
             clause["insurance"] = {"$elemMatch": {"payer_name": payer}}
         return clause
 
+    # The city as registrants typed it: 'LONG BEACH' for most, 'Long Beach'
+    # for about one in ten. Matching on the value alone loses whichever
+    # casing the search did not guess, so every query that filters on an
+    # address carries this, and idx_practice_state_city_ci is built with the
+    # same strength so the comparison still uses an index.
+    ADDRESS_COLLATION = {"locale": "en", "strength": 2}
+
     def _practice_address_filter(self, state: str = "", city: str = "",
                                   county: str = "", zip: str = "") -> dict:
         """Build {"addresses": {"$elemMatch": ...}} for the practice address
@@ -237,7 +257,7 @@ class FindCareService:
         passed through verbatim — the LLM's prompt instructs Title Case
         with the literal 'County' suffix, matching the data shape."""
         s = (state or "").strip().upper()
-        c = (city or "").strip().upper()
+        c = (city or "").strip()
         co = (county or "").strip()
         # Practice addresses store zip as 5 digits; truncate the incoming
         # value so a ZIP+4 emission from the LLM still matches.
@@ -413,13 +433,14 @@ class FindCareService:
         # For the count facet, we need the full base_filter count (not cursor
         # filtered). So we run count separately only when paginating.
         if cursor:
-            total_count = collection.count_documents(base_filter)
+            total_count = collection.count_documents(
+                base_filter, collation=self.ADDRESS_COLLATION)
             result = list(collection.aggregate([
                 {"$match": query_filter},
                 {"$sort": {"npi": sort_order}},
             ] + ([{"$limit": safe_limit}] if safe_limit > 0 else []) + [
                 {"$project": self._PROJECTION},
-            ]))
+            ], collation=self.ADDRESS_COLLATION))
             if backward:
                 result.reverse()
             self._assert_entity_type(result, entity_type)
@@ -427,7 +448,8 @@ class FindCareService:
             return [project(p, selected_specialty_codes)
                     for p in result], total_count
 
-        result = list(collection.aggregate(pipeline))
+        result = list(collection.aggregate(
+            pipeline, collation=self.ADDRESS_COLLATION))
         if not result:
             return [], 0
         total_count = result[0]["count"][0]["total"] if result[0]["count"] else 0
@@ -559,7 +581,8 @@ class FindCareService:
         try:
             raw = next(iter(collection.aggregate(
                 [{"$match": self._searchable(base_filter, entity_type)},
-                 {"$facet": facets}], allowDiskUse=True)))
+                 {"$facet": facets}], allowDiskUse=True,
+                collation=self.ADDRESS_COLLATION)))
         except Exception as exc:
             # Mode 1: refinement counts are an aid, not the answer. A
             # failure here leaves the panel without hints and the result
@@ -639,6 +662,11 @@ class FindCareService:
             "first_npi": first_npi,
             "last_npi": last_npi,
             "has_more": has_more,
+            # Whether a page precedes this one. The widget had no way to
+            # know and used first_npi, which is the first row of whatever
+            # page it is looking at -- so a Previous control appeared on
+            # the first page, offering to go back to nothing.
+            "has_previous": page_start > 1,
             "page_start": page_start,
             "page_end": page_end,
             "search_params": search_params or {},

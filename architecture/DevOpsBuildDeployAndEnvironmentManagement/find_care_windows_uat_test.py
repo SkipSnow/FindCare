@@ -2476,3 +2476,215 @@ class TestAReloadKeepsTheSession:
             " return true; }")
         guid = page.evaluate("() => window.ClientRouter.getSessionGuid()")
         assert guid, "no session after the reload"
+
+
+# ─────────────────────────────────────────────────────────────────────
+# FLOW 3b — the utterance that found two defects on 2026-09-07
+#
+# Session 1002c522137d4284a2e86cd2f53efbbf asked this three times and was
+# answered with a question each time: the classifier had no findAFacility
+# in its catalog, so it could not name the action even with a complete
+# intent. And the city it holds is 'Long Beach', while nine records in ten
+# store 'LONG BEACH' -- so the search that could not run would have found
+# a fraction of the answer if it had.
+# ─────────────────────────────────────────────────────────────────────
+
+
+class TestAnUrgentCareClinicInLongBeach:
+    """The request names a place and a city whose casing the data varies."""
+
+    @pytest.fixture(scope="class")
+    def searched(self, page):
+        _fresh(page)
+        _ask(page, "find me an urgent care clinic in Long Beach CA")
+        _wait_for_facilities(page)
+        page.wait_for_timeout(2_000)
+        return page
+
+    def test_the_request_is_dispatched_rather_than_questioned(self, searched):
+        """The user names what they want, not the tool that serves it. A
+        request carrying a place and a usable geography is complete, and a
+        complete request is answered with results.
+        """
+        rows = searched.locator("[data-testid='facility-card']").count()
+        assert rows > 0, (
+            "the search was not dispatched: no facility rows were painted "
+            "for a request naming both an establishment and a city+state")
+
+    def test_the_city_is_matched_whatever_its_casing(self, searched):
+        """The corpus stores 'LONG BEACH' and 'Long Beach' both. A search
+        that matches only the casing it was handed answers with a fraction
+        of what is there, and looks like a thin city rather than a bug.
+        """
+        rows = searched.locator("[data-testid='facility-card']").count()
+        assert rows > 5, (
+            f"only {rows} rows came back; matching 'Long Beach' without a "
+            f"case-insensitive comparison returns the title-case records "
+            f"alone and hides the rest")
+
+    def test_the_count_is_the_whole_answer_not_a_casing_of_it(self, searched):
+        """18 organisations hold an urgent-care practice address in Long
+        Beach: 5 stored 'Long Beach', 13 stored 'LONG BEACH'. A search that
+        returns 5 has matched one casing and called it the answer.
+
+        The row shows the organisation's PRIMARY practice address, which for
+        a multi-site organisation is somewhere else entirely, so the city on
+        screen is not what this asserts on -- the count is.
+        """
+        heading = searched.locator("text=/facilit(y|ies) found/i").first.inner_text()
+        digits = "".join(c for c in heading if c.isdigit())
+        assert digits and int(digits) > 5, (
+            f"the heading reads {heading!r}; five is the title-case subset, "
+            f"not the answer")
+
+
+# ─────────────────────────────────────────────────────────────────────
+# FLOW 4 — one session, two pages, three utterances
+#
+# The parameters of one page are that page's own. A person asks for a
+# care giver in San Francisco, then a facility in Long Beach, then a
+# facility in New York. The provider page must still hold San Francisco
+# at the end, and the facility page must hold New York rather than the
+# Long Beach it held a moment earlier.
+#
+# This is the sequence that exposed the defect on 2026-09-07: the
+# facility page's geography had arrived by carry-over from a page the
+# person never visited, so it never moved when they asked for somewhere
+# else, and a New York request answered with Long Beach clinics.
+# ─────────────────────────────────────────────────────────────────────
+
+
+def _session_text(page) -> str:
+    """The session window's text.
+
+    The control that opens it lives inside the About window, so About is
+    opened first -- the same way a person reaches it.
+    """
+    _open_about(page)
+    page.wait_for_selector("#frame_AboutChatHealtyPopUP", state="visible",
+                           timeout=DEFAULT_TIMEOUT)
+    page.locator("[data-router-action='session_info']").first.click()
+    page.wait_for_selector("#frame_SessionInfoPopUp", state="visible",
+                           timeout=LLM_TIMEOUT)
+    page.wait_for_function(
+        "() => ((document.querySelector('#frame_SessionInfoPopUp') || {})"
+        ".innerText || '').includes('Identity')", timeout=LLM_TIMEOUT)
+    page.wait_for_timeout(1_000)
+    text = page.locator("#frame_SessionInfoPopUp").inner_text()
+    close = page.locator("#frame_SessionInfoPopUp .ch-popup-close")
+    if close.count():
+        close.first.click()
+        page.wait_for_timeout(500)
+    return text
+
+
+class TestEachPageKeepsItsOwnGeography:
+
+    @pytest.fixture(scope="class")
+    def asked(self, page):
+        _fresh(page)
+        _ask(page, "Find me a shrink in San Francisco CA")
+        _wait_for_panel(page)
+        page.wait_for_timeout(1_500)
+        _ask(page, "Find me an urgent care clinic in Long Beach CA")
+        _wait_for_facilities(page)
+        page.wait_for_timeout(1_500)
+        # The Long Beach rows are still on screen, so waiting for "a row
+        # exists" is satisfied before New York's answer arrives and the
+        # assertion reads the previous city's list. Wait for the first row
+        # to stop being the one that is there now.
+        was = page.locator("[data-testid='facility-address']").first.inner_text()
+        _ask(page, "Find me an urgent care clinic in New York NY")
+        page.wait_for_function(
+            "previous => { const a = document.querySelector"
+            "(\"[data-testid='facility-address']\");"
+            " return a && a.innerText !== previous; }",
+            arg=was, timeout=LLM_TIMEOUT)
+        page.wait_for_timeout(2_000)
+        return page
+
+    def test_the_facility_list_is_the_city_last_asked_for(self, asked):
+        """A new city supersedes the one before it. The facility page was
+        showing Long Beach a turn ago; the person then said New York.
+        """
+        addresses = asked.locator("[data-testid='facility-address']")
+        assert addresses.count() > 0, "the New York request painted no rows"
+        shown = [addresses.nth(i).inner_text().lower()
+                 for i in range(min(addresses.count(), 12))]
+        stale = [a for a in shown if "long beach" in a]
+        assert stale == [], (
+            f"the facility list still holds Long Beach rows after a New York "
+            f"request: {stale}")
+
+    def test_the_provider_page_still_holds_san_francisco(self, asked):
+        """Two facility requests must not disturb the care-giver page. Its
+        geography is its own and nothing has asked it to change.
+        """
+        text = _session_text(asked).lower()
+        assert "san francisco" in text, (
+            "the session no longer holds San Francisco for the care-giver "
+            "page; a facility request moved a parameter that is not its own")
+
+    def test_the_session_holds_both_cities_at_once(self, asked):
+        """The point of per-page parameters: two pages, two geographies,
+        neither overwriting the other.
+        """
+        text = _session_text(asked).lower()
+        assert "new york" in text, (
+            "the session does not hold New York for the facility page")
+        assert "san francisco" in text, (
+            "the session does not hold San Francisco for the care-giver page")
+
+
+# ─────────────────────────────────────────────────────────────────────
+# FLOW 5 — the emergency, and the way back
+#
+# A person saying they are having a heart attack is not a search. The
+# utterance manager routes it to safetyLockout and SharedServices' own
+# LockoutTool answers: the person is told to call emergency services and
+# their IP is locked. It is a safety control shared by every page, not a
+# FindCare capability, and it must survive any refactor of the pages.
+#
+# The operator's way back is the literal 'unlock$123', which LockoutTool
+# recognises only while the person is locked.
+# ─────────────────────────────────────────────────────────────────────
+
+
+class TestAnEmergencyLocksAndTheOperatorUnlocks:
+
+    @pytest.fixture(scope="class")
+    def locked(self, page):
+        _fresh(page)
+        _ask(page, "I'm having a heart attack")
+        page.wait_for_timeout(6_000)
+        return page
+
+    def test_the_emergency_is_answered_not_searched(self, locked):
+        """The turn must not become a provider search. A person in an
+        emergency is told to call emergency services; a list of cardiologists
+        is the wrong answer to the question they asked.
+        """
+        body = locked.locator("body").inner_text().lower()
+        assert locked.locator("[data-testid='provider-card']").count() == 0, (
+            "an emergency utterance produced a provider list")
+        assert "911" in body or "emergency" in body, (
+            f"the emergency was not answered with a direction to emergency "
+            f"services; the screen reads: {body[:300]!r}")
+
+    def test_the_person_is_locked_after_the_emergency(self, locked):
+        """The lock is the control. A further request must not be served
+        as though nothing happened.
+        """
+        _ask(locked, "find me a shrink in San Francisco CA")
+        locked.wait_for_timeout(5_000)
+        assert locked.locator("[data-testid='provider-card']").count() == 0, (
+            "a search was served to a locked person")
+
+    def test_the_operator_literal_unlocks(self, locked):
+        """The way back. Only this literal, and only while locked."""
+        _ask(locked, "unlock$123")
+        locked.wait_for_timeout(5_000)
+        _ask(locked, "find me a shrink in San Francisco CA")
+        _wait_for_panel(locked)
+        assert locked.locator("[data-testid='provider-card']").count() > 0, (
+            "the operator literal did not restore service")

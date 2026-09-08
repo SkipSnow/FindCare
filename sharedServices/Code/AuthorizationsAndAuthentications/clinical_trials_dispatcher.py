@@ -2,11 +2,14 @@
 # Licensed under the FindCare Evaluation License (FEL-1.0).
 """ClinicalTrials dispatcher.
 
-SharedServices does NOT host the clinical-trials tool. This dispatcher
-forwards a findClinicalTrials utterance to the FindCare backend's
-/clinical_trials endpoint over HTTP, then streams the FindCare
-response's NDJSON chunk events back into the user's /gate stream so
-the React widget receives them transparently.
+SharedServices does NOT host the clinical-trials tool, and does not read
+the utterance that reaches it. This dispatcher posts the person's latest
+utterance and the talk before it to the FindCare backend's /trial/find
+endpoint over HTTP, then streams the FindCare response's NDJSON events
+back into the user's /gate stream so the React widget receives them
+transparently. What the utterance means -- the condition, the age, the
+sex, whether to stay inside the United States -- is the clinical-trial
+page's to decide, and it decides it on the far side of this call.
 
 Canonical *_tool.py exports: TOOL_NAME, Request, Response, run().
 """
@@ -36,25 +39,14 @@ def findcare_url() -> str:
 
 
 class Request(BaseModel):
-    condition: str = Field(
-        description="The condition to find trials for. The only required "
-                    "field; every other field narrows the result.")
-    age_years: Optional[int] = Field(
-        default=None,
-        description="Age in years, to drop trials whose eligibility excludes "
-                    "it.")
-    sex: Optional[str] = Field(
-        default=None,
-        description="Sex, to drop trials restricted to another.")
-    geographic_scope: Optional[str] = Field(
-        default=None,
-        description="Whether to search worldwide or the US only.")
-    page_size: int = Field(
-        default=10, description="How many trials this page returns.")
-    cursor: Optional[str] = Field(
-        default=None,
-        description="Position in a longer result. Absent means the first "
-                    "page.")
+    utterance: str = Field(
+        description="What the person last said. The clinical-trial page "
+                    "reads it; nothing on this side does.")
+    history: list[dict] = Field(
+        default_factory=list,
+        description="The talk before that utterance, oldest first, so a "
+                    "condition or an age named on an earlier turn is still "
+                    "there to be read.")
 
 
 class Response(BaseModel):
@@ -67,8 +59,8 @@ class ClinicalTrialsDispatcher(ChatHealthyTool):
     Response = Response
 
     async def run(self, deps: AgentDeps, request: "Request") -> "Response":
-        url = findcare_url() + "/clinical_trials"
-        body = request.model_dump(exclude_none=True)
+        url = findcare_url() + "/trial/find"
+        body = request.model_dump()
         # The token this hop already holds, forwarded so FindCare can
         # verify the SharedServices signature on it.
         body["session_token"] = deps.session_token.model_dump(mode="json")
@@ -90,11 +82,11 @@ class ClinicalTrialsDispatcher(ChatHealthyTool):
                 httpx.WriteError, httpx.RemoteProtocolError,
                 httpx.HTTPStatusError) as exc:
             log.error(
-                "FindCare /clinical_trials call failed: %s: %s",
+                "FindCare /trial/find call failed: %s: %s",
                 type(exc).__name__, exc,
                 exc=ChatHealthyException(
                     mode="clinical_trials_unavailable",
-                    message=f"FindCare /clinical_trials call failed: {type(exc).__name__}: {exc}",
+                    message=f"FindCare /trial/find call failed: {type(exc).__name__}: {exc}",
                     component="ClinicalTrialsDispatcher",
                     exception=exc,
                 ), if_not_debug_log=True,

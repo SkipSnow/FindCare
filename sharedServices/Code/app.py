@@ -5,20 +5,18 @@
 #
 # Owner: EPIC-002-F-003 (Authorizations and Authentications).
 #
-# The /gate route is the universal entrance for the application. Every
-# request flows through TWO PydanticAI-shaped tools in sequence:
+# The /gate route is the universal entrance for the application, and it is
+# HTTP plumbing and nothing else: read the POST body, verify the session
+# token, hand the call to UniversalNavigationTool.handle_gate, and shape
+# what comes back into a FastAPI response.
 #
-#   1. authorizations_and_authentications_tool.run(AuthnDeps)
-#         -> user_object (mint-or-restore + persist admin.sessions)
-#   2. universal_navigation_tool.run(AgentDeps, NavRequest(op, payload))
-#         -> dispatches to the graph node for `op` (splash,
-#            record_ux_event, utterance, ...). Emits stream events as it
-#            runs; final result is the last NDJSON line on the wire.
+# handle_gate is where the work is. It establishes the user through
+# authorizations_and_authentications_tool and dispatches the named op to
+# its handler, emitting stream events as it runs.
 #
-# Trivial ops (peer_urls, peer_health, session, verify_token,
-# transfer_to_findcare) are dispatched inline by /gate without invoking
-# the heavy nav-tool graph. They satisfy EPIC-002-F-004-S-001 (universal
-# entrance) by keeping all client traffic on /gate.
+# No op is answered here. What an op means -- what a peer is, what health
+# is, when a token is valid -- is decided by the router, so this file holds
+# no opinion about any of it and a new op needs nothing from it.
 
 # Establish which component this process is and what the library will let it
 # load, before any other library capability is imported. The finder installed
@@ -30,6 +28,7 @@ _ch_permissions_init()
 
 import base64
 from chathealthy_lib import ChatHealthyLoggingService
+from chathealthy_lib import http_request_facts as request_facts
 from chathealthy_lib.exceptions import ChatHealthyException
 import os
 import sys
@@ -186,10 +185,9 @@ app.add_middleware(
 # ── Routes ──────────────────────────────────────────────────────────
 
 from healthcheck.health_endpoint import HealthEndpoint
-from displayChrome.transfer_to_findcare_endpoint import TransferToFindCareEndpoint
 from secretsManager.secrets_endpoint import SecretsEndpoint
 from chathealthy_lib.authentication import (
-    AuthToken, SessionRestampRequest, SessionToken, VerifyTokenResponse,
+    AuthToken, SessionToken, VerifyTokenResponse,
 )
 from chathealthy_lib.authentication.user_object import UserObject
 from authentication.mintable_auth_token import MintableAuthToken
@@ -207,15 +205,6 @@ UNIVERSAL_NAV_TOOL = nav.TOOL
 
 ORIGIN = "SharedServices"
 ENV = os.getenv("ENV_PREFIX", "dev")
-
-# Browser-facing peer URLs the wrapper consumes from /gate (op=peer_urls
-# op=peer_urls) so iframe.src and peer-health lookups never
-# need build-time substitution into the wrapper bytes. Set by deploy.
-CH_BROWSER_PEER_URL_FINDCARE = os.getenv("CH_BROWSER_PEER_URL_FINDCARE", "https://localhost:7860")
-CH_BROWSER_PEER_URL_EVALCARE = os.getenv("CH_BROWSER_PEER_URL_EVALCARE", "https://localhost:8001")
-# Server-to-server peer URLs SS uses to proxy peer_health.
-FINDCARE_INTERNAL_URL_FOR_HEALTH = os.getenv("FINDCARE_INTERNAL_URL", "https://ch-findcare:7860")
-EVALCARE_INTERNAL_URL_FOR_HEALTH = os.getenv("EVALCARE_INTERNAL_URL", "https://ch-evalcare:7860")
 
 
 def impl(cls_name, file_subpath):
@@ -245,12 +234,6 @@ def health():
 # ─────────────────────────────────────────────────────────────────────
 # /gate — the universal entrance. Streams NDJSON.
 # ─────────────────────────────────────────────────────────────────────
-
-_TRIVIAL_GATE_OPS = frozenset({
-    "peer_urls", "peer_health", "session", "verify_token", "transfer_to_findcare",
-})
-
-
 
 # Module-level helpers for /gate response instrumentation. Kept out of
 # the gate() body so Rule-005 (no log call in a function body that also
@@ -340,7 +323,7 @@ def _verify_session_or_401(op: str, session_token_dict) -> tuple[SessionToken, s
         raise ChatHealthyException(
             mode="http_error",
             component="app",
-            message="session_token is required for non-trivial /gate ops",
+            message="session_token is required",
             status_code=401)
     try:
         st_in = SessionToken.model_validate(session_token_dict)
@@ -369,65 +352,6 @@ def _log_gate_entry(op: str, intent, body_keys: list) -> None:
     log.debug("/gate ENTRY op=%s intent=%r body_keys=%s", op, intent, body_keys)
 
 
-async def _dispatch_trivial_gate_op(op: str, payload: dict) -> dict:
-    """Inline op handlers for /gate trivial ops.
-
-    Returns a plain dict that /gate wraps in JSONResponse. These ops do
-    NOT pass through universal_navigation_tool — they are the gateway's
-    own short-circuit branches for client work that has no LLM/graph
-    component (peer URL lookup, peer health proxy, AuthToken stamping,
-    ownership-transfer ack).
-    """
-    if op == "peer_urls":
-        return {
-            "findcare":       CH_BROWSER_PEER_URL_FINDCARE,
-            "evaluatecare":   CH_BROWSER_PEER_URL_EVALCARE,
-            "sharedservices": "",   # the wrapper already knows its own /gate origin
-        }
-    if op == "peer_health":
-        peer = (payload or {}).get("peer", "").lower()
-        target_url = {
-            "findcare":       FINDCARE_INTERNAL_URL_FOR_HEALTH,
-            "evaluatecare":   EVALCARE_INTERNAL_URL_FOR_HEALTH,
-            "sharedservices": "self",
-        }.get(peer)
-        if target_url is None:
-            raise ChatHealthyException(
-                mode="gate_peer_health_unknown_peer",
-                message=f"/gate peer_health: unknown peer {peer!r}",
-                component="SharedServices",
-            )
-        if target_url == "self":
-            payload_out = HealthEndpoint()()
-            return payload_out
-        import httpx
-        try:
-            async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
-                r = await client.post(target_url + "/health")
-                r.raise_for_status()
-                return r.json()
-        except (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.ConnectError,
-                httpx.HTTPStatusError) as exc:
-            return {
-                "status": "unreachable",
-                "service": peer,
-                "error": f"{type(exc).__name__}: {exc}",
-            }
-    if op == "session":
-        body_obj = SessionRestampRequest.model_validate(payload or {})
-        return AuthToken.handle_session(body_obj, origin=ORIGIN, server_env=ENV).model_dump()
-    if op == "verify_token":
-        body_obj = SessionRestampRequest.model_validate(payload or {})
-        return AuthToken.handle_verify(body_obj, origin=ORIGIN, server_env=ENV).model_dump()
-    if op == "transfer_to_findcare":
-        return TransferToFindCareEndpoint()()
-    raise ChatHealthyException(
-        mode="gate_trivial_op_unregistered",
-        message=f"_dispatch_trivial_gate_op: op {op!r} is in _TRIVIAL_GATE_OPS but has no handler branch",
-        component="SharedServices",
-    )
-
-
 @app.post("/gate", operation_id="UniversalGate",
           openapi_extra=impl(
               "AuthorizationsAndAuthenticationsTool + UniversalNavigationTool",
@@ -446,13 +370,13 @@ async def gate(
     bytes-NDJSON, or JSON).
 
     Session continuity comes from the body-level `session_token` field
-    ClientRouter threads from its in-memory `_sessionToken`. On every
-    non-trivial op /gate verifies the token's signature; if verification
-    passes, the session GUID is extracted from the verified token to
-    hydrate the user_object. Trivial ops (peer_urls, peer_health, etc.)
-    remain pre-auth and do not require the token. Cookies are not used —
-    HuggingFace Spaces' edge proxy strips Access-Control-Allow-Credentials
-    from OPTIONS preflights.
+    ClientRouter threads from its in-memory `_sessionToken`. Every op
+    verifies the token's signature; if verification passes, the session
+    GUID is extracted from the verified token to hydrate the user_object.
+    There is no op exempt from that — a call with no valid token is
+    answered 401 whatever it names. Cookies are not used — HuggingFace
+    Spaces' edge proxy strips Access-Control-Allow-Credentials from
+    OPTIONS preflights.
     """
     payload = dict(body or {})
     # A call names its gesture. This defaulted to `boot`, an op that no
@@ -472,17 +396,17 @@ async def gate(
     xff = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
     client_ip = xff or (request.client.host if request.client else "")
 
-    # Trivial ops dispatched inline (EPIC-002-F-004-S-001): no graph
-    # invocation, no nonce machinery. peer_urls + peer_health + session +
-    # verify_token + transfer_to_findcare all return immediately.
-    if op in _TRIVIAL_GATE_OPS:
-        body_dict = await _dispatch_trivial_gate_op(op, op_payload)
-        return JSONResponse(content=body_dict)
-
-    # Every non-trivial /gate call MUST carry a valid signed SessionToken.
-    # /gate is the ONLY session-validation site in the system; downstream
-    # services trust this verification and do not re-validate.
+    # Every /gate call MUST carry a valid signed SessionToken. /gate is the
+    # ONLY session-validation site in the system; downstream services trust
+    # this verification and do not re-validate.
     st_in, session_guid = _verify_session_or_401(op, payload.get("session_token"))
+
+    # What this request carries, said once. Everything below reads it from
+    # http_request_facts rather than being handed it, so a component deep
+    # in the call tree needs no parameter to know whose request it serves.
+    request_facts.state_the_facts(
+        token=st_in, posted=payload, headers=dict(request.headers))
+
 
     try:
         gate_req = nav.GateRequest(

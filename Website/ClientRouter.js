@@ -378,28 +378,25 @@
     });
   }
 
-  // getFullPayload — for /gate ops in _TRIVIAL_GATE_OPS (peer_urls, peer_health,
-  // session, verify_token, transfer_to_findcare) that return plain JSON
-  // instead of NDJSON. Same credentials discipline as getStreamedPayloads so the
-  // session cookie threads through. Returns a Promise of the parsed JSON
-  // body. Use this for the bootstrap peer_urls fetch and any other
-  // request/response op that does not need streaming.
+  // getFullPayload — for a /gate op whose answer is one JSON body rather
+  // than a stream of them. Same credentials discipline as
+  // getStreamedPayloads. Returns a Promise of the parsed body; the router
+  // wraps every answer in its final-event envelope, so the op's own fields
+  // are under .result.
   function getFullPayload(args) {
     var op = args && args.op;
     if (!op) return Promise.reject(new Error('getFullPayload: op is required'));
     var payload = (args && args.payload) || {};
     var url = _sharedGateUrl() + '/gate';
     var body = { op: op, payload: payload };
-    // Trivial ops are pre-authentication utilities (peer_urls,
-    // peer_health, etc.) and do not require the signed token. Include
-    // it when we already hold one so downstream logging/audit can see
-    // the caller's session, but never require it here.
+    // Every op goes through the router now and the router requires a
+    // verified session, so a call made before bootstrap has one will be
+    // refused. It is sent whenever we hold one.
     if (_sessionToken) body.session_token = _sessionToken;
     return fetch(url, {
       method: 'POST',
-      // No credentials:'include' for the same reason as getStreamedPayloads —
-      // see comment there. Trivial ops carry the token when we have
-      // one but do not require it.
+      // No credentials:'include' for the same reason as getStreamedPayloads
+      // -- see the comment there.
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).then(function (resp) {

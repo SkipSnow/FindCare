@@ -56,6 +56,11 @@ from chathealthy_lib.exceptions import ChatHealthyException  # noqa: E402
 from chathealthy_lib.logging_service import ChatHealthyLoggingService  # noqa: E402
 from chathealthy_lib.runtime_data_collections import declared_attributes  # noqa: E402
 
+# Where a session lives. Named here rather than imported from the auth
+# tool so this tool does not depend on it for two constants.
+SESSION_DB = "Users"
+SESSION_COLLECTION = "sessions"
+
 log = ChatHealthyLoggingService()
 
 
@@ -265,11 +270,52 @@ class UserParametersTool(ChatHealthyTool):
                 ))
             changed.append(f"{page}.{name}")
 
-        # The write, once. The person is told after it is acknowledged and
-        # never before.
+        # The write, once, and to the session itself rather than only to
+        # this process's copy. Every server writes the parameters it owns
+        # at the moment it owns them: the end-of-turn persist carries no
+        # parameter, because a process that wrote its copy back would carry
+        # its view of a page over whatever another server wrote meanwhile.
+        # Setting the attributes named here touches nothing else in the
+        # document, so two servers writing different attributes of the same
+        # session in one turn both survive.
         deps.user_object.userParameters = params
+        self._persist(deps, prepared, params, request.verb == "clear")
         return Response(parameters=params.model_dump(exclude_none=True),
                         changed=changed)
+
+    def _persist(self, deps: AgentDeps, prepared: list, params, clearing: bool) -> None:
+        """Write just the attributes this call changed, to the session.
+
+        Raises, never logs: the caller is the one that knows what the write
+        was for, and a parameter that silently failed to persist is a
+        parameter the next turn reads as never set.
+        """
+        from chathealthy_lib.authentication.session_token import SessionToken
+        token = deps.session_token
+        if not isinstance(token, SessionToken):
+            raise ChatHealthyException(
+                mode="security_violation",
+                component="UserParameters",
+                message="a parameter write needs the session it belongs to, "
+                        "and this call carries no session token")
+        assignments: dict = {}
+        removals: dict = {}
+        for page, name, _ in prepared:
+            address = f"userParameters.pages.{page}.{name}"
+            if clearing:
+                removals[address] = ""
+            else:
+                assignments[address] = params.entry(page, name).model_dump(
+                    mode="json", exclude_none=True)
+        operation: dict = {}
+        if assignments:
+            operation["$set"] = assignments
+        if removals:
+            operation["$unset"] = removals
+        if not operation:
+            return
+        coll = deps.mongo_frontend[SESSION_DB][SESSION_COLLECTION]
+        coll.update_one({"_id": token.session_guid()}, operation)
 
 
 TOOL = UserParametersTool()
