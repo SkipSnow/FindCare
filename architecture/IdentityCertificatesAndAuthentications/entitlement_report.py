@@ -2438,7 +2438,15 @@ def render_pdf(data: dict, out_path: Path) -> Path:
         ["  of those, named people", str(len(people))],
         ["  of those, components", str(len(components))],
         ["Identities in the approved register", f"{len(approved)} of {len(APPROVED)}"],
-        ["Holding rights but not in the register", str(len(unapproved))],
+        # Counted from the holders, not from `unapproved`: that list is
+        # extended below with identities holding NO rights, so using it
+        # here put two populations under a label naming one and reported 3
+        # where the answer is 0.
+        ["Holding rights but not in the register",
+         str(len([h for h in data["holders"]
+                  if not h["approved"] and not h.get("orphaned")]))],
+        ["Holding no rights and not in the register",
+         str(len([r for r in data["rightless"] if not r["approved"]]))],
         ["In the register but holding no rights", str(len(data["approved_absent"]))],
         ["Secrets in the vaults",
          (f"not measured -- {'; '.join(data['vault_read_failures'])[:120]}"
@@ -2447,7 +2455,10 @@ def render_pdf(data: dict, out_path: Path) -> Path:
         ["  of those, naming the identity they grant",
          str(len(data.get("secret_grants") or {}))],
         ["Database users, per cluster", db_users_row],
-        ["Database entitlements in force", db_grants_row],
+        # A right over a place, which is what an entitlement is -- one role
+        # naming six collections is six things the user may do, not one.
+        ["Database rights in force (user x database or collection)",
+         db_grants_row],
         ["Database roles defined", db_roles_row],
         ["Orphaned assignments", str(len(orphaned))],
         ["Resources undescribed", str(len(data["undescribed"]))],
