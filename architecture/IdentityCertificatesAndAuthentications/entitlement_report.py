@@ -380,13 +380,19 @@ def _scope_story(data: dict) -> list[str]:
 
         f"<b>MongoDB Atlas</b> holds the data, in the clusters {clusters}. "
         "Entitlement is not granted through Entra and does not appear in any "
-        "Azure role: Atlas keeps its own database users, each authenticating "
-        "with an X.509 certificate subject or with a username and password, "
-        "and each holding roles defined in Atlas that name the actions "
-        "permitted and the database and collection they act on. This is the "
+        "Azure role: Atlas keeps its own users, on two planes. A database "
+        "user is a credential that reaches the data, authenticating with an "
+        "X.509 certificate subject or with a username and password, and "
+        "holding roles defined in Atlas that name the actions permitted and "
+        "the database and collection they act on. A member of the "
+        "organisation or of the project -- a person who signs in, or an API "
+        "key -- administers the place the data lives, and can create a "
+        "database user and grant it anything. Both are reported. This is the "
         "one component with fine-grained entitlement inside itself, which is "
-        "why it is reported per database and per collection rather than as a "
-        "single grant.",
+        "why the data plane is reported per database and per collection "
+        "rather than as a single grant; on the administrative plane Atlas "
+        "publishes no definition of what a role permits, so its role names "
+        "are stated as Atlas gives them and are not interpreted here.",
 
         "<b>Cloudflare</b> serves the public site and routes every request "
         "that reaches it. Entitlement is held as an API token, kept in the "
@@ -1485,6 +1491,98 @@ def _atlas_get(path: str, auth):
     return body if isinstance(body, list) else body.get("results", [])
 
 
+def _atlas_one(path: str, auth) -> dict:
+    """One Atlas object, where _atlas_get returns a list of them."""
+    r = requests.get(f"{ATLAS_API}/{path}", auth=auth, headers=ATLAS_ACCEPT,
+                     timeout=60)
+    if not r.ok:
+        raise ChatHealthyException(
+            mode="runtime_error",
+            component="entitlement_report",
+            message=f"Atlas {path} returned HTTP {r.status_code}: {r.text[:200]}")
+    return r.json()
+
+
+def _atlas_administrators(project: str, auth) -> list[dict]:
+    """Who administers the database, as against who reaches the data.
+
+    Atlas has two planes and this report was reading one. A database user
+    is a credential that authenticates to the data. An organisation or
+    project member is a person or an API key that administers the place
+    the data lives -- and a project owner can create any database user
+    and grant it anything, so reporting the seven credentials while
+    omitting whoever can mint an eighth describes the lock and not the
+    key cabinet.
+
+    Read strictly as Atlas states it. The role names are returned
+    verbatim: Atlas publishes no definition endpoint for organisation and
+    project roles, so unlike an Azure role -- whose meaning this report
+    derives from its actions -- there is nothing to derive a meaning
+    from, and inventing one would put this report's own words where a
+    measurement belongs.
+
+    The organisation is read off the project rather than configured. One
+    fact, one source.
+    """
+    org = (_atlas_one(f"groups/{project}", auth) or {}).get("orgId") or ""
+    found: dict[str, dict] = {}
+
+    def note(row: dict, where: str, kind: str) -> None:
+        # An API key identifies itself by its public half; a person by the
+        # address they sign in with.
+        who = row.get("username") or row.get("publicKey") or ""
+        if not who:
+            return
+        name = " ".join(x for x in (row.get("firstName"), row.get("lastName"))
+                        if x).strip() or (row.get("desc") or "").strip()
+        seen = found.setdefault(who, {
+            "who": who, "name": name, "kind": kind, "roles": {}})
+        if name and not seen["name"]:
+            seen["name"] = name
+        for r in row.get("roles") or []:
+            role = r.get("roleName") or ""
+            if not role:
+                continue
+            # Atlas states a role against an org id or a group id. Which of
+            # the two it names is what says whether the role reaches the
+            # whole organisation or this project alone.
+            at = ("the organisation" if r.get("orgId")
+                  else "this project" if r.get("groupId") else where)
+            seen["roles"].setdefault(role, set()).add(at)
+
+    for where, path, kind in (
+            ("this project", f"groups/{project}/users", "person"),
+            ("the organisation", f"orgs/{org}/users", "person"),
+            ("this project", f"groups/{project}/apiKeys", "API key"),
+            ("the organisation", f"orgs/{org}/apiKeys", "API key")):
+        if not org and "orgs/" in path:
+            continue
+        try:
+            for row in _atlas_get(path, auth):
+                note(row, where, kind)
+        except ChatHealthyException as exc:
+            # A plane this key may not read is stated, never guessed at.
+            _LOG.warning("Atlas %s not readable, so its members are absent "
+                         "from this report: %s", path, exc.message)
+            found.setdefault("__unread__", {
+                "who": "", "name": "", "kind": "", "roles": {},
+                "unread": []})["unread"].append(path)
+
+    unread = (found.pop("__unread__", {}) or {}).get("unread") or []
+    out = []
+    for row in found.values():
+        out.append({
+            "who": row["who"], "name": row["name"], "kind": row["kind"],
+            "roles": sorted(f"{role} over {', '.join(sorted(at))}"
+                            for role, at in row["roles"].items()),
+            "unread": [],
+        })
+    out.sort(key=lambda r: r["who"].lower())
+    if unread and out:
+        out[0]["unread"] = unread
+    return out
+
+
 def _right_of(actions: list[str]) -> str:
     """full, read or write, from what the actions actually permit."""
     names = {str(a).upper() for a in actions}
@@ -1722,11 +1820,13 @@ def collect_atlas() -> dict:
     auth = _atlas_auth()
     if auth is None:
         return {"readable": False, "reason": "no Atlas API key on this run",
-                "users": [], "roles": {}, "clusters": [], "project": ""}
+                "users": [], "roles": {}, "clusters": [], "project": "",
+                "administrators": []}
     project = _ch_os.environ.get("ATLAS_PROJECT_ID") or ""
     if not project:
         return {"readable": False, "reason": "ATLAS_PROJECT_ID not set",
-                "users": [], "roles": {}, "clusters": [], "project": ""}
+                "users": [], "roles": {}, "clusters": [], "project": "",
+                "administrators": []}
 
     clusters = [c.get("name") for c in _atlas_get(f"groups/{project}/clusters", auth)]
     custom = _atlas_get(f"groups/{project}/customDBRoles/roles", auth)
@@ -1760,7 +1860,8 @@ def collect_atlas() -> dict:
                       "scopes": [sc.get("name") for sc in (u.get("scopes") or [])]})
     return {"readable": True, "reason": "", "project": project,
             "clusters": sorted(c for c in clusters if c),
-            "roles": reach, "users": users}
+            "roles": reach, "users": users,
+            "administrators": _atlas_administrators(project, auth)}
 
 
 def _atlas_or_reason() -> dict:
@@ -1770,7 +1871,8 @@ def _atlas_or_reason() -> dict:
     except Exception as exc:                                    # noqa: BLE001
         _LOG.warning("Atlas entitlements not readable: %s", exc)
         return {"readable": False, "reason": str(exc)[:300],
-                "users": [], "roles": {}, "clusters": [], "project": ""}
+                "users": [], "roles": {}, "clusters": [], "project": "",
+                "administrators": []}
 
 
 def collect() -> dict:
@@ -2438,6 +2540,23 @@ def render_pdf(data: dict, out_path: Path) -> Path:
                     f"&nbsp;&nbsp;{d['what']}: {d['why']}", note))
         return out
 
+    def _admin_block(admin: dict) -> list:
+        """What this identity administers, as Atlas states it.
+
+        The roles are printed as Atlas returns them. Atlas publishes no
+        definition for an organisation or project role, so there is
+        nothing to derive a meaning from and the report says so rather
+        than supplying one of its own.
+        """
+        out = [Paragraph(
+            f"{admin.get('kind','')} &nbsp;&middot;&nbsp; administers the "
+            "database", note)]
+        for role in admin.get("roles") or []:
+            out.append(Paragraph(f"&nbsp;&nbsp;{role}", note))
+        if not admin.get("roles"):
+            out.append(Paragraph("&nbsp;&nbsp;Holds no role Atlas states.", note))
+        return out
+
     def _block(holder: dict) -> list:
         label = holder["name"] or "Unidentified principal"
         out = [Paragraph(label, who)]
@@ -2581,6 +2700,9 @@ def render_pdf(data: dict, out_path: Path) -> Path:
         ["Database rights in force (user x database or collection)",
          db_grants_row],
         ["Database roles defined", db_roles_row],
+        ["Database administrators (organisation and project members)",
+         (str(len((data["atlas"].get("administrators") or [])))
+          if data["atlas"].get("readable") else db_users_row)],
         ["Orphaned assignments", str(len(orphaned))],
         ["Resources undescribed", str(len(data["undescribed"]))],
         ["Exceptions in total", str(len(orphaned) + len(data["undescribed"]))],
@@ -2795,11 +2917,32 @@ def render_pdf(data: dict, out_path: Path) -> Path:
     # of thing a principal is, so it is the foundation this section stands on --
     # and when it cannot be read, the section says so instead of reporting an
     # empty finding, which would read identically to a clean estate.
-    head = _section_block(4, str(len(approved)) + " found")
-    if approved:
-        story.append(KeepTogether(head[1:] + _block(approved[0])))
-        for h in approved[1:]:
-            story.append(KeepTogether(_block(h)))
+    # One list, alphabetical. An identity in the directory and a member of
+    # the database organisation are both users and both belong in this
+    # section; ordering them by name is what puts a person's entries
+    # together, where ordering by how much authority each holds separates
+    # them by however many other users fall in between.
+    _atlas = data.get("atlas") or {}
+    _admins = _atlas.get("administrators") or [] if _atlas.get("readable") else []
+    everyone = ([("identity", h, h["name"] or h["object_id"]) for h in approved]
+                + [("administrator", a, a.get("who") or "") for a in _admins])
+    everyone.sort(key=lambda row: row[2].lower())
+
+    def _entry(kind: str, subject: dict) -> list:
+        if kind == "identity":
+            return _block(subject)
+        out = [Paragraph(subject.get("who") or "(unnamed)", who)]
+        if subject.get("name"):
+            out.append(Paragraph(subject["name"], note))
+        out.extend(_admin_block(subject))
+        out.append(Spacer(1, 10))
+        return out
+
+    head = _section_block(4, str(len(everyone)) + " found")
+    if everyone:
+        story.append(KeepTogether(head[1:] + _entry(*everyone[0][:2])))
+        for kind, subject, _ in everyone[1:]:
+            story.append(KeepTogether(_entry(kind, subject)))
     else:
         story.extend(head)
 
@@ -2834,6 +2977,7 @@ def render_pdf(data: dict, out_path: Path) -> Path:
                    for u in database_users_of(h["name"], atlas)}
         unclaimed = [u for u in every_user
                      if u.get("username") not in claimed]
+        every_admin = atlas.get("administrators") or []
         story.append(Paragraph(
             "<b>Database credentials no identity holds</b> "
             f"&nbsp;&middot;&nbsp; {len(unclaimed)} of {len(every_user)} "
@@ -2854,6 +2998,12 @@ def render_pdf(data: dict, out_path: Path) -> Path:
                          "way into the data.", note)]
             entry.extend(_database_block(user))
             story.append(KeepTogether(entry))
+
+        for unread in {u for a in every_admin for u in (a.get("unread") or [])}:
+            story.append(Paragraph(
+                f"<b>Not read: {unread}.</b> This run states nothing about "
+                "the members it holds, which is not the same as there being "
+                "none.", note))
 
         # Who holds these rights by being able to read the credential.
         reached = database_rights_reached_through_secrets(data)
