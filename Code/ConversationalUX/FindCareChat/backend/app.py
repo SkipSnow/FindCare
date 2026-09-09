@@ -691,7 +691,7 @@ def _facility_kinds(facility_type: str) -> list[dict]:
     kind of place is not a search across every organization.
 
     The rows leave in the shape the panel holds them in, the same one
-    /classify hands back, so a kind of place and a specialty are one shape
+    /nucc/classify hands back, so a kind of place and a specialty are one shape
     wherever they are read."""
     resolved = specialty_service.find_specialties(
         facility_type, None, SECTION_ORGANIZATION)
@@ -792,26 +792,26 @@ async def facility_find(body: FacilityFindRequest):
         await asyncio.to_thread(
             _write_facility_parameters, body.session_token,
             _facility_page_entries(mined, offered, codes))
-        geo = mined.geography
-        # What a search needs is what the page declares it needs. The
-        # declaration is edited and deployed; nothing here decides.
-        in_force = {"state": geo.state, "city": geo.city,
-                    "zip": geo.zip, "county": geo.county,
-                    "facilityType": mined.facility_type,
-                    "facilityName": mined.facility_name,
-                    "selectedTaxonomyCodes": codes,
-                    "offeredFacilityTypes": offered}
+        # What the search runs on is what is in force, not what this turn
+        # happened to say. The mined values were written above, so the
+        # session is the merge of everything said so far -- reading it back
+        # is what lets an answer add to a request instead of replacing it.
+        in_force = await asyncio.to_thread(_parameters_in_force, FACILITY_PAGE)
+        if not codes:
+            codes = list(in_force.get("selectedTaxonomyCodes") or [])
+        in_force["selectedTaxonomyCodes"] = codes
         result: dict = {"providers": [], "total_count": 0}
-        unmet = _unmet_requirements(FACILITY_SEARCH_TOOL, in_force)
+        known = await asyncio.to_thread(_geography_known, in_force)
+        unmet = _unmet_requirements(FACILITY_SEARCH_TOOL, known)
         if not unmet:
             result = find_care.search_providers(
                 entity_type="2",
                 nucc_codes=codes,
-                state=geo.state,
-                city=geo.city,
-                county=geo.county,
-                zip=geo.zip,
-                facility_name=mined.facility_name,
+                state=str(in_force.get("state") or ""),
+                city=str(in_force.get("city") or ""),
+                county=str(in_force.get("county") or ""),
+                zip=str(in_force.get("zip") or ""),
+                facility_name=str(in_force.get("facilityName") or ""),
             )
         # What the search ran on, for a caller that has to say on screen
         # what was searched for. Nothing downstream reads it to persist:
@@ -823,7 +823,7 @@ async def facility_find(body: FacilityFindRequest):
         result["unmet_requirements"] = unmet
         if unmet:
             result["refinement_question"] = _question_for(
-                FACILITY_SEARCH_TOOL, unmet, in_force,
+                FACILITY_SEARCH_TOOL, unmet, known,
                 body.utterance, body.history)
         return result
     except ChatHealthyException as exc:
@@ -898,6 +898,72 @@ def _unmet_requirements(tool: str, in_force: dict) -> list[str]:
         if value is None or value == "" or value == [] or value == {}:
             missing.append(name)
     return missing
+
+
+def _state_of_zip(zip_code: str) -> str:
+    """The state a ZIP is in, read from the addresses we already hold.
+
+    A ZIP names exactly one state, so a person who gave one has told us
+    which board licenses the care giver -- which is the whole reason the
+    state is required. Asking them to say it again is asking for a fact
+    they already supplied.
+
+    Derived, never queried on. The state is what makes the requirement
+    met; the ZIP is what the person asked for, and it is narrower. Adding
+    the state to the query would search a whole state on the strength of
+    an answer about one ZIP.
+    """
+    wanted = (zip_code or "").strip()
+    if not wanted:
+        return ""
+    db = get_db()
+    if db is None:
+        return ""
+    row = db["PublicHealthData"]["Provider"].find_one(
+        {"practice_addresses.zip": wanted},
+        {"practice_addresses.zip": 1, "practice_addresses.state": 1})
+    for address in ((row or {}).get("practice_addresses") or []):
+        if str(address.get("zip") or "").strip() == wanted:
+            return str(address.get("state") or "").strip().upper()
+    return ""
+
+
+def _geography_known(in_force: dict) -> dict:
+    """What is known about the place, as against what was asked for.
+
+    The requirement is that the state be KNOWN. A ZIP supplies it without
+    the person repeating themselves, so the derived state is added here --
+    and nowhere else, because the query is built from what was asked for.
+    """
+    known = dict(in_force)
+    if not str(known.get("state") or "").strip():
+        derived = _state_of_zip(str(known.get("zip") or ""))
+        if derived:
+            known["state"] = derived
+    return known
+
+
+def _parameters_in_force(page: str) -> dict:
+    """Every parameter this page holds, as plain values.
+
+    One read rather than one per attribute: what a search runs on is the
+    whole of what the person has said across the turns, and fetching it
+    field by field invites a caller to fetch only the fields it remembered.
+    """
+    db = get_db()
+    if db is None:
+        raise ChatHealthyException(
+            mode="mongo_network_failure",
+            component="FindCareBackend",
+            message=f"the session is unreachable, so {page} cannot read what "
+                    f"is in force")
+    doc = db[SESSION_DB][SESSION_COLLECTION].find_one(
+        {"_id": request_facts.facts().session_guid()},
+        {f"userParameters.pages.{page}": 1})
+    held = ((doc or {}).get("userParameters", {})
+            .get("pages", {}).get(page, {})) or {}
+    return {name: (entry.get("value") if isinstance(entry, dict) else entry)
+            for name, entry in held.items()}
 
 
 def _read_page_parameter(page: str, name: str):
@@ -1235,7 +1301,7 @@ def _resolve_specialties(complaint: str) -> dict:
     complaint is not a search across every specialty.
 
     The rows leave in the shape the panel holds them in, the same one
-    /classify hands back. The complaint comes back too, because the
+    /nucc/classify hands back. The complaint comes back too, because the
     pipeline reads the words clinically -- 'shrink' returns as
     'psychological problem' -- and that reading is what the page records.
     """
@@ -1382,37 +1448,44 @@ async def provider_find(body: ProviderFindRequest):
         await asyncio.to_thread(
             _write_page_parameters, INDIVIDUAL_PROVIDER_PAGE,
             _provider_page_entries(mined, complaint, ticked))
-        geo = mined.geography
-        # Whether a search needs a geography is the declaration's to say.
-        # What counts as one is this page's: a city or a county alone does
-        # not locate anybody -- city names repeat across states -- so a
-        # geography is in force when a state or a ZIP is known and not
-        # before.
+        # What the search runs on is what is IN FORCE, not what this turn
+        # happened to say. A person answering "no, NY" has supplied one
+        # part of a place and left the rest standing; searching on the
+        # mined values alone threw away the city they gave a turn earlier
+        # and returned the whole of New York.
+        #
+        # The mined values were written above, so the session is already
+        # the merge of what was said before and what was said now. Reading
+        # it back is what makes an answer add to a request rather than
+        # replace it.
+        in_force = await asyncio.to_thread(_parameters_in_force,
+                                           INDIVIDUAL_PROVIDER_PAGE)
+        # The codes were resolved from the complaint this turn when there
+        # was one; otherwise the ones already in force still apply.
+        if not codes:
+            codes = list(in_force.get("selectedSpecialtyCodes") or [])
+        in_force["selectedSpecialtyCodes"] = codes
+        name = in_force.get("providerName") or {}
         result: dict = {"providers": [], "total_count": 0}
-        in_force = {"state": geo.state, "city": geo.city,
-                    "zip": geo.zip, "county": geo.county,
-                    "complaint": complaint,
-                    "selectedSpecialtyCodes": codes,
-                    "providerName": mined.provider_name.last,
-                    "providerSex": mined.provider_sex,
-                    "soleProprietor": mined.sole_proprietor,
-                    "insurance": mined.insurance}
-        unmet = _unmet_requirements(PROVIDER_SEARCH_TOOL, in_force)
+        # Judged on what is known -- a ZIP tells us the state. Searched on
+        # what was asked for, which is the ZIP: it is narrower, and the
+        # person did not ask for the state.
+        known = await asyncio.to_thread(_geography_known, in_force)
+        unmet = _unmet_requirements(PROVIDER_SEARCH_TOOL, known)
         if not unmet:
-            name = mined.provider_name
             result = find_care.search_providers(
                 entity_type="1",
                 nucc_codes=codes,
-                state=geo.state,
-                city=geo.city,
-                county=geo.county,
-                zip=geo.zip,
-                last_name=name.last.strip().upper(),
-                first_name=name.first.strip().upper(),
-                middle_name=name.middle.strip().upper(),
-                provider_sex=_sex_code(mined.provider_sex),
-                sole_proprietor=mined.sole_proprietor,
-                insurance=mined.insurance,
+                state=str(in_force.get("state") or ""),
+                city=str(in_force.get("city") or ""),
+                county=str(in_force.get("county") or ""),
+                zip=str(in_force.get("zip") or ""),
+                last_name=str(name.get("last") or "").strip().upper(),
+                first_name=str(name.get("first") or "").strip().upper(),
+                middle_name=str(name.get("middle") or "").strip().upper(),
+                provider_sex=_sex_code(str(in_force.get("providerSex") or "")),
+                sole_proprietor=in_force.get("soleProprietor"),
+                insurance=str(in_force.get("insurance") or ""),
             )
         # What the search ran on, for a caller that has to say on screen
         # what was searched for and paint the panel it was narrowed by.
@@ -1426,7 +1499,7 @@ async def provider_find(body: ProviderFindRequest):
         result.update(_specialty_groups(offered))
         if unmet:
             result["refinement_question"] = _question_for(
-                PROVIDER_SEARCH_TOOL, unmet, in_force,
+                PROVIDER_SEARCH_TOOL, unmet, known,
                 body.utterance, body.history)
         return result
     except ChatHealthyException as exc:
@@ -1486,6 +1559,14 @@ async def specialty_find(body: SpecialtyFindRequest):
     if ticked:
         entries["selectedSpecialtyCodes"] = _parameter_entry(ticked)
     await asyncio.to_thread(_write_page_parameters, NUCC_PAGE, entries)
+    # A turn that named no complaint has not withdrawn the one already in
+    # force: the panel it painted is still what the person is choosing
+    # from, and repainting it empty would take their choices away.
+    in_force = await asyncio.to_thread(_parameters_in_force, NUCC_PAGE)
+    if not offered:
+        offered = list(in_force.get("offeredSpecialties") or [])
+        ticked = list(in_force.get("selectedSpecialtyCodes") or [])
+        complaint = complaint or str(in_force.get("complaint") or "")
     return {
         "specialties": offered,
         "selected_codes": ticked,
@@ -1524,8 +1605,8 @@ def _require_db_for_classify():
     return db
 
 
-@app.post("/classify")
-async def classify(body: ClassifyRequest, request: Request):
+@app.post("/nucc/classify")
+async def nucc_classify(body: ClassifyRequest, request: Request):
     """EPIC-006-F-003-S-001: specialty matching.
 
     normalize -> embed -> $vectorSearch -> LLM filter. Semantic search
@@ -1585,7 +1666,7 @@ async def classify(body: ClassifyRequest, request: Request):
 
 
 def sanitized_classify_error(stage: str, ts: str, req_id: str) -> str:
-    return (f"FindCare /classify temporarily unavailable "
+    return (f"FindCare /nucc/classify temporarily unavailable "
             f"(stage: {stage}) at {ts}. Ref: {req_id}")
 
 
@@ -1659,11 +1740,19 @@ async def trial_find(body: TrialFindRequest):
             queue.put_nowait(event)
 
     deps = _StreamCollector()
-    scope = "us" if mined.united_states_only else "international"
+    # What the search runs on is what is in force. The mined values were
+    # written above, so the session is the merge of everything said so
+    # far -- a person who names a condition on one turn and their age on
+    # the next has given both, and searching on the latest turn alone
+    # would throw the condition away.
+    in_force = await asyncio.to_thread(_parameters_in_force,
+                                       CLINICAL_TRIAL_PAGE)
+    age = in_force.get("ageYears")
+    scope = "us" if in_force.get("unitedStatesOnly") else "international"
     req = clinical_trials_tool.Request(
-        condition=mined.condition,
-        age_years=mined.age_years,
-        sex=mined.sex or None,
+        condition=str(in_force.get("condition") or ""),
+        age_years=int(age) if age is not None else None,
+        sex=str(in_force.get("sex") or "") or None,
         geographic_scope=scope,
     )
     # What the person asked for, said back to them in words. Composed here
@@ -1671,21 +1760,21 @@ async def trial_find(body: TrialFindRequest):
     # to a reader, and which criteria are worth repeating, are decisions
     # about the search rather than about the panel that shows it.
     said_back = []
-    if mined.condition:
-        said_back.append(f"condition: {mined.condition}")
-    if mined.age_years is not None:
-        said_back.append(f"subject age: {mined.age_years}")
-    if mined.sex:
-        said_back.append(f"subject sex: {mined.sex}")
-    said_back.append("scope: US" if mined.united_states_only
+    if in_force.get("condition"):
+        said_back.append(f"condition: {in_force['condition']}")
+    if age is not None:
+        said_back.append(f"subject age: {age}")
+    if in_force.get("sex"):
+        said_back.append(f"subject sex: {in_force['sex']}")
+    said_back.append("scope: US" if in_force.get("unitedStatesOnly")
                      else "scope: international")
     announced = {
         "kind": "intent_classified",
         "data": {
             "action": "findClinicalTrials",
-            "condition": mined.condition,
-            "age_years": mined.age_years,
-            "sex": mined.sex or None,
+            "condition": in_force.get("condition"),
+            "age_years": age,
+            "sex": str(in_force.get("sex") or "") or None,
             "geographic_scope": scope,
             "criteria_summary": ", ".join(said_back),
         },

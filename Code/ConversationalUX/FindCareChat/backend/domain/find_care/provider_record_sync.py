@@ -39,26 +39,38 @@ log = ChatHealthyLoggingService()
 
 
 def stored_addresses(record: dict) -> list[dict]:
-    """Every stored address, practice first then business.
+    """Every stored address, practice first then business, each saying
+    which of the two it is.
 
     v4 splits the stored addresses[] into practice_addresses[] and a lone
-    business_address. The LIVE NPPES response is unaffected and keeps its
-    own shape -- live_to_addresses still reads live["addresses"], because
-    that is NPPES's field and not ours.
+    business_address, so the field an address came out of is what makes it
+    a business address or a practice one. Flattening the two into one list
+    is what threw that away: business_address does not always carry an
+    address_type, and every reader downstream then had to guess. It is
+    stamped here, where the answer is still known.
+
+    The LIVE NPPES response is unaffected and keeps its own shape --
+    live_to_addresses still reads live["addresses"], because that is
+    NPPES's field and not ours.
     """
-    out = list(record.get("practice_addresses") or [])
+    out = [dict(a) for a in (record.get("practice_addresses") or [])]
     business = record.get("business_address")
     if business:
-        out.append(business)
+        out.append({**business, "address_type": "business"})
     return out
 
 
 def split_stored_addresses(addresses: list[dict]) -> dict:
-    """The inverse: the two fields v4 writes, from one tagged list."""
-    practice = [a for a in addresses
-                if (a or {}).get("address_type") == "practice"]
+    """The inverse: the two fields v4 writes, from one tagged list.
+
+    Which field an address belongs in is the same question _kind_of
+    answers, and asking it any other way is how a secondary practice
+    address -- which says "secondary_practice", not "practice" -- was
+    dropped on write-back instead of being written to practice_addresses.
+    """
+    practice = [a for a in addresses if _kind_of(a or {}) == "practice"]
     business = next((a for a in addresses
-                     if (a or {}).get("address_type") == "business"), None)
+                     if _kind_of(a or {}) == "business"), None)
     written: dict = {"practice_addresses": practice}
     if business:
         written["business_address"] = business
@@ -308,15 +320,58 @@ def geocode_new_address(address: dict) -> dict:
 # ── Per-enrichment preservation matrix ────────────────────────────────
 
 
+def _kind_of(address: dict) -> str:
+    """Whether this is a place someone practises or a place post is sent.
+
+    NPPES says it as address_purpose, which live_to_addresses records as
+    address_type; a stored practice address carries "practice" or
+    "secondary_practice", and business_address is the business one whether
+    or not it says so. Both reduce to the two kinds, because it is the
+    kind that decides which stored address a live one corresponds to.
+    """
+    kind = str(address.get("address_type") or "").strip().lower()
+    return "business" if kind.startswith("business") or kind == "mailing" else "practice"
+
+
+def _carries_a_county(address: dict) -> bool:
+    """Whether this address actually names a county.
+
+    A county the pipeline resolved looks like {"fips": "06037", "source":
+    "zip_crosswalk", "name": "Los Angeles County", ...}. An address the
+    pipeline never enriched carries {"fips": None} -- a dict with no name,
+    which is truthy, and was therefore preserved as though it were an
+    answer. Nothing downstream can use it: the row reads county["name"]
+    and gets nothing.
+    """
+    county = address.get("county")
+    return bool(isinstance(county, dict) and str(county.get("name") or "").strip())
+
+
 def addresses_with_preserved_county(
     live_addresses: list[dict], stored_addresses: list[dict],
 ) -> list[dict]:
     """For each live address: if it matches a stored address by line1 +
     city + state + zip, preserve the stored county verbatim. Otherwise
-    call geocode_new_address (urban marker stays absent on new)."""
+    call geocode_new_address (urban marker stays absent on new).
+
+    A practice address is matched against a stored PRACTICE address, and a
+    business address against the stored business one. They are different
+    kinds of address that frequently share a street: a provider whose
+    mailing address is the place they practise holds it in
+    practice_addresses AND as business_address.
+
+    Keyed on the street alone the two collided, and stored_addresses puts
+    the business one last, so it replaced the practice entry. Business
+    addresses are never county-enriched, so a write-back on the first
+    Provider Detail open replaced a resolved county with an empty one and
+    called it preservation. 55.8% of providers have that collision.
+
+    The kind is part of what an address IS, so it is part of the key.
+    """
     stored_by_key = {}
     for a in stored_addresses or []:
         key = (
+            _kind_of(a),
             (a.get("line1") or "").strip(),
             (a.get("city") or "").strip(),
             (a.get("state") or "").strip(),
@@ -326,6 +381,7 @@ def addresses_with_preserved_county(
     out = []
     for la in live_addresses:
         key = (
+            _kind_of(la),
             la.get("line1", ""),
             la.get("city", ""),
             la.get("state", ""),
@@ -333,7 +389,10 @@ def addresses_with_preserved_county(
         )
         sa = stored_by_key.get(key)
         merged = dict(la)
-        if sa and sa.get("county"):
+        # A stub is not a county. Carrying {"fips": None} across as though
+        # it were an answer is how the enrichment was lost; falling
+        # through to the geocoder is how it is recovered.
+        if sa is not None and _carries_a_county(sa):
             merged["county"] = deepcopy(sa["county"])
         else:
             merged = geocode_new_address(merged)
@@ -388,9 +447,7 @@ def recompute_quality_flags(record: dict) -> dict:
     else:
         out.pop("bad_data", None)
     practice = next(
-        (a for a in addresses if a.get("address_type") == "practice"),
-        addresses[0] if addresses else None,
-    )
+        (a for a in addresses if _kind_of(a) == "practice"), None)
     if practice and (practice.get("country") or "US") != "US":
         out["out_of_scope"] = {
             "flagged": True, "reason": "foreign_provider",

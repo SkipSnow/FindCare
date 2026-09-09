@@ -255,10 +255,10 @@ class TestHTTPRedirect:
         assert resp.status_code == 426, f"HTTP /api/search should return 426, got {resp.status_code}"
 
     def test_http_api_classify_returns_426(self):
-        """HTTP :80 /api/classify returns 403 Forbidden."""
+        """HTTP :80 /api/nucc/classify returns 403 Forbidden."""
         import requests
-        resp = requests.post("http://localhost/api/classify", json={"message": "test"}, timeout=5, allow_redirects=False)
-        assert resp.status_code == 426, f"HTTP /api/classify should return 426, got {resp.status_code}"
+        resp = requests.post("http://localhost/api/nucc/classify", json={"message": "test"}, timeout=5, allow_redirects=False)
+        assert resp.status_code == 426, f"HTTP /api/nucc/classify should return 426, got {resp.status_code}"
 
 
 # ── EPIC-002-F-001-S-012-REQ-B-003: Client checks for 403/426 security violation ───

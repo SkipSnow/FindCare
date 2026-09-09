@@ -117,8 +117,13 @@ IS_PHONE = VIEWPORT["width"] <= 720
 READY = ".ch-brand"
 DEFAULT_TIMEOUT = 60_000
 
-# One action's answer. Turns complete in single-digit seconds on local.
-LLM_TIMEOUT = 30_000
+# One action's answer. A turn is single-digit seconds when the machine is
+# only serving it -- but the suite is run at two widths at once, and two
+# browsers beside four containers and the Docker daemon on one workstation
+# is what a turn is actually competing with. Nine turns exceeded 30s that
+# way while the same suites against dev, where the containers are hosted,
+# had none.
+LLM_TIMEOUT = 45_000
 
 EVIDENCE_DIR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),

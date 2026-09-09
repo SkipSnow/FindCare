@@ -306,7 +306,7 @@ class Test_EPIC_006_F_002_S_003_REQ_T_004_macro_toggle_no_backend:
         captured = {"classify": 0, "search": 0}
         def _on_request(req):
             if req.method != "POST": return
-            if req.url.endswith("/classify"): captured["classify"] += 1
+            if req.url.endswith("/nucc/classify"): captured["classify"] += 1
             elif req.url.endswith("/search"): captured["search"] += 1
         page.on("request", _on_request)
         try:
@@ -347,7 +347,7 @@ class Test_EPIC_006_F_002_S_003_REQ_T_010_client_side_filtering_no_backend:
         captured = {"classify": 0, "search": 0}
         def _on_request(req):
             if req.method != "POST": return
-            if req.url.endswith("/classify"): captured["classify"] += 1
+            if req.url.endswith("/nucc/classify"): captured["classify"] += 1
             elif req.url.endswith("/search"): captured["search"] += 1
         page.on("request", _on_request)
         try:

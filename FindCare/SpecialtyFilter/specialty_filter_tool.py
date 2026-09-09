@@ -170,7 +170,7 @@ class SpecialtyFilterTool(ChatHealthyTool):
             message="SpecialtyFilter requires a non-empty Request.query; UR "
                 "must pass the UM-extracted complaint phrase.")
 
-        url = findcare_url() + "/classify"
+        url = findcare_url() + "/nucc/classify"
         try:
             # The token this hop already holds, forwarded so FindCare can
             # verify the SharedServices signature on it. This is the fourth

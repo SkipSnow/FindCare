@@ -2270,7 +2270,7 @@ class UniversalNavigationTool(ChatHealthyTool):
         )
         if fs.error:
             # A service that failed and a search that matched nothing took
-            # the same branch, so a 503 from /classify reached the rest of
+            # the same branch, so a 503 from /nucc/classify reached the rest of
             # the turn as an empty result. The turn then had nothing to
             # show, and the end-of-turn check asked the person for what
             # they had already given -- a complaint and a city that were

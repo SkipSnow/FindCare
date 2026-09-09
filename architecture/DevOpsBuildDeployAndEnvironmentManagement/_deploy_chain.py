@@ -3485,6 +3485,12 @@ def run_cloud_deploy(env: str, target_arg: str,
     succeeded: list[str] = []
     failed: list[tuple[str, str]] = []  # (target_id, error_message)
     any_hf_failed = False
+    # A runtime reads its configuration at startup. If the target
+    # that writes it failed, everything after it would install and
+    # come up against configuration that is absent or stale, which
+    # is how a whole environment deployed and then could not answer
+    # a single turn.
+    configuration_failed = False
     pipeline_certs_done = False
     for target_id, target_kind in selected:
         # bake_ca_chain_into_images reads the CA chain from KV and sets
@@ -3521,6 +3527,15 @@ def run_cloud_deploy(env: str, target_arg: str,
         # Wrapper gate: if any HF backend failed in this same run, refuse
         # to publish the wrapper. Live wrapper bytes are the contract
         # against the live backends; we never let them disagree.
+        if configuration_failed and target_kind != "atlas":
+            msg = ("SKIPPED to protect the contract: the configuration target "
+                   "failed in this run, and every runtime reads its "
+                   "configuration at startup; installing against absent or "
+                   "stale configuration is how an environment comes up unable "
+                   "to answer a turn.")
+            step(f"  SKIPPED {target_id}: {msg}")
+            failed.append((target_id, msg))
+            continue
         if target_kind == "cloudflare_pages_project" and any_hf_failed:
             msg = (f"SKIPPED to protect the contract: one or more HF backends "
                    f"failed in this run; publishing the wrapper would point "
@@ -3577,12 +3592,16 @@ def run_cloud_deploy(env: str, target_arg: str,
             failed.append((target_id, msg))
             if target_kind == "hf_space":
                 any_hf_failed = True
+            if target_kind == "atlas":
+                configuration_failed = True
         except Exception as exc:
             msg = f"{type(exc).__name__}: {exc!s}"
             step(f"  FAILED {target_id}: {msg}")
             failed.append((target_id, msg))
             if target_kind == "hf_space":
                 any_hf_failed = True
+            if target_kind == "atlas":
+                configuration_failed = True
     # Verify identity role grants against the manifest AFTER every target has
     # been deployed. Data-driven: iterates IdentityCatalog roles x
     # target.allowed_roles intersection. No role names in this code path.
