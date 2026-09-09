@@ -754,6 +754,15 @@ _GRANT_TAG = "grants-rights-for"
 # both.
 _SECRET_GRANTS: dict[str, str] = {}
 
+# Every secret the walk actually saw. Counting descriptions counted the
+# ones somebody had documented; counting certificate secrets counted a
+# different population again. This is the population.
+_SECRETS_SEEN: set[str] = set()
+
+# Vaults that could not be read. A count taken from a failed read is a
+# zero that looks like a measurement.
+_VAULT_READ_FAILURES: list[str] = []
+
 
 def _secret_tags(vault_uri: str) -> dict[str, str]:
     """Every secret in one vault and what its own tags say it is.
@@ -763,11 +772,18 @@ def _secret_tags(vault_uri: str) -> dict[str, str]:
     """
     found: dict[str, str] = {}
     try:
-        from azure.identity import DefaultAzureCredential  # noqa: PLC0415
-        token = DefaultAzureCredential().get_token(
-            "https://vault.azure.net/.default").token
+        # The same identity the rest of the report authenticates as.
+        # DefaultAzureCredential was used here, which finds a signed-in
+        # user on a workstation and finds nothing in the Automation
+        # container -- so the vault read succeeded for whoever ran it by
+        # hand and silently returned nothing on every scheduled run. The
+        # report then counted 11 secrets where the vault holds 69, and
+        # attributed no credential to anyone.
+        token = _credential().get_token("https://vault.azure.net/.default").token
     except Exception as exc:  # noqa: BLE001 - an unreadable vault is not a crash
-        _LOG.info("vault %s unreadable, secrets render unnamed: %s", vault_uri, exc)
+        _LOG.warning("vault %s unreadable, so no secret is described and no "
+                     "credential is attributed: %s", vault_uri, exc)
+        _VAULT_READ_FAILURES.append(f"{vault_uri}: {exc}")
         return found
     url = f"{vault_uri}/secrets?api-version=7.4"
     while url:
@@ -792,6 +808,7 @@ def _secret_tags(vault_uri: str) -> dict[str, str]:
                     found[name] = tags[key]
                     break
             found.setdefault(name, "")
+            _SECRETS_SEEN.add(name)
             # Which identity this secret makes the reader into. Stated by
             # the vault, not worked out from how the secret is named.
             granted = (tags.get(_GRANT_TAG) or "").strip()
@@ -2076,6 +2093,8 @@ def collect() -> dict:
         "atlas": _atlas_or_reason(),
         # What each vault secret says it makes its reader into.
         "secret_grants": dict(_SECRET_GRANTS),
+        "secrets_seen": sorted(_SECRETS_SEEN),
+        "vault_read_failures": list(_VAULT_READ_FAILURES),
         # REQ-B-008: what lies beneath each group.
         "group_children": dict(_GROUP_CHILDREN),
     }
@@ -2421,8 +2440,12 @@ def render_pdf(data: dict, out_path: Path) -> Path:
         ["Identities in the approved register", f"{len(approved)} of {len(APPROVED)}"],
         ["Holding rights but not in the register", str(len(unapproved))],
         ["In the register but holding no rights", str(len(data["approved_absent"]))],
-        ["Secrets in the vaults", str(len(data.get("secret_grants") or {}) or
-                                      len(data["certificate_secrets"]))],
+        ["Secrets in the vaults",
+         (f"not measured -- {'; '.join(data['vault_read_failures'])[:120]}"
+          if data.get("vault_read_failures")
+          else str(len(data.get("secrets_seen") or [])))],
+        ["  of those, naming the identity they grant",
+         str(len(data.get("secret_grants") or {}))],
         ["Database users, per cluster", db_users_row],
         ["Database entitlements in force", db_grants_row],
         ["Database roles defined", db_roles_row],
