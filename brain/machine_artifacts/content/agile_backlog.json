@@ -1936,6 +1936,25 @@
                             ]
                           },
                           "depends_on": []
+                        },
+                        {
+                          "req_id": "EPIC-002-F-003-S-009-REQ-B-010",
+                          "name": "Periodically email report",
+                          "requirement": "The report shall be periodically mailed to an operationally controlled distribution list on an operationally controlled schedule.",
+                          "priority": "must-have",
+                          "status": "done",
+                          "orphan": false,
+                          "approval": "approved",
+                          "tests": {
+                            "test": [
+                              {
+                                "test_type": "ORPHAN",
+                                "orphan": true,
+                                "file": "ORPHAN"
+                              }
+                            ]
+                          },
+                          "depends_on": []
                         }
                       ]
                     }

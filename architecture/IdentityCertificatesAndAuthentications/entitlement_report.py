@@ -2989,22 +2989,34 @@ def _recipient_from_secret(raw: str) -> tuple[str, str]:
 
 
 def _produced_on_pacific(when: _dt.datetime) -> str:
-    """Production time in America/Los_Angeles.
+    """Production time where the firm is: California.
 
-    Windows hosts need the tzdata package for IANA zones; import it first so
-    ZoneInfo can resolve America/Los_Angeles. If the zone still cannot be
-    loaded, state UTC rather than inventing an offset.
+    Worked out here rather than asked of the platform. It used to load
+    America/Los_Angeles from the IANA database and fall back to UTC when
+    that database was absent, which is why a report produced at noon in
+    California went out stamped 19:02 UTC -- true of Greenwich, and the
+    firm does not operate there.
+
+    US Pacific is UTC-8, and UTC-7 while daylight time is in force: from
+    the second Sunday in March to the first Sunday in November, both at
+    02:00 local. That rule is public, fixed, and needs no package.
     """
-    try:
-        try:
-            import tzdata  # noqa: F401 -- registers IANA DB on Windows
-        except ImportError:
-            pass
-        from zoneinfo import ZoneInfo
-        local = when.astimezone(ZoneInfo("America/Los_Angeles"))
-        return local.strftime("%d %B %Y at %H:%M %Z")
-    except Exception:  # noqa: BLE001 -- stamp still required; UTC is honest
-        return when.strftime("%d %B %Y at %H:%M UTC")
+    def _nth_sunday(year: int, month: int, nth: int) -> _dt.date:
+        d = _dt.date(year, month, 1)
+        d += _dt.timedelta(days=(6 - d.weekday()) % 7)   # first Sunday
+        return d + _dt.timedelta(weeks=nth - 1)
+
+    utc = when.astimezone(_dt.timezone.utc)
+    year = utc.year
+    # The switch happens at 02:00 local, which is 10:00 UTC entering
+    # daylight time and 09:00 UTC leaving it.
+    starts = _dt.datetime.combine(_nth_sunday(year, 3, 2),
+                                  _dt.time(10, 0), _dt.timezone.utc)
+    ends = _dt.datetime.combine(_nth_sunday(year, 11, 1),
+                                _dt.time(9, 0), _dt.timezone.utc)
+    daylight = starts <= utc < ends
+    local = utc + _dt.timedelta(hours=-7 if daylight else -8)
+    return local.strftime("%d %B %Y at %H:%M ") + ("PDT" if daylight else "PST")
 
 
 def send(pdf_path: Path, data: dict) -> dict:
