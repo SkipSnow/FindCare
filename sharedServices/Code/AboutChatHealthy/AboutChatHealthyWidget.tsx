@@ -8,7 +8,7 @@
 // HTML → ClientRouter.
 
 import { useEffect } from 'react'
-import { openPopup, closePopup } from './popupFrame'
+import { openPopup, closePopup } from '../displayChrome/popupFrame'
 
 const TARGET = 'AboutChatHealtyPopUP'
 

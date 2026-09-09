@@ -252,23 +252,24 @@ _SECTION_TITLE = None
 _SECTION_NOTE = None
 
 SECTIONS = (
-    ("Scope", "the tenant and each subscription, and whether this run could "
-              "enumerate it"),
-    ("Population and exceptions", "how many principals hold rights and how "
-                                  "many are in the approved register"),
-    ("Full entitlement detail", "every right held by each principal, and the "
-                                "scope at which it is granted"),
-    ("What each right permits", "every right named here, stated from the "
-                                "actions the role publishes"),
-    ("Where a grant can land", "each resource group and the subscription it "
-                               "belongs to"),
-    ("Exceptions", "everything wanting a decision: principals outside the "
-                   "register, grants whose principal is gone, resources with "
-                   "no description, shared secrets, and grants that add "
-                   "nothing"),
-    ("Group definitions", "each directory group, what it means and who "
-                          "manages it"),
-    ("Vault-wide access", "principals that can reach every secret in a vault, "
+    # EPIC-002-F-003-S-009-REQ-B-002 names these seven, in this order, and
+    # each of B-003 through B-009 defines one of them. A section here that
+    # no requirement defines, or a requirement with no section, is the
+    # kind of drift the numbering exists to make visible.
+    ("Scope", "what this firm protects, and how each component decides who "
+              "may act on it"),
+    ("Statistics", "every figure measured from what this run found; a "
+                   "number the run did not measure is not stated"),
+    ("Exceptions", "everything wanting a decision: users outside the "
+                   "register, grants whose user is gone, resources with no "
+                   "description, and grants that add nothing"),
+    ("User's full entitlement details", "every right held by each user, "
+                                        "in Entra, in Azure and in the database"),
+    ("Explanation of entitlements", "every right named here, stated from "
+                                    "the actions it carries"),
+    ("Group hierarchy", "each group, what it means, who manages it, and "
+                        "what lies beneath it"),
+    ("Vault-wide access", "users that can reach every secret in a vault, "
                           "and whether they can write"),
 )
 
@@ -305,21 +306,80 @@ def _section_block(number, count=""):
 
 
 def _scope_story(data: dict) -> list[str]:
-    """One paragraph: what the report states, and where each fact comes from."""
+    """What this firm protects, and how each component decides who may act.
+
+    EPIC-002-F-003-S-009-REQ-B-003. Prose, deliberately: a reader who does
+    not already know the architecture cannot judge an entitlement table,
+    and the table says nothing about what the entitlements are FOR. It
+    used to describe where the report got its facts, which is a note about
+    the report rather than a statement of what is being protected.
+
+    The components are stated here and the counts are measured; a
+    component named here that no section covers is a gap the reader can
+    see, which is the point of naming them.
+    """
     vaults = data["vaults"]
-    certs = data["certificate_secrets"]
     where = (f"one key vault, {vaults[0]}" if len(vaults) == 1
              else f"{len(vaults)} key vaults ({', '.join(vaults)})" if vaults
              else "no key vault visible to this run")
+    atlas = data.get("atlas") or {}
+    clusters = ", ".join(atlas.get("clusters") or []) or "not read on this run"
+
     return [
-        f"This report states every identity holding rights in the subscriptions named "
-        f"above, what each may do, how it is classified and who manages it. "
-        f"Role assignments and role definitions come from Azure Resource Manager. "
-        f"Classification comes from directory group membership and management from "
-        f"directory ownership. Whether a role is administrative is read from the "
-        f"actions Azure publishes for it. The approved population comes from "
-        f"IdentityCatalog in deployment_architecture.json. {len(certs)} certificate "
-        f"secrets were found, in {where}. All values are read at the time stated."
+        "ChatHealthy.ai protects six things, and each decides for itself who "
+        "may act on it.",
+
+        "<b>Microsoft Entra</b> is the directory. Every human operator and "
+        "every non-human component that authenticates has an identity here, "
+        "and group membership is how an identity is classified. Entitlement "
+        "is granted by adding a principal to a group or by assigning it a "
+        "role; nothing is granted by possessing a password.",
+
+        "<b>Microsoft Azure</b> holds the subscriptions, the resource groups, "
+        "the automation accounts and the key vaults. Entitlement is a role "
+        "assignment made to an Entra principal at a scope &mdash; a "
+        "subscription, a resource group or a single resource &mdash; and "
+        "what a role permits is the set of actions it publishes, not what "
+        "its name suggests.",
+
+        "<b>Azure Key Vault</b> holds every private credential: certificate "
+        f"material, API keys and connection strings, in {where}. Entitlement "
+        "here is different in kind from the rest, because a secret is not "
+        "only a value. Whoever can read a credential can present it, and so "
+        "holds every right the identity that credential names holds. A "
+        "secret states which identity it hands its reader, in its "
+        "grants-rights-for tag.",
+
+        f"<b>MongoDB Atlas</b> holds the data, in the clusters {clusters}. "
+        "Entitlement is not granted through Entra and does not appear in any "
+        "Azure role: Atlas keeps its own database users, each authenticating "
+        "with an X.509 certificate subject or with a username and password, "
+        "and each holding roles defined in Atlas that name the actions "
+        "permitted and the database and collection they act on. This is the "
+        "one component with fine-grained entitlement inside itself, which is "
+        "why it is reported per database and per collection rather than as a "
+        "single grant.",
+
+        "<b>Cloudflare</b> serves the public site and routes every request "
+        "that reaches it. Entitlement is held as an API token, kept in the "
+        "vault; there is no per-user model, so possession of the token is "
+        "the entitlement.",
+
+        "<b>GitHub</b> holds the source and the deployment history. "
+        "Entitlement is a deploy token kept in the vault and the repository "
+        "permissions of the humans who hold accounts.",
+
+        "<b>Hugging Face</b> runs the deployed application containers. "
+        "Entitlement is an account token kept in the vault; as with "
+        "Cloudflare, holding the token is the entitlement.",
+
+        "<b>What this report covers.</b> Entra, Azure and Key Vault are read "
+        "directly and are stated in full below. Atlas is read through its "
+        "administrative API and is stated per database user. Cloudflare, "
+        "GitHub and Hugging Face are named here and are NOT enumerated: "
+        "their entitlement is possession of a token, so what can be said "
+        "about them is who can read that token from the vault, which the "
+        "vault section states.",
     ]
 
 
@@ -685,6 +745,16 @@ def _vault_hosts() -> list[str]:
     return hosts
 
 
+# The tag that says whose rights a secret hands to whoever can read it.
+# One identity name, so it resolves; a sentence would only be readable.
+_GRANT_TAG = "grants-rights-for"
+
+# Filled by _secret_tags as it walks each vault, because the grant and the
+# description are two facts about one secret and one walk should collect
+# both.
+_SECRET_GRANTS: dict[str, str] = {}
+
+
 def _secret_tags(vault_uri: str) -> dict[str, str]:
     """Every secret in one vault and what its own tags say it is.
 
@@ -722,6 +792,11 @@ def _secret_tags(vault_uri: str) -> dict[str, str]:
                     found[name] = tags[key]
                     break
             found.setdefault(name, "")
+            # Which identity this secret makes the reader into. Stated by
+            # the vault, not worked out from how the secret is named.
+            granted = (tags.get(_GRANT_TAG) or "").strip()
+            if granted:
+                _SECRET_GRANTS[name] = granted
         url = body.get("nextLink")
     return found
 
@@ -1199,6 +1274,10 @@ def _subscriptions(token: str, credential) -> list[dict]:
     return out
 
 
+# Parent group -> the groups directly inside it, filled by _group_tree.
+_GROUP_CHILDREN: dict[str, list[str]] = {}
+
+
 def _group_tree(credential) -> tuple[dict[str, list[str]], dict[str, str],
                                     dict[str, list[str]], bool]:
     """The directory's own classification of every principal.
@@ -1263,6 +1342,18 @@ def _group_tree(credential) -> tuple[dict[str, list[str]], dict[str, str],
     for group in groups:
         described[group["displayName"]] = group.get("description") or ""
 
+    # REQ-B-008: which group contains which. The walk below already
+    # resolves nesting to attribute membership; keeping the containment is
+    # what lets the report state the structure rather than a flat list.
+    children: dict[str, list[str]] = {}
+    for group in groups:
+        _, nested = direct(group["id"])
+        names = sorted({by_id[n] for n in nested if n in by_id})
+        if names:
+            children[group["displayName"]] = names
+    _GROUP_CHILDREN.clear()
+    _GROUP_CHILDREN.update(children)
+
     # Nesting is resolved here rather than by Graph, because the collection that
     # would resolve it does not return service principals. A grant to `agents`
     # reaches a member of `runtimeAgents`, so the walk records both names
@@ -1291,6 +1382,317 @@ def _group_tree(credential) -> tuple[dict[str, list[str]], dict[str, str],
                 names.extend(x.get("displayName", "") for x in o.json().get("value", []))
         group_owners[group["displayName"]] = sorted(n for n in names if n)
     return membership, described, group_owners, True
+
+
+# ── Atlas: the database half of every identity's rights ───────────────
+#
+# EPIC-002-F-003-S-009-REQ-B-001. A user is any credential or human that
+# can reach a resource -- an API key, a certificate subject, a username
+# with a password. Mongo holds a set of them Entra has never heard of, so
+# a report that reads only the directory states half of what a user can
+# do and reads as though it were all of it.
+#
+# Read-only throughout: databaseUsers, customDBRoles and clusters are the
+# control plane. No document is read and none is needed -- who may touch a
+# collection is not written in the collection.
+
+ATLAS_API = "https://cloud.mongodb.com/api/atlas/v2"
+ATLAS_ACCEPT = {"Accept": "application/vnd.atlas.2023-01-01+json"}
+
+# What a Mongo action lets a user do, in the three words the report speaks.
+# Anything that changes the database is write; anything that only looks is
+# read; a role carrying every action is full.
+_READ_ACTIONS = {
+    "FIND", "LIST_COLLECTIONS", "LIST_INDEXES", "LIST_SEARCH_INDEXES",
+    "COLL_STATS", "DB_STATS", "DB_HASH", "LIST_DATABASES", "VIEW_ROLE",
+    "VIEW_USER", "SERVER_STATUS", "CONN_POOL_STATS", "TOP", "INPROG",
+    "LIST_SESSIONS", "CHECK_FREE_MONITORING_STATUS", "GET_SHARD_MAP",
+}
+
+# The built-in roles Atlas offers, said in the same three words.
+_BUILT_IN = {
+    "read": "read", "readAnyDatabase": "read", "clusterMonitor": "read",
+    "readWrite": "write", "readWriteAnyDatabase": "write",
+    "dbAdmin": "write", "dbAdminAnyDatabase": "write",
+    "atlasAdmin": "full", "backup": "read", "enableSharding": "write",
+}
+
+
+def _atlas_auth():
+    """The Atlas key, or None when this run was not given one."""
+    pub = _ch_os.environ.get("ATLAS_PUBLIC_KEY")
+    priv = _ch_os.environ.get("ATLAS_PRIVATE_KEY")
+    if not (pub and priv):
+        return None
+    from requests.auth import HTTPDigestAuth
+    return HTTPDigestAuth(pub, priv)
+
+
+def _atlas_get(path: str, auth):
+    r = requests.get(f"{ATLAS_API}/{path}", auth=auth, headers=ATLAS_ACCEPT,
+                     timeout=60)
+    if not r.ok:
+        raise ChatHealthyException(
+            mode="runtime_error",
+            component="entitlement_report",
+            message=f"Atlas {path} returned HTTP {r.status_code}: {r.text[:200]}")
+    body = r.json()
+    return body if isinstance(body, list) else body.get("results", [])
+
+
+def _right_of(actions: list[str]) -> str:
+    """full, read or write, from what the actions actually permit."""
+    names = {str(a).upper() for a in actions}
+    if not names:
+        return "read"
+    if names - _READ_ACTIONS:
+        return "write"
+    return "read"
+
+
+def _custom_role_reach(roles: list[dict]) -> dict:
+    """{role name: {db.collection: right}} from each role's own actions.
+
+    Stated from actions rather than from the role's name, for the reason
+    the Azure half already states: a name is what somebody called it and
+    the actions are what it does.
+    """
+    out: dict[str, dict] = {}
+    for role in roles:
+        name = role.get("roleName")
+        if not name:
+            continue
+        where: dict[str, list[str]] = {}
+        for act in role.get("actions") or []:
+            action = act.get("action")
+            for res in act.get("resources") or []:
+                db = res.get("db") or ""
+                coll = res.get("collection") or ""
+                if res.get("cluster"):
+                    key = "(whole cluster)"
+                else:
+                    key = f"{db}.{coll or '*'}"
+                where.setdefault(key, []).append(action)
+        out[name] = {k: _right_of(v) for k, v in where.items()}
+        # A role may also inherit others. Recorded so the report can say so
+        # rather than showing a role that appears to permit nothing.
+        inherited = [i.get("role") for i in (role.get("inheritedRoles") or [])]
+        if inherited:
+            out[name]["(inherits)"] = ", ".join(sorted(x for x in inherited if x))
+    return out
+
+
+def database_rights_reached_through_secrets(data: dict) -> list[dict]:
+    """Who holds a database user\'s rights by being able to read its
+    credential.
+
+    REQ-B-006. A credential in a vault is not a user standing on its own:
+    whoever can read it can present it, and therefore holds every right
+    that database user holds. Listing the database user in one place and
+    the vault reader in another states both facts and never the one that
+    matters.
+
+    The join is the secret\'s grants-rights-for tag. A secret carrying no
+    tag is reported as untagged rather than guessed at, because a guess
+    here is a claim about who can reach the data.
+
+    Reported, not judged.
+    """
+    atlas = data.get("atlas") or {}
+    if not atlas.get("readable"):
+        return []
+    users = {u["username"]: u for u in atlas.get("users") or []}
+    grants = data.get("secret_grants") or {}
+
+    def database_user(stated: str) -> str:
+        for name in users:
+            cn = (name[3:].split(",", 1)[0]
+                  if name.upper().startswith("CN=") else name)
+            if cn.strip().lower() == stated.lower() or name.lower() == stated.lower():
+                return name
+        return ""
+
+    # secret -> the database user it yields
+    yields: dict[str, str] = {}
+    untagged: list[str] = []
+    for secret in data.get("certificate_secrets") or []:
+        name = secret if isinstance(secret, str) else (secret.get("name") or "")
+        stated = (grants.get(name) or "").strip()
+        if not stated:
+            untagged.append(name)
+            continue
+        db_user = database_user(stated)
+        yields[name] = db_user or (
+            f"{stated} — named by the tag, no database user of that name")
+
+    out: list[dict] = []
+    for row in data.get("vault_wide") or []:
+        reached = sorted({v for v in yields.values() if v})
+        if not reached:
+            continue
+        out.append({
+            "holder": row.get("principal") or "",
+            "how": ("reads every secret in " + (row.get("vault") or "the vault")
+                    + (" and may write them" if row.get("write") else "")),
+            "database_users": reached,
+            "untagged_secrets": sorted(untagged),
+        })
+    out.sort(key=lambda r: (r["holder"].lower(), r["how"]))
+    return out
+
+
+def duplicate_grants_of(user: dict, tree: list[dict]) -> list[dict]:
+    """Where one user holds the same thing more than once.
+
+    REQ-B-006. Two shapes count. A right granted twice over the same
+    place, by two different roles, is one of them doing nothing. And a
+    collection granted no more than the database above it already grants
+    is a grant that changes nothing about what the user may do.
+
+    Reported at the end of that user\'s own entry, because a duplicate is
+    a fact about one user and pooling them loses whose it is.
+    """
+    order = {"read": 0, "write": 1, "full": 2}
+    out = []
+
+    # The same place named by more than one role.
+    seen: dict[str, list[str]] = {}
+    for g in user.get("grants") or []:
+        seen.setdefault(g.get("where") or "", []).append(g.get("role") or "")
+    for where, roles in sorted(seen.items()):
+        if len(roles) > 1:
+            out.append({"what": where,
+                        "why": "granted by " + " and ".join(sorted(set(roles)))})
+
+    # A collection granted no more than its database already grants.
+    for t in tree:
+        for db in t["databases"]:
+            at_db = db["right"]
+            if not at_db:
+                continue
+            for c in db["collections"]:
+                if order.get(c["right"], 0) <= order.get(at_db, 0):
+                    out.append({
+                        "what": f"{db['database']}.{c['collection']}",
+                        "why": f"{c['right']} on the collection, when the "
+                               f"database already grants {at_db}"})
+    return out
+
+
+def atlas_tree(user: dict, clusters: list[str]) -> list[dict]:
+    """One user's database rights as cluster, database, collection.
+
+    REQ-B-006. A right is stated once, at the level it is granted, and a
+    level below appears only where it differs from the level above. A user
+    with write on a whole database does not want its forty collections
+    listed underneath saying write forty times; a user with write on the
+    database and read on one collection of it wants exactly that one
+    collection named.
+
+    A user with no scope reaches every cluster in the project, because
+    that is what Atlas does with an unscoped database user -- so the tree
+    says every cluster rather than leaving the reader to assume.
+    """
+    order = {"read": 0, "write": 1, "full": 2}
+    reach = user.get("scopes") or clusters
+
+    # db -> right at the database level, and db -> {collection: right}
+    db_level: dict[str, str] = {}
+    coll_level: dict[str, dict[str, str]] = {}
+    whole_cluster: str = ""
+    for g in user.get("grants") or []:
+        where, right = g.get("where") or "", g.get("right") or "read"
+        if where == "(whole cluster)":
+            if order.get(right, 0) >= order.get(whole_cluster or "read", -1):
+                whole_cluster = right
+            continue
+        if where == "(all databases)":
+            db_level["(every database)"] = max(
+                [right, db_level.get("(every database)", "read")], key=lambda r: order.get(r, 0))
+            continue
+        db, _, coll = where.partition(".")
+        if coll in ("*", ""):
+            prev = db_level.get(db)
+            if prev is None or order.get(right, 0) > order.get(prev, 0):
+                db_level[db] = right
+        else:
+            prev = coll_level.setdefault(db, {}).get(coll)
+            if prev is None or order.get(right, 0) > order.get(prev, 0):
+                coll_level[db][coll] = right
+
+    out = []
+    for db in sorted(set(db_level) | set(coll_level)):
+        at_db = db_level.get(db)
+        colls = []
+        for coll, right in sorted((coll_level.get(db) or {}).items()):
+            # Stated only where it differs from what the database grants.
+            if at_db is not None and right == at_db:
+                continue
+            colls.append({"collection": coll, "right": right})
+        out.append({"database": db, "right": at_db, "collections": colls})
+    return [{"clusters": sorted(reach), "whole_cluster": whole_cluster,
+             "databases": out}]
+
+
+def collect_atlas() -> dict:
+    """Every Mongo user, what it may do, and where.
+
+    Returns readable=False when this run holds no Atlas key, which the
+    report must say rather than printing an empty section that reads as
+    "no database users exist".
+    """
+    auth = _atlas_auth()
+    if auth is None:
+        return {"readable": False, "reason": "no Atlas API key on this run",
+                "users": [], "roles": {}, "clusters": [], "project": ""}
+    project = _ch_os.environ.get("ATLAS_PROJECT_ID") or ""
+    if not project:
+        return {"readable": False, "reason": "ATLAS_PROJECT_ID not set",
+                "users": [], "roles": {}, "clusters": [], "project": ""}
+
+    clusters = [c.get("name") for c in _atlas_get(f"groups/{project}/clusters", auth)]
+    custom = _atlas_get(f"groups/{project}/customDBRoles/roles", auth)
+    reach = _custom_role_reach(custom)
+
+    users = []
+    for u in _atlas_get(f"groups/{project}/databaseUsers", auth):
+        name = u.get("username") or ""
+        # How this user proves who it is. The certificate subject and the
+        # password are different credentials even when they carry the same
+        # name, and each is a user by REQ-B-001.
+        db = u.get("databaseName") or ""
+        kind = ("certificate" if db == "$external" and name.upper().startswith("CN=")
+                else "external" if db == "$external" else "password")
+        grants = []
+        for r in u.get("roles") or []:
+            role_name = r.get("roleName") or ""
+            on_db = r.get("databaseName") or ""
+            if role_name in reach:
+                for where, right in reach[role_name].items():
+                    grants.append({"role": role_name, "where": where,
+                                   "right": right, "custom": True})
+            else:
+                grants.append({
+                    "role": role_name,
+                    "where": f"{on_db}.*" if on_db else "(all databases)",
+                    "right": _BUILT_IN.get(role_name, "write"),
+                    "custom": False})
+        users.append({"username": name, "credential": kind,
+                      "auth_database": db, "grants": grants,
+                      "scopes": [sc.get("name") for sc in (u.get("scopes") or [])]})
+    return {"readable": True, "reason": "", "project": project,
+            "clusters": sorted(c for c in clusters if c),
+            "roles": reach, "users": users}
+
+
+def _atlas_or_reason() -> dict:
+    """Atlas, or why not. Never an empty set presented as an answer."""
+    try:
+        return collect_atlas()
+    except Exception as exc:                                    # noqa: BLE001
+        _LOG.warning("Atlas entitlements not readable: %s", exc)
+        return {"readable": False, "reason": str(exc)[:300],
+                "users": [], "roles": {}, "clusters": [], "project": ""}
 
 
 def collect() -> dict:
@@ -1668,6 +2070,14 @@ def collect() -> dict:
         "role_text": {r: t for r, t in role_text.items()
                       if any(g["role"] == r for h in holders_list for g in h["grants"])},
         "approved_absent": missing,
+        # REQ-B-001: the database half. A failure here is reported, not
+        # swallowed -- a section that silently shows nothing is a section
+        # that says there is nothing.
+        "atlas": _atlas_or_reason(),
+        # What each vault secret says it makes its reader into.
+        "secret_grants": dict(_SECRET_GRANTS),
+        # REQ-B-008: what lies beneath each group.
+        "group_children": dict(_GROUP_CHILDREN),
     }
 
 
@@ -1766,12 +2176,7 @@ def render_pdf(data: dict, out_path: Path) -> Path:
     # Stated in the operator's own time. A report read every morning in
     # California should not make its reader convert from UTC to know whether
     # it is this morning's.
-    try:
-        from zoneinfo import ZoneInfo
-        local = data["generated"].astimezone(ZoneInfo("America/Los_Angeles"))
-        stamp = local.strftime("%d %B %Y at %H:%M %Z")
-    except Exception:                                           # noqa: BLE001
-        stamp = data["generated"].strftime("%d %B %Y at %H:%M UTC")
+    stamp = _produced_on_pacific(data["generated"])
     doc.ch_stamp = stamp
     doc.ch_register = _REGISTER_SOURCE
     # A principal holding nothing belongs here too. unapproved read only from
@@ -1947,25 +2352,32 @@ def render_pdf(data: dict, out_path: Path) -> Path:
         return out
 
     story.extend(_section_block(1))
-    scope_rows = [["", ""]]
-    scope_rows.append(["Tenant", Paragraph(data["tenant_name"], cell)])
+    for para in _scope_story(data):
+        story.append(Paragraph(para, note))
+        story.append(Spacer(1, 4))
+    # What this particular run could and could not see. Part of scope
+    # because a section reporting only what was readable, without saying
+    # what was not, reads as though it were everything.
+    story.append(Spacer(1, 4))
+    scope_rows = [["Tenant", Paragraph(data["tenant_name"], cell)]]
     for sub in data["subscriptions"]:
         scope_rows.append([
             Paragraph("Subscription", cell),
             Paragraph(f"<b>{sub['name']}</b> &mdash; "
                       + ("enumerated in full" if sub["readable"] else
-                         "NOT ENUMERATED: the reporting identity holds no access here, "
-                         "so grants inside it are absent from this report"), cell)])
-    scope_rows.append(["Certificate secrets",
-                       Paragraph(f"{len(data['certificate_secrets'])} in "
-                                 + (", ".join(data["vaults"]) or "no vault visible"), cell)])
+                         "NOT ENUMERATED: the reporting identity holds no access "
+                         "here, so grants inside it are absent from this report"),
+                      cell)])
+    _atlas_scope = data.get("atlas") or {}
+    scope_rows.append(["Database", Paragraph(
+        ("read: " + ", ".join(_atlas_scope.get("clusters") or []))
+        if _atlas_scope.get("readable") else
+        "NOT READ: " + (_atlas_scope.get("reason") or "no reason recorded")
+        + " &mdash; so this run states nothing about database rights", cell)])
     scope_rows.append(["Directory", Paragraph(
         "groups and ownership read" if data["groups_readable"]
         else "NOT READ: nothing below is classified", cell)])
-    scope_rows.append(["Covers", Paragraph(
-        "every identity holding rights in the subscriptions marked enumerated, "
-        "what each may do, how it is classified and who manages it", cell)])
-    st = Table(scope_rows[1:], colWidths=[2.0 * inch, 7.4 * inch], hAlign="LEFT")
+    st = Table(scope_rows, colWidths=[2.0 * inch, 7.4 * inch], hAlign="LEFT")
     st.setStyle(TableStyle([
         ("FONTSIZE", (0, 0), (-1, -1), 8.5),
         ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
@@ -1976,13 +2388,53 @@ def render_pdf(data: dict, out_path: Path) -> Path:
     story.append(st)
 
     story.extend(_section_block(2))
+    # EPIC-002-F-003-S-009-REQ-B-004. Each row names one thing counted and
+    # states its count, and every count comes from what this run found.
+    # Where a figure could not be measured the row says so rather than
+    # printing a zero, because a zero and an unread source look identical
+    # on the page and mean opposite things.
+    people = [h for h in data["holders"] if h["type"].lower() == "user"]
+    components = [h for h in data["holders"] if h["type"].lower() != "user"]
+    atlas = data.get("atlas") or {}
+    readable_subs = [x for x in data["subscriptions"] if x["readable"]]
+    unreadable_subs = [x for x in data["subscriptions"] if not x["readable"]]
+
+    if atlas.get("readable"):
+        per_cluster = []
+        for cluster in atlas.get("clusters") or []:
+            n = sum(1 for u in atlas.get("users") or []
+                    if not u.get("scopes") or cluster in (u.get("scopes") or []))
+            per_cluster.append(f"{cluster}: {n}")
+        db_users_row = "; ".join(per_cluster) or "0"
+        db_grants = sum(len(u.get("grants") or []) for u in atlas.get("users") or [])
+        db_grants_row = str(db_grants)
+        db_roles_row = str(len(atlas.get("roles") or {}))
+    else:
+        why = atlas.get("reason") or "not read"
+        db_users_row = db_grants_row = db_roles_row = f"not measured — {why}"
+
     summary = [
         ["Role assignments in force", str(data["assignment_count"])],
-        ["Principals holding rights", str(len(data["holders"]))],
-        ["Approved identities present", f"{len(approved)} of {len(APPROVED)}"],
+        ["Identities holding rights", str(len(data["holders"]))],
+        ["  of those, named people", str(len(people))],
+        ["  of those, components", str(len(components))],
+        ["Identities in the approved register", f"{len(approved)} of {len(APPROVED)}"],
+        ["Holding rights but not in the register", str(len(unapproved))],
+        ["In the register but holding no rights", str(len(data["approved_absent"]))],
+        ["Secrets in the vaults", str(len(data.get("secret_grants") or {}) or
+                                      len(data["certificate_secrets"]))],
+        ["Database users, per cluster", db_users_row],
+        ["Database entitlements in force", db_grants_row],
+        ["Database roles defined", db_roles_row],
         ["Orphaned assignments", str(len(orphaned))],
         ["Resources undescribed", str(len(data["undescribed"]))],
         ["Exceptions in total", str(len(orphaned) + len(data["undescribed"]))],
+        ["Azure resource groups", str(len(data["resource_groups"]))],
+        ["Subscriptions enumerated", str(len(readable_subs))],
+        ["Subscriptions NOT enumerated",
+         str(len(unreadable_subs)) + (
+             " — " + ", ".join(x["name"] for x in unreadable_subs)
+             if unreadable_subs else "")],
     ]
     t = Table(summary, colWidths=[4.2 * inch, 1.2 * inch], hAlign="LEFT")
     style = [
@@ -1993,11 +2445,28 @@ def render_pdf(data: dict, out_path: Path) -> Path:
         ("TOPPADDING", (0, 0), (-1, -1), 4),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]
-    if unapproved:
-        style.append(("TEXTCOLOR", (1, 3), (1, 4), FLAG))
-        style.append(("FONTNAME", (1, 3), (1, 4), "Helvetica-Bold"))
-    else:
-        style.append(("TEXTCOLOR", (1, 3), (1, 3), OK))
+    # Flagged by what the row says, not by where it sits: the rows moved
+    # once and the colour stayed on the old index, marking a figure it was
+    # never about.
+    def _row(label):
+        for i, r in enumerate(summary):
+            if r[0].strip() == label:
+                return i
+        return None
+
+    for label in ("Holding rights but not in the register",
+                  "In the register but holding no rights",
+                  "Orphaned assignments"):
+        i = _row(label)
+        if i is None:
+            continue
+        bad = summary[i][1] not in ("0", "0 of 0")
+        style.append(("TEXTCOLOR", (1, i), (1, i), FLAG if bad else OK))
+        if bad:
+            style.append(("FONTNAME", (1, i), (1, i), "Helvetica-Bold"))
+    i = _row("Subscriptions NOT enumerated")
+    if i is not None and unreadable_subs:
+        style.append(("TEXTCOLOR", (1, i), (1, i), FLAG))
     t.setStyle(TableStyle(style))
     story.append(KeepTogether(t))
 
@@ -2018,99 +2487,7 @@ def render_pdf(data: dict, out_path: Path) -> Path:
     # The header travels with the first principal. A page break can be told
     # how much room to require, but not how tall the next block will be, so
     # binding the two is what actually keeps a title off the foot of a page.
-    head = _section_block(3, str(len(approved)) + " found")
-    if approved:
-        story.append(KeepTogether(head[1:] + _block(approved[0])))
-        for h in approved[1:]:
-            story.append(KeepTogether(_block(h)))
-    else:
-        story.extend(head)
-
-    story.extend(_section_block(4))
-    # The section name repeats with the column header. Without it a table that
-    # runs over three pages reads as three sections, when it is one list sorted
-    # alphabetically.
-    gl = [[Paragraph("<b>What each right permits</b> &nbsp;&middot;&nbsp; "
-                     "continued, one list in alphabetical order", cell), "", ""],
-          ["Right", "Administrative", "What it permits"]]
-    for role in sorted(data["role_text"], key=str.lower):
-        meta = data["role_reach"].get(role, {})
-        parts = []
-        if meta.get("reach"):
-            parts.append("<b>Permits " + "; ".join(meta["reach"]) + ".</b>")
-        if meta.get("not_actions"):
-            parts.append("<b>Except:</b> " + ", ".join(meta["not_actions"]) + ".")
-        acts = meta.get("actions", [])
-        data_acts = meta.get("data_actions", [])
-        if acts:
-            shown = acts[:6]
-            more = f" and {len(acts) - len(shown)} more" if len(acts) > len(shown) else ""
-            parts.append("<font size=7>actions: " + ", ".join(shown) + more + "</font>")
-        if data_acts:
-            shown = data_acts[:4]
-            more = (f" and {len(data_acts) - len(shown)} more"
-                    if len(data_acts) > len(shown) else "")
-            parts.append("<font size=7>data actions: " + ", ".join(shown) + more + "</font>")
-        # Cited, with its author named, never stated as the report's own finding.
-        described = (data["role_text"].get(role) or "").strip()
-        if described:
-            source = ("the ChatHealthy role definition" if meta.get("custom")
-                      else "the Azure role definition")
-            parts.append(f"<font size=7><i>Description, from {source}:</i> "
-                         f"{described}</font>")
-        forbidden = data["role_conditions"].get(role)
-        if forbidden:
-            parts.append("<b>Conditioned where held:</b> the holder may neither grant "
-                         "nor revoke " + ", ".join(forbidden)
-                         + ", to any principal including itself. The list includes this "
-                           "role, so the holder cannot lift the condition from its own "
-                           "assignment.")
-        gl.append([Paragraph(role, cell),
-                   "yes" if role in data["privileged_roles"] else "",
-                   Paragraph(" ".join(parts), cell)])
-    gt = Table(gl, colWidths=[2.4 * inch, 1.0 * inch, 5.95 * inch], hAlign="LEFT",
-               repeatRows=2)
-    gst = [
-        ("SPAN", (0, 0), (-1, 0)),
-        ("BACKGROUND", (0, 0), (-1, 1), BAND),
-        ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
-        ("LINEBELOW", (0, 0), (-1, -1), 0.25, RULE),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ALIGN", (1, 0), (1, -1), "CENTER"),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-    ]
-    for i, role in enumerate(sorted(data["role_text"], key=str.lower), start=2):
-        if role in data["privileged_roles"]:
-            gst.append(("TEXTCOLOR", (1, i), (1, i), FLAG))
-    gt.setStyle(TableStyle(gst))
-    story.append(gt)
-
-    story.extend(_section_block(5, str(len(data["resource_groups"])) + " found"))
-    if data["resource_groups"]:
-        rg_rows = [["Resource group", "Subscription", "Region"]]
-        for rg in data["resource_groups"]:
-            rg_rows.append([Paragraph(f"<b>{rg['name']}</b>", cell),
-                            Paragraph(rg["subscription"], cell),
-                            Paragraph(rg["location"], cell)])
-        rgt = Table(rg_rows, colWidths=[3.4 * inch, 3.6 * inch, 2.4 * inch],
-                    hAlign="LEFT", repeatRows=1)
-        rgt.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), BAND),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("LINEBELOW", (0, 0), (-1, -1), 0.25, RULE),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("TOPPADDING", (0, 0), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]))
-        story.append(rgt)
-    else:
-        story.append(Paragraph("<i>no exceptions</i>", note))
-
-    story.append(PageBreak())
-
-    story.extend(_section_block(6))
+    story.extend(_section_block(3))
     story.append(Paragraph(
         f"Orphaned assignments &mdash; grants whose principal no longer exists "
         f"({len(orphaned)})", sub_sec))
@@ -2166,25 +2543,11 @@ def render_pdf(data: dict, out_path: Path) -> Path:
         story.append(Paragraph("<i>no exceptions</i>", note))
 
 
-    story.append(Paragraph(
-        "Shared secrets &mdash; granted by name to more than one principal ("
-        + str(len(data["shared_secrets"])) + ")", sub_sec))
-    if data["shared_secrets"]:
-        rows = [["Secret", "Granted by name to"]]
-        for secret, names in data["shared_secrets"]:
-            rows.append([Paragraph(f"<b>{secret}</b>", cell),
-                         Paragraph(", ".join(names), cell)])
-        ts = Table(rows, colWidths=[3.2 * inch, 6.2 * inch], hAlign="LEFT", repeatRows=1)
-        ts.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), BAND),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("LINEBELOW", (0, 0), (-1, -1), 0.25, RULE),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("TOPPADDING", (0, 0), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]))
-        story.append(ts)
-    else:
+        # Shared secrets are not an exception. A secret granted by name to
+        # more than one user is something this firm does deliberately and
+        # tracks, and a report that files a tracked arrangement under
+        # "wanting a decision" spends the reader's attention on a decision
+        # already taken.
         story.append(Paragraph("No secrets are shared. No secret is granted by name to "
                                "more than one principal.", body))
 
@@ -2277,7 +2640,184 @@ def render_pdf(data: dict, out_path: Path) -> Path:
     # of thing a principal is, so it is the foundation this section stands on --
     # and when it cannot be read, the section says so instead of reporting an
     # empty finding, which would read identically to a clean estate.
-    story.extend(_section_block(7))
+    head = _section_block(4, str(len(approved)) + " found")
+    if approved:
+        story.append(KeepTogether(head[1:] + _block(approved[0])))
+        for h in approved[1:]:
+            story.append(KeepTogether(_block(h)))
+    else:
+        story.extend(head)
+
+    # ── The database half ─────────────────────────────────────────────
+    # EPIC-002-F-003-S-009-REQ-B-001 and REQ-B-006. Every credential that
+    # can reach the data is a user: a certificate subject, a username with
+    # a password, an API key. Rights are stated cluster, database,
+    # collection, once at the level granted, and a collection appears only
+    # where it differs from what its database already grants.
+    atlas = data.get("atlas") or {}
+    story.append(Spacer(1, 8))
+    story.append(Paragraph(
+        "<b>Database users</b> &nbsp;&middot;&nbsp; every credential that "
+        "reaches the data", sub_sec))
+    if not atlas.get("readable"):
+        story.append(Paragraph(
+            "<b>Not read.</b> " + (atlas.get("reason") or "no reason recorded")
+            + " &mdash; so this run states nothing about database rights, "
+            "which is not the same as there being none.", note))
+    else:
+        story.append(Paragraph(
+            f"Project {atlas.get('project','')} &nbsp;&middot;&nbsp; clusters: "
+            + ", ".join(atlas.get("clusters") or []), note))
+        reached = {r["holder"]: r for r
+                   in database_rights_reached_through_secrets(data)}
+        for user in sorted(atlas.get("users") or [],
+                           key=lambda u: (u.get("username") or "").lower()):
+            story.append(Spacer(1, 6))
+            story.append(Paragraph(user.get("username") or "(unnamed)", who))
+            story.append(Paragraph(
+                f"{user.get('credential','')} credential"
+                + (f" &nbsp;&middot;&nbsp; authenticates against "
+                   f"{user.get('auth_database')}" if user.get("auth_database") else ""),
+                note))
+            rows = [[Paragraph("<b>Database</b>", cell),
+                     Paragraph("<b>Collection</b>", cell),
+                     Paragraph("<b>Right</b>", cell)]]
+            for tree in atlas_tree(user, atlas.get("clusters") or []):
+                if tree["whole_cluster"]:
+                    rows.append([Paragraph("(whole cluster)", cell),
+                                 Paragraph("&mdash;", cell),
+                                 Paragraph(tree["whole_cluster"], cell)])
+                for db in tree["databases"]:
+                    if db["right"]:
+                        rows.append([Paragraph(db["database"], cell),
+                                     Paragraph("every collection", cell),
+                                     Paragraph(db["right"], cell)])
+                    for c in db["collections"]:
+                        rows.append([
+                            Paragraph("" if db["right"] else db["database"], cell),
+                            Paragraph(c["collection"], cell),
+                            Paragraph(c["right"], cell)])
+            dups = duplicate_grants_of(
+                user, atlas_tree(user, atlas.get("clusters") or []))
+            if len(rows) == 1:
+                story.append(Paragraph("Holds no database rights.", note))
+            else:
+                t = Table(rows, colWidths=[2.6 * inch, 2.6 * inch, 0.9 * inch],
+                          hAlign="LEFT")
+                t.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), BAND),
+                    ("LINEBELOW", (0, 0), (-1, 0), 0.4, RULE),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ]))
+                story.append(t)
+            # REQ-B-006: this user\'s own duplicates, at the end of its entry.
+            if dups:
+                story.append(Paragraph(
+                    f"<b>Exceptions for this user &mdash; {len(dups)} grant(s) "
+                    f"that add nothing</b>", note))
+                for d in dups:
+                    story.append(Paragraph(
+                        f"&nbsp;&nbsp;{d['what']}: {d['why']}", note))
+
+        # Who else holds these rights by being able to read the credential.
+        if reached:
+            story.append(Spacer(1, 8))
+            story.append(Paragraph(
+                "<b>Held indirectly</b> &nbsp;&middot;&nbsp; a credential in "
+                "a vault is the ability to be whoever it identifies", sub_sec))
+            for holder, row in sorted(reached.items()):
+                story.append(Paragraph(
+                    f"<b>{holder}</b> {row['how']}, and therefore holds every "
+                    f"right of: " + ", ".join(row["database_users"]), note))
+                if row.get("untagged_secrets"):
+                    story.append(Paragraph(
+                        f"{len(row['untagged_secrets'])} secret(s) in reach "
+                        "state no grants-rights-for tag, so what they hand "
+                        "their reader is not recorded: "
+                        + ", ".join(row["untagged_secrets"][:8]), note))
+
+    story.extend(_section_block(5))
+    # The section name repeats with the column header. Without it a table that
+    # runs over three pages reads as three sections, when it is one list sorted
+    # alphabetically.
+    gl = [[Paragraph("<b>What each right permits</b> &nbsp;&middot;&nbsp; "
+                     "continued, one list in alphabetical order", cell), "", ""],
+          ["Right", "Administrative", "What it permits"]]
+    for role in sorted(data["role_text"], key=str.lower):
+        meta = data["role_reach"].get(role, {})
+        parts = []
+        if meta.get("reach"):
+            parts.append("<b>Permits " + "; ".join(meta["reach"]) + ".</b>")
+        if meta.get("not_actions"):
+            parts.append("<b>Except:</b> " + ", ".join(meta["not_actions"]) + ".")
+        acts = meta.get("actions", [])
+        data_acts = meta.get("data_actions", [])
+        if acts:
+            shown = acts[:6]
+            more = f" and {len(acts) - len(shown)} more" if len(acts) > len(shown) else ""
+            parts.append("<font size=7>actions: " + ", ".join(shown) + more + "</font>")
+        if data_acts:
+            shown = data_acts[:4]
+            more = (f" and {len(data_acts) - len(shown)} more"
+                    if len(data_acts) > len(shown) else "")
+            parts.append("<font size=7>data actions: " + ", ".join(shown) + more + "</font>")
+        # Cited, with its author named, never stated as the report's own finding.
+        described = (data["role_text"].get(role) or "").strip()
+        if described:
+            source = ("the ChatHealthy role definition" if meta.get("custom")
+                      else "the Azure role definition")
+            parts.append(f"<font size=7><i>Description, from {source}:</i> "
+                         f"{described}</font>")
+        forbidden = data["role_conditions"].get(role)
+        if forbidden:
+            parts.append("<b>Conditioned where held:</b> the holder may neither grant "
+                         "nor revoke " + ", ".join(forbidden)
+                         + ", to any principal including itself. The list includes this "
+                           "role, so the holder cannot lift the condition from its own "
+                           "assignment.")
+        gl.append([Paragraph(role, cell),
+                   "yes" if role in data["privileged_roles"] else "",
+                   Paragraph(" ".join(parts), cell)])
+    gt = Table(gl, colWidths=[2.4 * inch, 1.0 * inch, 5.95 * inch], hAlign="LEFT",
+               repeatRows=2)
+    gst = [
+        ("SPAN", (0, 0), (-1, 0)),
+        ("BACKGROUND", (0, 0), (-1, 1), BAND),
+        ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("LINEBELOW", (0, 0), (-1, -1), 0.25, RULE),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (1, 0), (1, -1), "CENTER"),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]
+    for i, role in enumerate(sorted(data["role_text"], key=str.lower), start=2):
+        if role in data["privileged_roles"]:
+            gst.append(("TEXTCOLOR", (1, i), (1, i), FLAG))
+    gt.setStyle(TableStyle(gst))
+    story.append(gt)
+
+    story.extend(_section_block(6))
+    # REQ-B-008. Membership is transitive: a right granted to a group is
+    # held by every member of every group beneath it. A flat list of names
+    # states none of that, and the whole reason a group is used to grant is
+    # that it reaches further than the names written in it.
+    _below = data.get("group_children") or {}
+    if _below:
+        story.append(Paragraph(
+            "<b>What lies beneath each group</b> &nbsp;&middot;&nbsp; a right "
+            "granted to a group is held by every member of every group under "
+            "it", sub_sec))
+        for parent in sorted(_below):
+            kids = _below[parent]
+            story.append(Paragraph(
+                f"<b>{parent}</b> &rarr; " + ", ".join(sorted(kids)), note))
+    elif data["groups_readable"]:
+        story.append(Paragraph(
+            "No group contains another, so every group reaches exactly the "
+            "members named in it.", note))
     if not data["groups_readable"]:
         story.append(Paragraph(
             "Not attested. The reporting identity could not read the directory, so nothing "
@@ -2312,7 +2852,7 @@ def render_pdf(data: dict, out_path: Path) -> Path:
             story.append(Paragraph(
                 "Every principal holding rights belongs to a group.", body))
 
-    story.extend(_section_block(8))
+    story.extend(_section_block(7))
     if data["vault_wide"]:
         vw = [["Principal", "Right", "Where", "Access to every secret"]]
         for v in data["vault_wide"]:
@@ -2402,6 +2942,66 @@ def render_pdf(data: dict, out_path: Path) -> Path:
     return out_path
 
 
+def _recipient_from_secret(raw: str) -> tuple[str, str]:
+    """Addressee and email from ENTITLEMENT_REPORT_TO_EMAIL.
+
+    The secret is JSON: {"addressee": "<how to greet>", "email": "<where>"}.
+    A bare address is refused: the cover note needs a name, and inventing one
+    from the local-part of an email is not measuring anything.
+    """
+    text = (raw or "").strip()
+    if not text:
+        raise ChatHealthyException(
+            mode="notification_recipient_missing",
+            component="EntitlementReport",
+            message="ENTITLEMENT_REPORT_TO_EMAIL is absent")
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ChatHealthyException(
+            mode="config_error",
+            component="EntitlementReport",
+            message=(
+                "ENTITLEMENT_REPORT_TO_EMAIL must be JSON "
+                '{"addressee": "...", "email": "..."}; a bare address is not enough'
+            ),
+            exception=exc,
+        ) from exc
+    if not isinstance(parsed, dict):
+        raise ChatHealthyException(
+            mode="config_error",
+            component="EntitlementReport",
+            message="ENTITLEMENT_REPORT_TO_EMAIL JSON must be an object "
+                    'with "addressee" and "email"')
+    addressee = str(parsed.get("addressee") or "").strip()
+    email = str(parsed.get("email") or "").strip()
+    if not addressee or not email:
+        raise ChatHealthyException(
+            mode="config_error",
+            component="EntitlementReport",
+            message='ENTITLEMENT_REPORT_TO_EMAIL must name both "addressee" and "email"')
+    return addressee, email
+
+
+def _produced_on_pacific(when: _dt.datetime) -> str:
+    """Production time in America/Los_Angeles.
+
+    Windows hosts need the tzdata package for IANA zones; import it first so
+    ZoneInfo can resolve America/Los_Angeles. If the zone still cannot be
+    loaded, state UTC rather than inventing an offset.
+    """
+    try:
+        try:
+            import tzdata  # noqa: F401 — registers IANA DB on Windows
+        except ImportError:
+            pass
+        from zoneinfo import ZoneInfo
+        local = when.astimezone(ZoneInfo("America/Los_Angeles"))
+        return local.strftime("%d %B %Y at %H:%M %Z")
+    except Exception:  # noqa: BLE001 — stamp still required; UTC is honest
+        return when.strftime("%d %B %Y at %H:%M UTC")
+
+
 def send(pdf_path: Path, data: dict) -> dict:
     """Mail the report, with the PDF attached.
 
@@ -2412,37 +3012,27 @@ def send(pdf_path: Path, data: dict) -> dict:
     """
     import base64
 
-    to = _ch_os.environ.get("ENTITLEMENT_REPORT_TO_EMAIL", "").strip()
+    raw_to = _ch_os.environ.get("ENTITLEMENT_REPORT_TO_EMAIL", "").strip()
     api_key = _ch_os.environ.get("SPARKMAIL_API_KEY", "").strip()
     sender = _ch_os.environ.get("NOTIFICATION_FROM_EMAIL", "noreply@chathealthy.ai").strip()
-    missing = [n for n, v in (("ENTITLEMENT_REPORT_TO_EMAIL", to),
-                              ("SPARKMAIL_API_KEY", api_key)) if not v]
-    if missing:
+    if not api_key:
         raise ChatHealthyException(
             mode="notification_recipient_missing",
             component="EntitlementReport",
-            message=f"the report cannot be sent: {', '.join(missing)} absent",
-            context={"missing": missing})
-
-    unapproved = [h for h in data["holders"]
-                  if not h["approved"] and not h.get("orphaned")]
-    orphaned = [h for h in data["holders"] if h.get("orphaned")]
-    undeclared = [r for r in data["rightless"] if not r["approved"]]
+            message="the report cannot be sent: SPARKMAIL_API_KEY absent",
+            context={"missing": ["SPARKMAIL_API_KEY"]})
+    addressee, to = _recipient_from_secret(raw_to)
+    produced = _produced_on_pacific(data["generated"])
     stamp = data["generated"].strftime("%Y-%m-%d")
-    verdict = ("no exceptions" if not unapproved
-               else f"{len(unapproved)} principal(s) outside the approved register")
     body = (
-        f"Access entitlement report for {stamp}.\n\n"
-        f"Role assignments in force: {data['assignment_count']}\n"
-        f"Identities holding rights: {len(data['holders'])}\n"
-        f"Outside the approved register: {len(unapproved)}\n\n"
-        "The attached PDF states the control, the population and the exceptions, "
-        "and lists every right held by every identity.\n"
+        f"{addressee}\n"
+        f"Please find enclosed the ChatHealthy.ai entitlements report. "
+        f"It was produced on {produced}.\n"
     )
     payload = {
         "content": {
             "from": sender,
-            "subject": f"ChatHealthy access entitlement report {stamp} -- {verdict}",
+            "subject": f"ChatHealthy.ai entitlements report {stamp}",
             "text": body,
             "attachments": [{
                 "type": "application/pdf",
@@ -2450,7 +3040,7 @@ def send(pdf_path: Path, data: dict) -> dict:
                 "data": base64.b64encode(pdf_path.read_bytes()).decode("ascii"),
             }],
         },
-        "recipients": [{"address": to}],
+        "recipients": [{"address": to, "name": addressee}],
     }
     r = requests.post(
         "https://api.sparkpost.com/api/v1/transmissions",
@@ -2462,7 +3052,7 @@ def send(pdf_path: Path, data: dict) -> dict:
             component="EntitlementReport",
             message=f"SparkPost returned {r.status_code}: {r.text[:300]}",
             context={"status": r.status_code, "to": to})
-    return {"channel": "email", "status": "sent", "to": to}
+    return {"channel": "email", "status": "sent", "to": to, "addressee": addressee}
 
 
 def main(argv: list[str] | None = None) -> int:

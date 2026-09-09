@@ -77,6 +77,20 @@ def split_stored_addresses(addresses: list[dict]) -> dict:
     return written
 
 
+# What NPPES owns on an address, and therefore the only thing a
+# comparison against NPPES can be about. It is the exact set
+# live_to_addresses emits, said once so the two cannot drift apart.
+NPPES_ADDRESS_FIELDS = (
+    "line1", "line2", "city", "state", "zip", "country", "phone",
+    "address_type",
+)
+
+
+def nppes_view_of(address: dict) -> dict:
+    """An address reduced to the fields NPPES has an opinion about."""
+    return {k: address.get(k, "") for k in NPPES_ADDRESS_FIELDS}
+
+
 def live_to_comparable(live: dict) -> dict:
     return {
         "name": live_name(live),
@@ -91,9 +105,15 @@ def live_to_comparable(live: dict) -> dict:
 def stored_to_comparable(stored: dict) -> dict:
     return {
         "name": stored_name(stored),
+        # Projected onto what NPPES owns rather than stripped of the one
+        # field someone remembered to name. Naming the exclusions meant a
+        # pipeline address -- which carries state_label and
+        # country_code_label that NPPES has never heard of -- could never
+        # equal the live one, so compare() said "changed" on every record
+        # it had never seen and a write-back ran whether or not anything
+        # had actually changed at NPPES.
         "addresses": [
-            {k: v for k, v in a.items() if k != "county"}
-            for a in stored_addresses(stored)
+            nppes_view_of(a) for a in stored_addresses(stored)
         ],
         "taxonomies": [
             {"code": t.get("code", ""), "primary": bool(t.get("primary"))}
@@ -185,11 +205,44 @@ def stored_status_active(stored: dict) -> bool:
 # ── Comparison ───────────────────────────────────────────────────────
 
 
+def _addresses_diverge(live_addrs, stored_addrs) -> bool:
+    """Whether NPPES describes either of its two addresses differently
+    from the way we hold it.
+
+    The response is about the primary practice location and the mailing
+    address, so those are the only two compared: the live practice against
+    our practice[0], the live mailing against our business address. Our
+    secondary practice locations are not in the response and are no part
+    of this question.
+
+    List equality was wrong in both directions. We hold addresses the live
+    response never carries, so for the 788,276 providers with a secondary
+    location the two lists could never be equal and every open counted as
+    a change. And comparing a live address against ALL of ours would let a
+    secondary that happens to match hide a real change to the primary.
+    """
+    def view(a):
+        return tuple(sorted((k, a.get(k, "")) for k in NPPES_ADDRESS_FIELDS))
+
+    def first(addrs, kind):
+        return next((a for a in addrs or [] if _kind_of(a) == kind), None)
+
+    for kind in ("practice", "business"):
+        live = first(live_addrs, kind)
+        if live is None:
+            continue
+        ours = first(stored_addrs, kind)
+        if ours is None or view(ours) != view(live):
+            return True
+    return False
+
+
 def compare(live_proj: dict, stored_proj: dict) -> dict:
     """Per-section divergence flags. False == identical."""
     return {
         "name": live_proj.get("name") != stored_proj.get("name"),
-        "addresses": live_proj.get("addresses") != stored_proj.get("addresses"),
+        "addresses": _addresses_diverge(live_proj.get("addresses"),
+                                        stored_proj.get("addresses")),
         "taxonomies": live_proj.get("taxonomies") != stored_proj.get("taxonomies"),
         "other_identifiers": (
             live_proj.get("other_identifiers")
@@ -333,70 +386,104 @@ def _kind_of(address: dict) -> str:
     return "business" if kind.startswith("business") or kind == "mailing" else "practice"
 
 
-def _carries_a_county(address: dict) -> bool:
-    """Whether this address actually names a county.
+def _same_place(a: dict, b: dict) -> bool:
+    """Whether two addresses are the same place.
 
-    A county the pipeline resolved looks like {"fips": "06037", "source":
-    "zip_crosswalk", "name": "Los Angeles County", ...}. An address the
-    pipeline never enriched carries {"fips": None} -- a dict with no name,
-    which is truthy, and was therefore preserved as though it were an
-    answer. Nothing downstream can use it: the row reads county["name"]
-    and gets nothing.
+    The street, the town, the state and the five-digit ZIP. Case and
+    padding are how the same place gets written twice, so neither counts.
     """
-    county = address.get("county")
-    return bool(isinstance(county, dict) and str(county.get("name") or "").strip())
+    def parts(x):
+        return (
+            (x.get("line1") or "").strip().casefold(),
+            (x.get("city") or "").strip().casefold(),
+            (x.get("state") or "").strip().casefold(),
+            (x.get("zip") or "")[:5],
+        )
+    return parts(a) == parts(b)
 
 
-def addresses_with_preserved_county(
+def addresses_keeping_what_we_know(
     live_addresses: list[dict], stored_addresses: list[dict],
 ) -> list[dict]:
-    """For each live address: if it matches a stored address by line1 +
-    city + state + zip, preserve the stored county verbatim. Otherwise
-    call geocode_new_address (urban marker stays absent on new).
+    """Our addresses, with the two NPPES speaks about brought up to date.
 
-    A practice address is matched against a stored PRACTICE address, and a
-    business address against the stored business one. They are different
-    kinds of address that frequently share a street: a provider whose
-    mailing address is the place they practise holds it in
-    practice_addresses AND as business_address.
+    The real-time response describes exactly two: the primary practice
+    location and the mailing address. Secondary practice locations are not
+    in it -- they arrive in a separate practiceLocations field this does
+    not read, and ours were loaded by the pipeline from the practice
+    location file. So the sync may touch practice_addresses[0] and the
+    business address, and nothing else. Every other address passes through
+    exactly as we hold it.
 
-    Keyed on the street alone the two collided, and stored_addresses puts
-    the business one last, so it replaced the practice entry. Business
-    addresses are never county-enriched, so a write-back on the first
-    Provider Detail open replaced a resolved county with an empty one and
-    called it preservation. 55.8% of providers have that collision.
+    Emitting only what the live list named is what deleted the rest.
+    788,276 providers hold more than one practice address, and each lost
+    all but the primary the first time anyone opened their detail.
 
-    The kind is part of what an address IS, so it is part of the key.
+    The two it does touch are merged by starting from OURS and applying
+    what NPPES owns -- the street, the city, the state, the ZIP, the
+    country, the telephone. Everything else on an address is ours: the
+    county with its FIPS, source, name, RUCC and urban standing, and the
+    spelled-out state and country. NPPES has never heard of any of it.
+
+    It used to build each address from the live one -- eight NPPES fields
+    -- and copy back a single named one, so everything else we knew was
+    simply not in the new dict and went on write-back. That is why a
+    record can say urban is true while its address names no county: the
+    record's top level survived, because merge_for_writeback deep-copies
+    it, and the address list was the one part rebuilt from nothing.
+
+    Naming the fields to carry across is what made that possible, and
+    naming them is the thing to avoid -- the next enrichment added to an
+    address would go the same way, silently, by code that still looks
+    right. Carrying our address forward keeps what we know without having
+    to know what it is.
+
+    A county is never resolved here. An address we hold comes through with
+    whatever county it has, because enrichment is the pipeline's work and
+    doing it on a page open would be doing it in real time. An address we
+    have never seen has nothing to carry forward and is geocoded, which is
+    what this has always done for a new address.
     """
-    stored_by_key = {}
-    for a in stored_addresses or []:
-        key = (
-            _kind_of(a),
-            (a.get("line1") or "").strip(),
-            (a.get("city") or "").strip(),
-            (a.get("state") or "").strip(),
-            (a.get("zip") or "")[:5],
-        )
-        stored_by_key[key] = a
+    practice = [a for a in stored_addresses or [] if _kind_of(a) == "practice"]
+    business = next((a for a in stored_addresses or []
+                     if _kind_of(a) == "business"), None)
+    live_practice = next((a for a in live_addresses or []
+                          if _kind_of(a) == "practice"), None)
+    live_business = next((a for a in live_addresses or []
+                          if _kind_of(a) == "business"), None)
+
     out = []
-    for la in live_addresses:
-        key = (
-            _kind_of(la),
-            la.get("line1", ""),
-            la.get("city", ""),
-            la.get("state", ""),
-            la.get("zip", ""),
-        )
-        sa = stored_by_key.get(key)
-        merged = dict(la)
-        # A stub is not a county. Carrying {"fips": None} across as though
-        # it were an answer is how the enrichment was lost; falling
-        # through to the geocoder is how it is recovered.
-        if sa is not None and _carries_a_county(sa):
-            merged["county"] = deepcopy(sa["county"])
-        else:
-            merged = geocode_new_address(merged)
+    if practice:
+        practice = [deepcopy(a) for a in practice]
+        if live_practice is not None:
+            # NPPES may name as primary a place we hold as a secondary. That
+            # entry IS the primary, and it already carries the county for
+            # that address -- so it is moved to the front rather than having
+            # the live values stamped onto whatever happened to be first.
+            # Stamping instead left the same street in the array twice,
+            # under two different counties.
+            at = next((i for i, a in enumerate(practice)
+                       if _same_place(a, live_practice)), None)
+            if at:
+                practice = [practice[at]] + practice[:at] + practice[at + 1:]
+        primary = practice[0]
+        if live_practice is not None:
+            primary.update(live_practice)
+        out.append(primary)
+        # The primary is not also a secondary. Whatever it stands for, it
+        # stands for once.
+        out.extend(a for a in practice[1:] if not _same_place(a, primary))
+    elif live_practice is not None:
+        out.append(geocode_new_address(dict(live_practice)))
+
+    if business is not None:
+        merged = deepcopy(business)
+        if live_business is not None:
+            merged.update(live_business)
         out.append(merged)
+    elif live_business is not None:
+        out.append(geocode_new_address(dict(live_business)))
+
     return out
 
 
@@ -516,7 +603,7 @@ def merge_for_writeback(live: dict, stored: dict) -> dict:
     stored_addrs = stored_addresses(stored)
     # Written back into the two fields v4 holds, not the one v03 held.
     new.update(split_stored_addresses(
-        addresses_with_preserved_county(live_addrs, stored_addrs)))
+        addresses_keeping_what_we_know(live_addrs, stored_addrs)))
     new.pop("addresses", None)
 
     # Taxonomies + flags

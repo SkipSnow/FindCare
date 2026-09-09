@@ -404,7 +404,7 @@
                   "_validate_json",
                   "excluded_exact",
                   [
-                    "Code/ConversationalUX/FindCareChat/frontend/package-lock.json",
+                    "package-lock.json",
                     ".claude/settings.json",
                     ".claude/settings.local.json",
                     "pipeline/Code/host.json",
@@ -555,7 +555,7 @@
                   "_scan_react_persistence",
                   "excluded_exact",
                   [
-                    "Code/ConversationalUX/FindCareChat/frontend/src/components/WelcomeWidget.tsx",
+                    "sharedServices/Code/displayChrome/WelcomeWidget.tsx",
                     "architecture/EngineeringRuleEnforcement/tests/fixtures/separation_of_concerns/react_persistence/approved_welcome.tsx",
                     "architecture/EngineeringRuleEnforcement/tests/fixtures/separation_of_concerns/react_persistence/violation.tsx",
                     "Website/functions/auth/google/[[path]].ts"

@@ -3,7 +3,11 @@
   "compilerOptions": {
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
@@ -14,5 +18,17 @@
     "jsx": "react-jsx",
     "strict": true
   },
-  "include": ["src"]
+  "include": [
+    "Code/ConversationalUX/FindCareChat/frontend/src",
+    "FindCare/**/*.tsx",
+    "FindCare/**/*.ts",
+    "sharedServices/Code/**/*.tsx",
+    "sharedServices/Code/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/dist",
+    "**/build",
+    "Website/functions"
+  ]
 }

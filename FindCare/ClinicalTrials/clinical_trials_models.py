@@ -305,3 +305,15 @@ class Response(BaseModel):
     # (EPIC-006-F-005-S-001-REQ-B-081). FindCare states which exist; the
     # utterance manager owns asking for them.
     refinements_not_used: list[str] = Field(default_factory=list)
+
+
+class ClinicalTrialsInput(BaseModel):
+    """What the trial-search TOOL accepts.
+
+    Distinct from Request above, which is what the tool sends onward to the
+    registry. This is the shape the router validates a caller against.
+    """
+    condition: str = Field(..., description="Medical condition to search trials for")
+    location: str = Field("", description="Location filter")
+    user_location: str = Field("", description="User's location for travel time — any location worldwide")
+    max_results: int = Field(5, description="Max results")

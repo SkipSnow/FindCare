@@ -6,7 +6,7 @@
 // wrapper origin and renders it into a popup target via router:render.
 
 import { useEffect } from 'react'
-import { openPopup, closePopup } from './popupFrame'
+import { openPopup, closePopup } from '../../../../../../sharedServices/Code/displayChrome/popupFrame'
 
 function _esc(s: any): string {
   return String(s == null ? '' : s)

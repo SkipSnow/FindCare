@@ -22,7 +22,7 @@ import urllib.parse
 
 import requests
 
-from domain.find_care import provider_record_sync
+from . import provider_record_sync
 from .provider_detail_models import ProviderDetailOutput
 
 log = ChatHealthyLoggingService()
@@ -417,8 +417,22 @@ class ProviderDetailService:
                     sync_summary["google_maps_calls"] += 1
                     if not (a.get("county") or {}).get("name"):
                         sync_summary["google_maps_failures"] += 1
-            provider_record_sync.write_back(coll, npi, new_doc)
-            stored = coll.find_one({"npi": npi})
+            # A merge that changed nothing is not written. The county
+            # resolution runs on every open of a record still missing one,
+            # and an address the geocoder cannot answer would otherwise
+            # rewrite the document every time it was looked at.
+            #
+            # Provenance is left out of the comparison because
+            # merge_for_writeback stamps it unconditionally: comparing the
+            # whole document would find a difference every time and say
+            # nothing about whether anything real had changed.
+            without_provenance = {k: v for k, v in new_doc.items()
+                                  if k != "provenance"}
+            was = {k: v for k, v in stored.items()
+                   if k not in ("provenance", "_id")}
+            if without_provenance != was:
+                provider_record_sync.write_back(coll, npi, new_doc)
+                stored = coll.find_one({"npi": npi})
 
         return stored, sync_summary
 

@@ -697,12 +697,17 @@ def _build_react_frontend(repo_root: Path, evalcare_peer: str,
     of local. The caller knows the environment it is building and reads
     the addressable location the record states for it.
     """
-    frontend = repo_root / "Code" / "ConversationalUX" / "FindCareChat" / "frontend"
+    # The node project is the repository, not one directory inside it. A
+    # widget lives with the feature that owns it, so the project that
+    # compiles it has to span every feature -- node and TypeScript both
+    # resolve by walking UP from a file, and a project rooted in
+    # frontend/ can only ever see what is beneath frontend/.
+    frontend = repo_root
     if not (frontend / "package.json").is_file():
         raise ChatHealthyException(
             mode="file_missing",
             component="hf_helpers",
-            message=f"frontend package.json missing at {frontend}")
+            message=f"package.json missing at {frontend}")
     canonical_vite = (repo_root / "architecture"
                       / "DevOpsBuildDeployAndEnvironmentManagement"
                       / "vite.config.ts")
@@ -711,7 +716,7 @@ def _build_react_frontend(repo_root: Path, evalcare_peer: str,
             mode="file_missing",
             component="hf_helpers",
             message=f"canonical vite config missing at {canonical_vite}")
-    vite_copy = frontend / "vite.config.ts"
+    vite_copy = repo_root / "vite.config.ts"
     shutil.copy2(canonical_vite, vite_copy)
     env_for_build = dict(os.environ)
     env_for_build["VITE_API_URL"] = ""
@@ -728,7 +733,9 @@ def _build_react_frontend(repo_root: Path, evalcare_peer: str,
             ["npm", "run", "build"], cwd=str(frontend), env=env_for_build,
             check=True, shell=(sys.platform == "win32"),
         )
-        dist_index = frontend / "dist" / "index.html"
+        dist_index = (repo_root / "Code" / "ConversationalUX"
+                      / "FindCareChat" / "frontend" / "dist"
+                      / "index.html")
         if not dist_index.is_file():
             raise ChatHealthyException(
             mode="file_missing",

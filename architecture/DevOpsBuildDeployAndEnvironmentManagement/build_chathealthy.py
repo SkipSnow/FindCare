@@ -189,7 +189,7 @@ def _get_build_source(canonical_repo: Path, env: str) -> Path:
                                 build. Caller MUST pair this with
                                 _release_build_source() when done."""
     if env == "local":
-        return canonical_repo
+        return _materialise_working_tree(canonical_repo)
     branch = _ENV_BRANCH[env]
     _run_git(["fetch", "origin", branch], canonical_repo, "fetch")
     import tempfile
@@ -202,15 +202,62 @@ def _get_build_source(canonical_repo: Path, env: str) -> Path:
     return src
 
 
+def _materialise_working_tree(canonical_repo: Path) -> Path:
+    """A copy of the working tree, for local to build in.
+
+    A build writes: vite writes its bundle, npm writes node_modules, the
+    chain writes managed files. Doing that where the source lives left
+    build output in the source tree -- a React bundle under frontend/dist
+    and a second copy of it under backend/static, both of them ignored by
+    git so nothing ever objected, and neither of them what actually ships.
+
+    local is not an exception to how a build works. Its SOURCE is the
+    working tree rather than a branch -- that is the whole point of local,
+    and uncommitted work must be built -- but the BUILD happens in a
+    materialised copy exactly as it does for dev, qa and prod.
+
+    What is copied is what git would carry: every tracked file, plus every
+    untracked file that is not ignored. So node_modules, dist, build
+    output and caches do not come along, and the copy starts as clean as a
+    fresh worktree does. npm ci then installs into the copy, which is what
+    every other environment already does.
+    """
+    import tempfile
+    src = Path(tempfile.mkdtemp(prefix="build_local_"))
+    listed = subprocess.run(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        cwd=str(canonical_repo), capture_output=True, text=True, check=True,
+    ).stdout
+    names = [n for n in listed.split("\0") if n]
+    _CH_LOG.info(f"[build] materialising the working tree at {src} "
+                 f"({len(names)} file(s))")
+    for name in names:
+        source = canonical_repo / name
+        if not source.is_file():
+            # git lists a submodule or a file deleted since it was staged.
+            continue
+        target = src / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+    return src
+
+
 def _release_build_source(build_source: Path, canonical_repo: Path) -> None:
-    """Remove the temp worktree created by _get_build_source. No-op for
-    --env local (build_source is the working tree)."""
+    """Remove whatever _get_build_source materialised.
+
+    dev, qa and prod get a git worktree, which git owns and git removes.
+    local gets a plain copy, which git knows nothing about, so it is
+    removed as a directory.
+    """
     if build_source == canonical_repo:
         return
-    subprocess.run(
-        ["git", "worktree", "remove", "--force", str(build_source)],
-        cwd=str(canonical_repo), capture_output=True, text=True,
-    )
+    if (build_source / ".git").exists():
+        subprocess.run(
+            ["git", "worktree", "remove", "--force", str(build_source)],
+            cwd=str(canonical_repo), capture_output=True, text=True,
+        )
+        return
+    shutil.rmtree(build_source, ignore_errors=True)
 
 
 def _export_built_packages(built: list[Path], build_source: Path, canonical_repo: Path) -> list[Path]:
@@ -546,7 +593,12 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _build_body(args, repo_root: Path, canonical_repo: Path, canonical_build_dir: Path) -> int:
-    build_sha = _resolve_build_sha(repo_root)
+    # The sha names the source this build came from. dev, qa and prod build
+    # a git worktree whose HEAD is the branch tip. local builds a copy of
+    # the working tree, which carries no .git of its own, so the sha it was
+    # copied from is the canonical repository's HEAD.
+    build_sha = _resolve_build_sha(
+        canonical_repo if args.env == "local" else repo_root)
     _step(f"HEAD={build_sha}")
 
     brain_path = repo_root / "brain" / "machine_artifacts" / "content" / "deployment_architecture.json"
@@ -567,7 +619,16 @@ def _build_body(args, repo_root: Path, canonical_repo: Path, canonical_build_dir
     # exactly the drift Crosswalk exists to detect. Replaces the deleted
     # _oneshots/refresh_all_hashes.py shortcut; not a bypass because it is
     # part of the canonical build entry point (Rule-066).
-    _refresh_content_hashes(brain_path, repo_root)
+    # Refreshed where the SOURCE is. dev, qa and prod build a worktree of a
+    # committed branch, and its record is that branch's. local builds a copy
+    # of the working tree, so the record to stamp is the working tree's --
+    # refreshing the copy's wrote the hashes into a directory that is deleted
+    # moments later, and the deploy then rejected every file this build had
+    # just packaged.
+    hash_root = canonical_repo if args.env == "local" else repo_root
+    _refresh_content_hashes(
+        hash_root / "brain" / "machine_artifacts" / "content"
+        / "deployment_architecture.json", hash_root)
 
     backlog = AgileBacklogLoader().load(backlog_path)
     # Scope schema validation to the single target being built when a

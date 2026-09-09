@@ -10,7 +10,7 @@
 
 from chathealthy_lib import ChatHealthyLoggingService
 
-from domain.evaluate_care_quality.clinical_trials_service import ClinicalTrialsService
+from ClinicalTrials.clinical_trials_service import ClinicalTrialsService
 from ProviderDetail.provider_detail_service import ProviderDetailService
 
 log = ChatHealthyLoggingService()

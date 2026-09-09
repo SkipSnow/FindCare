@@ -1755,6 +1755,190 @@
                         }
                       ]
                     }
+                  },
+                  {
+                    "story_id": "EPIC-002-F-003-S-009",
+                    "name": "Operational Report for ChatHealthy.ai's Entitlements allowing access to corporate's digital resources",
+                    "description": "Every user, whether an agent or a human, has access to certain digital assets. This story specifies the requirements for an operational report to be delivered to a list of users on a periodic basis for review. This review is operational.",
+                    "size": "M",
+                    "status": "done",
+                    "orphan": false,
+                    "approval": "approved",
+                    "requirements": {
+                      "requirement": [
+                        {
+                          "req_id": "EPIC-002-F-003-S-009-REQ-B-001",
+                          "name": "All entities' rights must be reported",
+                          "requirement": "Every user has an identity in the ChatHealthy Identity and Access Management system (Entra). They can also have an identity in the company's database (Mongo). Each identity's rights in Mongo or Entra must be articulated in the access management report.",
+                          "priority": "must-have",
+                          "status": "done",
+                          "orphan": false,
+                          "approval": "approved",
+                          "tests": {
+                            "test": [
+                              {
+                                "test_type": "ORPHAN",
+                                "orphan": true,
+                                "file": "ORPHAN"
+                              }
+                            ]
+                          },
+                          "depends_on": []
+                        },
+                        {
+                          "req_id": "EPIC-002-F-003-S-009-REQ-B-002",
+                          "name": "Report Structure",
+                          "requirement": "The report will have the following sections: Scope, Statistics, Exceptions, User's Full Entitlement details, Explanation of entitlements, Group Hierarchy, Vault Wide access. Each of these sections is defined in the following requirements.",
+                          "priority": "must-have",
+                          "status": "done",
+                          "orphan": false,
+                          "approval": "approved",
+                          "tests": {
+                            "test": [
+                              {
+                                "test_type": "ORPHAN",
+                                "orphan": true,
+                                "file": "ORPHAN"
+                              }
+                            ]
+                          },
+                          "depends_on": []
+                        },
+                        {
+                          "req_id": "EPIC-002-F-003-S-009-REQ-B-003",
+                          "name": "Scope section",
+                          "requirement": "Scope will be a prose description of the digital assets that are protected, e.g. Azure, Entra, Mongo, Cloudflare, GitHub, Hugging Face. It will explain how entitlements for each of the components are allocated: whether they are managed via API keys accessible in the vault or on the operator's workstation, or whether there are fine grained entitlements managed within the component itself, as with Mongo.",
+                          "priority": "must-have",
+                          "status": "done",
+                          "orphan": false,
+                          "approval": "approved",
+                          "tests": {
+                            "test": [
+                              {
+                                "test_type": "ORPHAN",
+                                "orphan": true,
+                                "file": "ORPHAN"
+                              }
+                            ]
+                          },
+                          "depends_on": []
+                        },
+                        {
+                          "req_id": "EPIC-002-F-003-S-009-REQ-B-004",
+                          "name": "Statistics section",
+                          "requirement": "The report must have a Statistics section. Every figure in it is measured from what the run found; a number the run did not measure must not be stated. The section states how many identities hold rights; how many named people hold rights; how many components hold rights; how many identities appear in the approved register; how many identities hold rights without appearing in the approved register; how many identities in the approved register hold no rights; how many secrets there are; how many database entitlements there are per cluster; how many exceptions there are; how many Azure resource groups there are; and which subscriptions the run could and could not enumerate.",
+                          "priority": "must-have",
+                          "status": "done",
+                          "orphan": false,
+                          "approval": "approved",
+                          "tests": {
+                            "test": [
+                              {
+                                "test_type": "ORPHAN",
+                                "orphan": true,
+                                "file": "ORPHAN"
+                              }
+                            ]
+                          },
+                          "depends_on": []
+                        },
+                        {
+                          "req_id": "EPIC-002-F-003-S-009-REQ-B-005",
+                          "name": "Security exceptions section",
+                          "requirement": "The report must have a Security Exceptions section. It lists every user holding rights that does not appear in the approved register; every grant whose user no longer exists; every resource carrying no description; and every grant whose actions are already covered by another grant the same user holds. Each category will specify, with some detail, each exception within it. Human readability via tables or other structuring realizations must be achieved.",
+                          "priority": "must-have",
+                          "status": "done",
+                          "orphan": false,
+                          "approval": "approved",
+                          "tests": {
+                            "test": [
+                              {
+                                "test_type": "ORPHAN",
+                                "orphan": true,
+                                "file": "ORPHAN"
+                              }
+                            ]
+                          },
+                          "depends_on": []
+                        },
+                        {
+                          "req_id": "EPIC-002-F-003-S-009-REQ-B-006",
+                          "name": "User's full entitlements section",
+                          "requirement": "The report must have a User's Full Entitlements section. A user may be a person, an agent, or an API. For each user the section states its name and kind, the groups it belongs to, who manages it, its stated purpose, and whether the directory holds a record of it. Beneath that it states every right the user holds and the thing that right is held over, and for each: what that thing holds, its description, the right itself, and whether the right is administrative, whether it is conditioned, and whether it adds nothing. Database rights are stated as user, cluster, database, collection, with the right at each level being full, read or write. A right is stated once, at the level it is granted. A level below is stated only where the right held there differs from what the level above grants. Where a user holds the same right over the same thing more than once, those duplicates are stated in an Exceptions part at the end of that user's entry.",
+                          "priority": "must-have",
+                          "status": "done",
+                          "orphan": false,
+                          "approval": "approved",
+                          "tests": {
+                            "test": [
+                              {
+                                "test_type": "ORPHAN",
+                                "orphan": true,
+                                "file": "ORPHAN"
+                              }
+                            ]
+                          },
+                          "depends_on": []
+                        },
+                        {
+                          "req_id": "EPIC-002-F-003-S-009-REQ-B-007",
+                          "name": "Explanation of entitlements section",
+                          "requirement": "The report must have an Explanation of Entitlements section. It lists in one alphabetical order every right named anywhere in the report. For each right it states whether the right is administrative and what the right permits, stated from the actions the right itself carries and not from any description written for it. Where a right excludes actions, those exclusions are stated. Where the actions are too many to list, the section states how many are not shown.",
+                          "priority": "must-have",
+                          "status": "done",
+                          "orphan": false,
+                          "approval": "approved",
+                          "tests": {
+                            "test": [
+                              {
+                                "test_type": "ORPHAN",
+                                "orphan": true,
+                                "file": "ORPHAN"
+                              }
+                            ]
+                          },
+                          "depends_on": []
+                        },
+                        {
+                          "req_id": "EPIC-002-F-003-S-009-REQ-B-008",
+                          "name": "Group hierarchy section",
+                          "requirement": "The report must have a Group Hierarchy section. It lists every group in the directory, what the group means, and who manages it. Membership is transitive, so a right granted to a group is held by every member of every group beneath it, and the section states that structure. Where the directory could not be read, the section says so rather than showing no groups.",
+                          "priority": "must-have",
+                          "status": "done",
+                          "orphan": false,
+                          "approval": "approved",
+                          "tests": {
+                            "test": [
+                              {
+                                "test_type": "ORPHAN",
+                                "orphan": true,
+                                "file": "ORPHAN"
+                              }
+                            ]
+                          },
+                          "depends_on": []
+                        },
+                        {
+                          "req_id": "EPIC-002-F-003-S-009-REQ-B-009",
+                          "name": "Vault wide access section",
+                          "requirement": "The report must have a Vault Wide Access section. It lists every user that can reach every secret in a vault, and states whether that user can write as well as read.",
+                          "priority": "must-have",
+                          "status": "done",
+                          "orphan": false,
+                          "approval": "approved",
+                          "tests": {
+                            "test": [
+                              {
+                                "test_type": "ORPHAN",
+                                "orphan": true,
+                                "file": "ORPHAN"
+                              }
+                            ]
+                          },
+                          "depends_on": []
+                        }
+                      ]
+                    }
                   }
                 ]
               },
@@ -5950,30 +6134,6 @@
                             {
                               "story_id": "EPIC-010-F-108-S-001",
                               "reason": "EPIC-010 must return this content."
-                            }
-                          ],
-                          "approval": "approved",
-                          "tests": {
-                            "test": [
-                              {
-                                "orphan": true,
-                                "test_type": "ORPHAN",
-                                "file": "ORPHAN"
-                              }
-                            ]
-                          }
-                        },
-                        {
-                          "req_id": "EPIC-006-F-002-S-002-REQ-B-017",
-                          "orphan": false,
-                          "name": "County and urban standing available to every Provider tool",
-                          "requirement": "The county of every address, and whether that county is urban, MUST be available to every Provider tool.",
-                          "priority": "must-have",
-                          "status": "done",
-                          "depends_on": [
-                            {
-                              "story_id": "EPIC-010-F-108-S-001",
-                              "reason": "EPIC-010 must resolve county and urban standing and make them available. FindCare consumes them and resolves nothing itself."
                             }
                           ],
                           "approval": "approved",

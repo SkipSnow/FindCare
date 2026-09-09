@@ -38,18 +38,22 @@ log = ChatHealthyLoggingService()
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", "FindCare"))
+# sharedServices/Code/ on sys.path for the same reason: a widget or a
+# service lives with the feature that owns it, and several of those
+# features are shared ones.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", "sharedServices", "Code"))
 
 # ARCH-001 — domain services
-from application.tool_router import ToolRouter
+from externalInterface.tool_router import ToolRouter
 from application.facades.evaluate_care_facade import EvaluateCareFacade
 from ProviderManagement.provider_search_service import FindCareService
 from SpecialtyFilter.filter import (
     SpecialtyFilter, SECTION_INDIVIDUAL, SECTION_ORGANIZATION,
 )
-from domain.evaluate_care_quality.clinical_trials_service import ClinicalTrialsService
+from ClinicalTrials.clinical_trials_service import ClinicalTrialsService
 from ProviderDetail.provider_detail_service import ProviderDetailService
 from domain.shared.safety.safety_service import SafetyService
-from domain.shared.content.about_service import AboutService
+from AboutChatHealthy.about_service import AboutService
 from ProviderManagement.provider_search_models import ProviderSearchInput, SpecialtyInput
 from ProviderManagement.facility_utterance import mine_facility_parameters
 from ProviderManagement.individual_provider_utterance import (
@@ -59,9 +63,10 @@ from ProviderManagement.nucc_utterance import mine_nucc_parameters
 from ProviderManagement.clinical_trial_utterance import (
     mine_clinical_trial_parameters,
 )
-from application.tool_models.clinical_trials_models import ClinicalTrialsInput, ProviderDetailInput
+from ClinicalTrials.clinical_trials_models import ClinicalTrialsInput
+from application.facades.provider_lookup_models import ProviderLookupInput
 from infrastructure.embeddings.embedding_client import EmbeddingClient
-from infrastructure.debug_logger import DebugLogger
+from logs.debug_logger import DebugLogger
 
 load_dotenv(override=True)
 
@@ -252,7 +257,7 @@ tool_router.register_with_models([
     ("find_providers",          find_care.search_providers,            ProviderSearchInput),
     ("find_specialty_codes",    find_care.identify_specialty,          SpecialtyInput),
     ("search_clinical_trials",  evaluate_care_facade.search_clinical_trials,  ClinicalTrialsInput),
-    ("lookup_provider_external", evaluate_care_facade.get_provider_details,   ProviderDetailInput),
+    ("lookup_provider_external", evaluate_care_facade.get_provider_details,   ProviderLookupInput),
     ("get_skip_snow_context",   about_service.get_skip_snow_context),
     ("get_chathealthy_context", about_service.get_chathealthy_context),
     ("commitSignificantActivity", commitSignificantActivity),

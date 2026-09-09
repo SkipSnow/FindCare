@@ -16,7 +16,7 @@
 // kind:'providers' as `refinements`.
 
 import { useEffect } from 'react'
-import { openPopup } from './popupFrame'
+import { openPopup } from '../../../../../../sharedServices/Code/displayChrome/popupFrame'
 
 const TARGET = 'UserMessage'
 const POPUP = 'NarrowPopUp'

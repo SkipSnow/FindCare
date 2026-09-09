@@ -120,16 +120,6 @@ class TestSITProviderSearch:
         _screenshot(page, "06_next_page_link")
         assert next_link.count() > 0, "Summary must contain a [next page] action link"
 
-    def test_filter_link_highlights_panel(self, page: Page):
-        """Clicking Filter link highlights the filter panel."""
-        frame = _get_chat_frame(page)
-        _send_message(frame, "find surgeons in delaware")
-        filter_link = frame.locator("a[href='#action:filter']").first
-        if filter_link.count() > 0:
-            filter_link.click()
-            page.wait_for_timeout(1500)
-            _screenshot(page, "07_filter_highlighted")
-
     def test_next_page_link_loads_page2(self, page: Page):
         """Clicking next page link loads second page of results."""
         frame = _get_chat_frame(page)

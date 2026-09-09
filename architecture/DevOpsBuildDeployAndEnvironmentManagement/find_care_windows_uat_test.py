@@ -74,6 +74,7 @@
 
 import json
 import os
+import sys
 
 import pytest
 from dotenv import load_dotenv
@@ -86,6 +87,14 @@ REPO_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 load_dotenv(os.path.join(REPO_ROOT, ".env"), override=False)
 
+# The library is not installed into the workstation venv; every tool in
+# this repository that needs it puts its source on the path the same way
+# (baseline_walk.py:17-21, chathealthy_enforcement_manager.py:31-35). The
+# county check reads the provider record through it, so this needs it too.
+_LIB = os.path.join(REPO_ROOT, "ChatHealthyLib", "src")
+if _LIB not in sys.path:
+    sys.path.insert(0, _LIB)
+
 BASE_URL = os.getenv("SMOKE_TEST_URL", "https://localhost")
 
 # Failures are appended here as they happen, so a run can be triaged
@@ -93,6 +102,141 @@ BASE_URL = os.getenv("SMOKE_TEST_URL", "https://localhost")
 TRIAGE_LOG = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..", "..", "_oneshots", "test_output", "uat_triage.log")
+
+
+# Which environment the run is pointed at, so the record can be read from
+# the same place the page was served from. A fact the runner supplies; it
+# is not worked out from the URL.
+UAT_ENV = os.getenv("UAT_ENV", "local")
+
+# The target whose binding decides which generation of the provider data
+# the page was served from.
+_PROVIDER_TARGET = "target_hf_space_findcare_backend"
+
+
+def _note(lines: list) -> None:
+    """Put something in the triage log without calling it a failure."""
+    os.makedirs(os.path.dirname(TRIAGE_LOG), exist_ok=True)
+    with open(TRIAGE_LOG, "a", encoding="utf-8") as fh:
+        fh.write("\n" + "\n".join(str(line) for line in lines) + "\n")
+        fh.flush()
+        os.fsync(fh.fileno())
+
+
+def _provider_collection():
+    """The collection the page was served from.
+
+    Resolved through the same binding the application resolves, so no
+    version is spelled here and this cannot end up reading a different
+    generation than the page did.
+    """
+    from chathealthy_lib.mongo_utilities import ChatHealthyMongoUtilities
+    from chathealthy_lib.runtime_data_collections import (
+        _bases_from_doc, _read_env_doc)
+
+    bases = _bases_from_doc(_read_env_doc(UAT_ENV), _PROVIDER_TARGET)
+    db_name, _, coll_name = str(
+        bases[("PublicHealthData", "Provider")]).partition(".")
+    db = ChatHealthyMongoUtilities(manage_versions=False).getConnection(
+        "claudeCodeAgent", "ChatHealthyFrontEnd")
+    return db[db_name][coll_name]
+
+
+def _county_evidence(npis) -> dict:
+    """Whether a county for these providers exists ANYWHERE in our data.
+
+    A row showing no county has three explanations, and the screen can
+    tell none of them apart:
+
+      the record holds a county and it did not reach the row -- a defect
+        in what was served;
+      the record holds none but our data holds one for that same address,
+        carried by another provider at the same place -- a defect in the
+        record;
+      nothing in our data holds a county for that address -- the row is
+        telling the truth and there is nothing to fix.
+
+    Asking only "does this record hold one" answers the first and calls
+    the second legitimate, which passes straight over the damage. So the
+    address is asked as well: a county the data holds for 1501 Hughes Way
+    is a county 1501 Hughes Way has, whichever provider record carries it.
+
+    Returns {npi: {"record": [names], "address": [[address, name, npi]]}}.
+    Both empty means our data genuinely has no county for that address.
+    """
+    wanted = sorted({n for n in npis if n and n != "(no npi)"})
+    if not wanted:
+        return {}
+    coll = _provider_collection()
+
+    evidence = {npi: {"record": [], "address": []} for npi in wanted}
+    for doc in coll.find({"npi": {"$in": wanted}},
+                         {"npi": 1, "practice_addresses": 1}):
+        npi = doc["npi"]
+        for address in doc.get("practice_addresses") or []:
+            address = address or {}
+            name = ((address.get("county") or {}).get("name") or "").strip()
+            if name:
+                evidence[npi]["record"].append(name)
+                continue
+            line1 = (address.get("line1") or "").strip()
+            city = (address.get("city") or "").strip()
+            state = (address.get("state") or "").strip()
+            if not (line1 and city and state):
+                continue
+            elsewhere = coll.find_one(
+                {"npi": {"$ne": npi},
+                 "practice_addresses": {"$elemMatch": {
+                     "line1": line1, "city": city, "state": state,
+                     "county.name": {"$exists": True, "$ne": ""}}}},
+                {"npi": 1, "practice_addresses.$": 1})
+            if elsewhere:
+                held = (elsewhere["practice_addresses"][0]
+                        .get("county") or {}).get("name")
+                evidence[npi]["address"].append(
+                    [f"{line1}, {city}, {state}", held, elsewhere["npi"]])
+    return evidence
+
+
+def _county_verdict(short: list, where: str, viewport: dict) -> list:
+    """Every row missing a county, logged; the ones the record can answer,
+    returned as defects.
+
+    `short` is the _ROW_ELEMENTS_JS shape: [index, lacks, npi, address].
+    Every NPI reaches the log whichever way it falls, so the population can
+    be checked against the record afterwards rather than taken on trust.
+    """
+    countyless = [row for row in short if "county" in row[1]]
+    if not countyless:
+        return []
+    evidence = _county_evidence(row[2] for row in countyless)
+    served, stored, honest = [], [], []
+    for _index, _lacks, npi, address in countyless:
+        seen = evidence.get(npi) or {"record": [], "address": []}
+        if seen["record"]:
+            served.append([npi, address, seen["record"]])
+        elif seen["address"]:
+            stored.append([npi, address, seen["address"]])
+        else:
+            honest.append([npi, address])
+    _note([
+        "=" * 70,
+        f"COUNTY  {where}  at {viewport.get('width')}x{viewport.get('height')}",
+        "-" * 70,
+        f"{len(countyless)} row(s) showed no county.",
+        f"{len(served)} the record HOLDS a county for -- it did not reach "
+        f"the row:",
+        *[f"    {npi}  {address}  record holds {names}"
+          for npi, address, names in served],
+        f"{len(stored)} the record holds none but OUR DATA holds one for "
+        f"that address:",
+        *[f"    {npi}  {address}  ->  {found}"
+          for npi, address, found in stored],
+        f"{len(honest)} nothing in our data holds a county for that "
+        f"address -- the row is right:",
+        *[f"    {npi}  {address}" for npi, address in honest],
+    ])
+    return served + stored
 
 
 def _triage(name: str, viewport: dict, detail: str) -> None:
@@ -125,9 +269,14 @@ DEFAULT_TIMEOUT = 60_000
 # had none.
 LLM_TIMEOUT = 45_000
 
+# Evidence is kept per form factor. The two widths run at once and write
+# the same file names, so one directory meant the run that finished last
+# destroyed the other's censuses and screenshots -- and the evidence is
+# the whole reason a census is taken.
 EVIDENCE_DIR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..", "..", "_oneshots", "test_output", "windows_uat",
+    f"{VIEWPORT['width']}x{VIEWPORT['height']}",
 )
 os.makedirs(EVIDENCE_DIR, exist_ok=True)
 
@@ -147,6 +296,21 @@ WINDOWS = [
     "frame_AboutChatHealtyPopUP",
     "frame_SessionInfoPopUp",
 ]
+
+# The fifty states and DC, for reading a model-authored sentence. A
+# proposal names the state; which word it uses to do so is the model\'s.
+_STATE_NAMES = (
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado",
+    "connecticut", "delaware", "district of columbia", "florida", "georgia",
+    "hawaii", "idaho", "illinois", "indiana", "iowa", "kansas", "kentucky",
+    "louisiana", "maine", "maryland", "massachusetts", "michigan",
+    "minnesota", "mississippi", "missouri", "montana", "nebraska", "nevada",
+    "new hampshire", "new jersey", "new mexico", "new york", "north carolina",
+    "north dakota", "ohio", "oklahoma", "oregon", "pennsylvania",
+    "rhode island", "south carolina", "south dakota", "tennessee", "texas",
+    "utah", "vermont", "virginia", "washington", "west virginia",
+    "wisconsin", "wyoming",
+)
 
 PROMPT = "#frame_UserPromptAndControl input"
 PANEL = "#frame_LeftPanel"
@@ -227,6 +391,12 @@ _CENSUS_JS = """
 """
 
 
+# A row index names nothing anyone can act on. "[[0, ['county']], [1,
+# ['county']]]" says a county is missing and gives no way to ask whether
+# that address HAS one -- which is the whole question, because a row whose
+# address genuinely has no county is not a defect and a row whose county
+# our data holds is. The NPI and the address turn the failure into
+# something checkable against the record.
 _ROW_ELEMENTS_JS = """
 () => Array.from(document.querySelectorAll("[data-testid='provider-card']"))
   .map((c, i) => {
@@ -240,7 +410,10 @@ _ROW_ELEMENTS_JS = """
       lacks.push('detail link');
     if (!c.querySelector("[data-router-action='provider:select-click']"))
       lacks.push('select control');
-    return lacks.length ? [i, lacks] : null;
+    const lines = t.split('\\n').map(s => s.trim()).filter(s => s.length > 0);
+    return lacks.length
+      ? [i, lacks, c.getAttribute('data-npi') || '(no npi)', lines[1] || '']
+      : null;
   }).filter(Boolean)
 """
 
@@ -297,9 +470,16 @@ def _marks(census: dict, window_id: str) -> dict:
 # What the person came for, so a wait that meets a question can reply.
 _GOAL: dict[int, str] = {}
 
+# What the system had said at the moment the utterance was sent. A later
+# wait compares against this to tell "it answered" from "it was already
+# saying that", and only the moment of asking is a fair mark: anything
+# sampled afterwards may already include this turn's own reply.
+_SAID_AT_ASK: dict[int, str] = {}
+
 
 def _ask(page, text: str) -> None:
     _GOAL[id(page)] = text
+    _SAID_AT_ASK[id(page)] = _said_to_the_person(page)
     page.locator(PROMPT).fill(text)
     page.locator(PROMPT).press("Enter")
 
@@ -417,21 +597,99 @@ def _said_to_the_person(page) -> str:
         ".innerText || '').trim()")
 
 
+# The application's own statement that a turn is over. NewQueryLoadingWidget
+# shows the prompt-row timer on the first streamed event and hides it on the
+# terminal one (startTicking / stopTicking, :50-76), so the timer's display
+# is the end of the turn as the application understands it.
+#
+# It is hidden rather than emptied -- stopTicking sets display:none AND
+# textContent '0s' -- so a test for empty text reads a finished turn as a
+# running one. The style is what says it.
+_TURN_RUNNING_JS = (
+    f"() => {{ const e = document.querySelector(\"{TIMER}\");"
+    " return !!e && getComputedStyle(e).display !== 'none'; }")
+_TURN_ENDED_JS = (
+    f"() => {{ const e = document.querySelector(\"{TIMER}\");"
+    " return !e || getComputedStyle(e).display === 'none'; }")
+
+
+def _summary_text(page) -> str:
+    """The summary AS THE PERSON SEES IT.
+
+    inner_text() on an element that is not being rendered returns its
+    descendant text content, so reading the summary that way answered with
+    words nobody could see. Below 45em the summary is display:none
+    (ProviderSearchRefinementWidget.tsx:124-127), and three tests read
+    straight through that and passed.
+
+    REQ-B-009 says the summary is SHOWN, so a hidden one is an empty one.
+    """
+    el = page.locator("[data-testid='provider-summary']").first
+    if el.count() == 0 or not el.is_visible():
+        return ""
+    return el.inner_text()
+
+
+def _wait_for_the_turn_to_end(page, timeout: int = LLM_TIMEOUT) -> bool:
+    """Wait until the turn is finished, and say whether it finished.
+
+    Waiting instead for "something appeared in any window" caught the echo
+    the classifier streams part-way through a turn, so the census was taken
+    of a screen still being painted and the half-drawn state was asserted
+    as though it were the answer. A longer sleep does not fix that; only
+    waiting for the end does.
+
+    Returns False when the turn was still running as the wait ran out --
+    which is an outcome worth recording rather than crashing on.
+    """
+    try:
+        page.wait_for_function(_TURN_RUNNING_JS, timeout=5_000)
+    except Exception:
+        # The turn can finish before this is asked. Nothing is wrong; go
+        # straight to the question of whether it has ended.
+        pass
+    try:
+        page.wait_for_function(_TURN_ENDED_JS, timeout=timeout)
+    except Exception:
+        return False
+    # The terminal event hides the timer; the paint it triggers lands on
+    # the next frames.
+    page.wait_for_timeout(1_200)
+    return True
+
+
 def _wait_for(page, ready_js: str, what: str) -> None:
     """Wait for the thing, or for the system to say something new. If it
     said something, the person replies and the wait goes round again.
 
-    ready_js is an expression over `d` (the document)."""
+    ready_js is an expression over `d` (the document).
+
+    `before` is what the system had said when the utterance was sent, not
+    what it had said by the time this was called. Sampling it here made the
+    reply loop unreachable from any fixture that waits on the specialty
+    panel first: the panel wait lets the turn's message land, so by the
+    time this looked, `said` already equalled `before` and could never
+    differ again. The only reachable outcome was a bare timeout.
+    """
     goal = _GOAL.get(id(page), "")
+    before = _SAID_AT_ASK.get(id(page), "")
     for reply in range(MAX_REPLIES + 1):
-        before = _said_to_the_person(page)
-        page.wait_for_function(
-            "(before) => { const d = document;"
-            f" const ready = {ready_js};"
-            " const said = ((d.querySelector('#frame_UserMessage') || {})"
-            "   .innerText || '').trim();"
-            " return ready || (said && said !== before); }",
-            arg=before, timeout=LLM_TIMEOUT)
+        try:
+            page.wait_for_function(
+                "(before) => { const d = document;"
+                f" const ready = {ready_js};"
+                " const said = ((d.querySelector('#frame_UserMessage') || {})"
+                "   .innerText || '').trim();"
+                " return ready || (said && said !== before); }",
+                arg=before, timeout=LLM_TIMEOUT)
+        except Exception:
+            # A census is only taken at a settled point, so a wait that
+            # times out leaves no record of the screen it gave up on --
+            # twenty-five of these once cost six minutes with nothing kept
+            # to say what the person was looking at. Keep the picture, then
+            # let the timeout stand.
+            _record(page, f"timeout_{what.replace(' ', '_')}_{reply}")
+            raise
         if page.evaluate(f"() => {{ const d = document; return {ready_js}; }}"):
             return
         question = _said_to_the_person(page)
@@ -440,6 +698,7 @@ def _wait_for(page, ready_js: str, what: str) -> None:
                 f"after {MAX_REPLIES} replies the system is still asking "
                 f"rather than showing {what}. Goal: {goal!r}. Last question: "
                 f"{question[:300]!r}")
+        before = question
         _ask(page, _reply_to(question, goal))
 
 
@@ -448,9 +707,16 @@ def _wait_for_panel(page) -> None:
               "the specialty panel")
 
 
+# "No providers matched." is an answer, and the results widget renders it
+# with no heading and no count (ProviderResultsWidget.tsx:35). Matching only
+# the count meant a legitimate zero could never satisfy this: the wait ran
+# the full LLM_TIMEOUT and reported a TimeoutError, so a search that
+# correctly found nobody was indistinguishable from a server that never
+# replied. _total has always read the empty case; this did not.
 _RESULTS_READY_JS = (
     "(() => { const t = ((d.querySelector('#frame_MainWindow') || {})"
-    f".textContent || ''); return {_FOUND_JS}; }})()"
+    f".textContent || ''); return {_FOUND_JS}"
+    f" || t.includes('{EMPTY}'); }})()"
 )
 
 
@@ -470,7 +736,12 @@ def _wait_for_facilities(page) -> None:
 
 
 def _total(page) -> int:
-    """The provider count on screen once the turn producing it has ended.
+    """The provider count on screen right now.
+
+    This does NOT wait for a turn -- the count from the previous turn is
+    already on screen, so there is nothing here to wait on. Whoever starts
+    a turn waits for it to end before asking; that is why _apply and the
+    chip click do so.
 
     An empty result says so in words instead of naming a count, so this
     has to read a legitimate zero as well as a number.
@@ -517,14 +788,20 @@ def _click_row(page, code: str) -> None:
         f" === {str(not was).lower()}; }}", timeout=DEFAULT_TIMEOUT)
 
 
-def _apply(page, settle_ms: int) -> None:
-    """Apply the current selection.
+def _apply(page) -> None:
+    """Apply the current selection and wait for the turn it starts.
 
     Apply Filter is disabled until the selection differs from the one in
     force, so the caller must have changed something first.
+
+    It waited a flat interval, which meant the count read afterwards could
+    still be the count from before the apply -- and an apply that did
+    nothing at all then satisfied "the list did not grow".
     """
     page.locator(APPLY).click()
-    page.wait_for_timeout(settle_ms)
+    assert _wait_for_the_turn_to_end(page), (
+        "the filter was applied and the turn never ended, so whatever is "
+        "read next is the list from before the apply")
 
 
 def _digits(text: str) -> str:
@@ -838,12 +1115,39 @@ class TestAProviderSearchAcrossEveryWindow:
         Nurse Practitioner". All five are on the row, so all five are
         asserted rather than only the NPI.
         """
-        row = searched.locator("[data-testid='provider-card']").first
-        text = row.inner_text()
-        assert row.get_attribute("data-npi"), "the row carries no NPI"
-        for token in ("NPI:", "Phone:", "County:"):
-            assert token in text, (
-                f"the row does not name {token[:-1]}: {text!r}")
+        # Every row, not the first. REQ-B-002 speaks of what the system
+        # returns, and sampling row 0 passed a screen where eleven of
+        # twenty-five rows named no county -- a defect the sibling case
+        # caught on the same screen in the same run.
+        rows = searched.locator("[data-testid='provider-card']")
+        count = rows.count()
+        assert count > 0, "no rows to inspect"
+        short = []
+        for i in range(count):
+            row = rows.nth(i)
+            text = row.inner_text()
+            absent = [token[:-1] for token in ("NPI:", "Phone:", "County:")
+                      if token not in text]
+            if not row.get_attribute("data-npi"):
+                absent.append("data-npi")
+            if absent:
+                short.append([i, [a.lower() for a in absent],
+                              row.get_attribute("data-npi") or "(no npi)",
+                              (text.split("\n")[1].strip()
+                               if len(text.split("\n")) > 1 else "")])
+        # Same rule as its sibling: the record decides whether a missing
+        # county is a defect, and every NPI that showed none is logged.
+        county_defects = _county_verdict(short, "every row names the provider",
+                                         VIEWPORT)
+        other = [row for row in short
+                 if [lack for lack in row[1] if lack != "county"]]
+        assert other == [], (
+            f"{len(other)} of {count} row(s) do not name everything the "
+            f"requirement lists: {[row[:3] for row in other][:5]}")
+        assert county_defects == [], (
+            f"{len(county_defects)} of {count} row(s) show no county while "
+            f"the record holds one: {county_defects[:5]}")
+        text = rows.first.inner_text()
         lines = [line for line in text.split("\n") if line.strip()]
         assert len(lines) >= 4, (
             f"the row should name the provider, the address, the "
@@ -858,7 +1162,10 @@ class TestAProviderSearchAcrossEveryWindow:
         EPIC-006-F-001-S-005-REQ-B-006 — and names the state, where the
         user specified one. The utterance named CA.
         """
-        summary = searched.locator("[data-testid='provider-summary']").inner_text()
+        summary = _summary_text(searched)
+        assert summary, (
+            "no summary is on screen for the person to read; it is either "
+            "absent or rendered where it cannot be seen")
         assert " more " in summary, (
             f"the summary does not state how many remain unseen: "
             f"{summary[:300]!r}")
@@ -868,6 +1175,36 @@ class TestAProviderSearchAcrossEveryWindow:
         assert "'CA'" in summary, (
             f"the user named Long Beach CA and the summary does not name "
             f"the state: {summary[:300]!r}")
+
+    def test_the_summary_offers_what_is_not_yet_supplied(self, searched):
+        """EPIC-006-F-001-S-005-REQ-B-008 -- the summary offers the ways
+        the person could narrow, and offers only the ones they have not
+        already given.
+
+        The utterance named Long Beach CA, so city is supplied and county
+        and ZIP are not. _build_summary_message
+        (provider_search_service.py:583-605) omits the dimension already
+        in hand, so a summary offering "city" back to someone who just
+        named one is the defect this catches.
+
+        An assertion for these words used to live on the disambiguation
+        question in flow 20, which never carries them and which no
+        requirement asks to. This reads the window that does.
+        """
+        summary = _summary_text(searched).lower()
+        assert summary, (
+            "no summary is on screen, so nothing offers a way to narrow")
+        assert "search by" in summary, (
+            f"the summary offers no way to narrow the result: "
+            f"{summary[:300]!r}")
+        offered = summary.split("search by", 1)[1]
+        for dimension in ("county", "zipcode"):
+            assert dimension in offered, (
+                f"the person gave a city and no {dimension}, and the "
+                f"summary does not offer {dimension}: {offered[:160]!r}")
+        assert "city" not in offered, (
+            f"the person named Long Beach and the summary offers to search "
+            f"by city, which they have already done: {offered[:160]!r}")
 
     def test_the_specialty_window_offers_what_the_request_implied(self, searched):
         """EPIC-006-F-003-S-001-REQ-B-002 and -REQ-B-006."""
@@ -943,7 +1280,7 @@ class TestTheSpecialtyFilterAcrossEveryWindow:
         # the user plainly made -- which is what REQ-B-008 is about.
         _click_row(page, ticked[0])
         type(self).chosen = _ticked_codes(page)
-        _apply(page, 10_000)
+        _apply(page)
         page.wait_for_timeout(2_000)
         type(self).censuses["after"] = _record(page, "02b_after_apply")
         return page
@@ -1394,7 +1731,9 @@ class TestProviderPagination:
         many providers matched beyond those on screen. A next-page control
         is only honest if the summary has said there is a next page.
         """
-        summary = paged.locator("[data-testid='provider-summary']").inner_text()
+        summary = _summary_text(paged)
+        assert summary, (
+            "no summary is on screen beside a next-page control")
         assert " more " in summary, (
             f"the summary does not say anything remains unseen while a "
             f"next-page control is on screen: {summary[:300]!r}")
@@ -1448,8 +1787,14 @@ class TestProviderPagination:
         of the eleven windows OUGHT to be the control frame would be
         inventing the requirement rather than reporting it unmet.
         """
-        marks = _marks(self.censuses["page_two"], "frame_MainWindow")
-        assert marks.get("providers-next-page", 0) >= 0, "census unreadable"
+        window = _window(self.censuses["page_two"], "frame_MainWindow")
+        # marks.get(k, 0) >= 0 is true of every dict, so it recorded
+        # nothing and could not have failed. What IS checkable without
+        # choosing a home for the controls is that they are somewhere.
+        assert window["present"], "no results window in the census to read"
+        assert window["marks"].get("providers-next-page", 0) == 1, (
+            f"a second page is on screen and no next-page control is in "
+            f"frame_MainWindow; the census holds {window['marks']}")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1652,25 +1997,25 @@ class TestACityWithoutAStateAcrossEveryWindow:
     def turn(self, page):
         _fresh(page)
         _ask(page, "find me a shrink in san fransisco")
-        # Wait for the turn to put something in ANY content window: the
-        # specialty panel, the message window, or a provider row. Waiting
-        # on the panel alone raises when a turn paints nothing, and that
-        # is the one outcome most worth recording rather than crashing on.
-        painted = True
-        try:
-            page.wait_for_function(
-                "() => document.querySelectorAll"
-                "(\"#frame_LeftPanel input[type='checkbox']\").length > 0"
-                " || ((document.querySelector('#frame_UserMessage') || {})"
-                ".innerText || '').trim().length > 0"
-                " || document.querySelectorAll"
-                "(\"[data-testid='provider-card']\").length > 0",
-                timeout=LLM_TIMEOUT)
-        except Exception:
-            painted = False
-        page.wait_for_timeout(8_000)
+        # Wait for the TURN to end, not for something to appear. The
+        # classifier streams an echo of the corrected prompt part-way
+        # through, which satisfied "the message window holds text" while
+        # the search was still running -- so the census was taken of a
+        # half-painted screen and three tests then asserted against it as
+        # though it were where the turn had stopped.
+        ended = _wait_for_the_turn_to_end(page)
+        # A turn that never ends put nothing on screen for the person, and
+        # that is the outcome most worth recording rather than crashing on.
+        painted = ended and bool(page.evaluate(
+            "() => document.querySelectorAll"
+            "(\"#frame_LeftPanel input[type='checkbox']\").length > 0"
+            " || ((document.querySelector('#frame_UserMessage') || {})"
+            ".innerText || '').trim().length > 0"
+            " || document.querySelectorAll"
+            "(\"[data-testid='provider-card']\").length > 0"))
 
         census = _record(page, "07_city_without_a_state")
+        census["recorded_turn_ended"] = ended
         cards = _marks(census, "frame_MainWindow").get("provider-card", 0)
         message = _window(census, "frame_UserMessage")["text"]
         if not painted:
@@ -1882,7 +2227,11 @@ class TestTheListKeepsEveryElementItCarries:
         _ask(page, "find me a shrink in Long Beach CA")
         _wait_for_panel(page)
         _wait_for_results(page)
-        page.wait_for_timeout(3_000)
+        _wait_for_the_turn_to_end(page)
+        # A census answers what was on screen at one instant, which is what
+        # most of this class asserts. Whether an element is RENDERED is not
+        # in it, so the page is kept too.
+        type(self).page_under_test = page
         return _record(page, "08a_list_keeps_its_elements")
 
     def test_the_list_carries_a_row_for_each_provider(self, searched):
@@ -1905,9 +2254,22 @@ class TestTheListKeepsEveryElementItCarries:
     def test_every_row_carries_the_seven_things_the_requirement_names(
             self, searched, page):
         missing = page.evaluate(_ROW_ELEMENTS_JS)
-        assert missing == [], (
-            f"{len(missing)} row(s) do not carry everything the requirement "
-            f"names: {missing[:5]}")
+        # A missing county is not on its own a defect: the record may hold
+        # none for that address, and then the row is telling the truth.
+        # Every row that showed none reaches the triage log either way; only
+        # the ones the record can answer are failures. Everything else the
+        # requirement names -- name, NPI, phone, the links -- is a defect
+        # whatever the record says, because the row is what carries it.
+        county_defects = _county_verdict(missing, "list keeps its elements",
+                                         VIEWPORT)
+        other = [row for row in missing
+                 if [lack for lack in row[1] if lack != "county"]]
+        assert other == [], (
+            f"{len(other)} row(s) do not carry everything the requirement "
+            f"names: {[row[:3] for row in other][:5]}")
+        assert county_defects == [], (
+            f"{len(county_defects)} row(s) show no county while the record "
+            f"holds one: {county_defects[:5]}")
 
     def test_the_summary_is_not_rendered_among_the_list(self, searched):
         marks = _marks(searched, "frame_MainWindow")
@@ -1924,6 +2286,12 @@ class TestTheListKeepsEveryElementItCarries:
             f"frame_UserMessage holds {marks}")
         assert _window(searched, "frame_UserMessage")["visible"], (
             "the summary is in a window the person cannot see")
+        # The window being on screen is not the summary being on screen. A
+        # summary set to display:none satisfies every mark count and every
+        # window measurement, and shows the person nothing.
+        assert _summary_text(self.page_under_test), (
+            "the summary is in the document but not rendered, so it is not "
+            "shown to the person as REQ-B-009 requires")
 
 
 class TestAPageTheTurnIsNotAboutShowsNothing:
@@ -2099,7 +2467,7 @@ class TestTheNarrowFilterOnEitherFormFactor:
             f"{NARROW_POPUP} [data-testid='provider-search-refine-chip']"
             "[data-in-force='0']").first
         chip.click()
-        searched.wait_for_timeout(6_000)
+        _wait_for_the_turn_to_end(searched)
         after = _total(searched)
         assert after <= before, (
             f"narrowing from inside the popup widened the list: "
@@ -2404,9 +2772,14 @@ PAGES = [
      "d.querySelectorAll(\"[data-testid='provider-card']\").length > 0"),
     ("facility", "find me a hospital in Pasadena CA",
      "d.querySelectorAll(\"[data-testid='facility-card']\").length > 0"),
+    # A trial row, not the word "trial". The welcome splash reads "...or
+    # find a clinical trial anywhere in the world", so a text match on
+    # "trial" was satisfied by the screen the turn started from: this case
+    # returned before the utterance had done anything and then asserted
+    # against the splash. Every trial row carries trial:select, which
+    # exists only once trials are on screen.
     ("clinicaltrial", "find me a clinical trial for diabetes",
-     "((d.querySelector('#frame_MainWindow')||{}).innerText||'')"
-     ".toLowerCase().includes('trial')"),
+     "d.querySelectorAll(\"[data-router-action='trial:select']\").length > 0"),
 ]
 
 
@@ -2415,6 +2788,19 @@ PAGES = [
 class TestEveryPagePutsItsPanelsOnTheStrip:
     """Whatever a page paints, the strip carries it and the arrows follow
     the position: nothing to the left, no left arrow."""
+
+    @pytest.fixture(scope="class", autouse=True)
+    def restore_the_launched_width(self, page):
+        """The page is module-scoped, so a width set here is the width
+        every class after this one runs at. This class works at phone
+        width deliberately and left it set, which silently turned the last
+        third of a computer run into a second phone run -- the censuses
+        written to the 1600x1000 evidence directory recorded 360x800, and
+        four failures reported as "at both widths" had only ever been seen
+        at one. Put back what the run was launched with.
+        """
+        yield
+        _at(page, VIEWPORT)
 
     def test_the_page_paints_and_the_arrows_agree(
             self, page, page_name, utterance, ready_js):
@@ -2483,20 +2869,37 @@ class TestAReloadKeepsTheSession:
             f"a reload started a second session: {before} -> {after}; the "
             f"first is now in Mongo with nothing able to point at it")
 
-    def test_what_was_said_survives_a_reload(self, page):
+    def test_a_reload_after_real_work_keeps_the_same_session(self, page):
+        """EPIC-002-F-003-S-005-REQ-B-005 -- a page load refreshes the User
+        State and session token for that page rather than establishing a
+        second one beside it.
+
+        The sibling above reloads an idle page. This reloads one that has
+        done a search, which is the case that matters: a session carrying
+        state is the one there is something to lose by replacing.
+
+        It was named for what was said surviving and asserted nothing of
+        the kind -- it fetched the site root, threw the result away into an
+        unused local, and checked only that a guid existed. No approved
+        requirement states that the conversation is repainted after a
+        reload, so this asserts the one requirement that does exist rather
+        than inventing the one the old name implied.
+        """
         _fresh(page)
+        before = page.evaluate("() => window.ClientRouter.getSessionGuid()")
+        assert before, "no session guid before the search"
         _ask(page, "find me a shrink in Long Beach CA")
         _wait_for_panel(page)
         _wait_for_results(page)
-        page.wait_for_timeout(2_000)
+        _wait_for_the_turn_to_end(page)
         page.reload(wait_until="domcontentloaded")
         _ready(page)
         page.wait_for_timeout(2_000)
-        said = page.evaluate(
-            "async () => { const r = await fetch(window.location.origin);"
-            " return true; }")
-        guid = page.evaluate("() => window.ClientRouter.getSessionGuid()")
-        assert guid, "no session after the reload"
+        after = page.evaluate("() => window.ClientRouter.getSessionGuid()")
+        assert after == before, (
+            f"reloading after a search started a second session: "
+            f"{before} -> {after}; the first holds the search and nothing "
+            f"can point at it")
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -2605,11 +3008,15 @@ class TestEachPageKeepsItsOwnGeography:
     def asked(self, page):
         _fresh(page)
         _ask(page, "Find me a shrink in San Francisco CA")
+        # The specialty panel can paint before the care-giver list does, so
+        # waiting on the panel and then 1.5s could start the next utterance
+        # while this one was still running. The third hop below already
+        # guards properly; the first two now do too.
         _wait_for_panel(page)
-        page.wait_for_timeout(1_500)
+        _wait_for_the_turn_to_end(page)
         _ask(page, "Find me an urgent care clinic in Long Beach CA")
         _wait_for_facilities(page)
-        page.wait_for_timeout(1_500)
+        _wait_for_the_turn_to_end(page)
         # The Long Beach rows are still on screen, so waiting for "a row
         # exists" is satisfied before New York's answer arrives and the
         # assertion reads the previous city's list. Wait for the first row
@@ -2729,7 +3136,11 @@ class TestACityWithoutAStateIsAskedAbout:
     def asked(self, page):
         _new_session(page)
         _ask(page, "find me a shrink in San Fransisco")
-        page.wait_for_timeout(25_000)
+        # A flat 25 seconds was a guess at how long the turn takes, and a
+        # guess is the same race whichever number is chosen -- too short
+        # and the census is of a half-painted screen, too long and every
+        # run pays for the worst case. Wait for the turn to say it is done.
+        _wait_for_the_turn_to_end(page)
         return _record(page, "20a_no_state_asks")
 
     def test_no_search_ran(self, asked):
@@ -2744,17 +3155,22 @@ class TestACityWithoutAStateIsAskedAbout:
             f"the turn asked nothing, so the person has nothing to answer: "
             f"{message!r}")
 
-    def test_the_question_asks_for_the_state(self, asked):
-        message = _window(asked, "frame_UserMessage")["digest"].lower()
-        assert "state" in message, (
-            f"the question does not ask for the state, which is the one "
-            f"thing the search cannot run without: {message!r}")
+    def test_the_question_proposes_a_state(self, asked):
+        """EPIC-002-F-010-S-001-REQ-B-007 -- UM proposes the candidate to
+        the person.
 
-    def test_the_question_offers_the_rest_without_demanding_them(self, asked):
+        This asserted the literal word "state", and the system answered
+        "Did you mean San Francisco, California?" -- which proposes a state
+        by naming it, exactly as the classifier prompt\'s own worked
+        example does. The class docstring says what is asserted is "what it
+        asks about, never the words themselves", and the body was
+        asserting a word. A state named is a state proposed.
+        """
         message = _window(asked, "frame_UserMessage")["digest"].lower()
-        assert any(word in message for word in ("city", "zip", "county")), (
-            f"the question does not say what else would be accepted, so the "
-            f"person cannot tell what narrowing is available: {message!r}")
+        named = sorted(name for name in _STATE_NAMES if name in message)
+        assert named or "state" in message, (
+            f"the question neither names a state nor asks for one, so the "
+            f"person is offered nothing to confirm: {message!r}")
 
     def test_a_spelling_note_is_not_offered_as_the_answer(self, asked):
         message = _window(asked, "frame_UserMessage")["digest"]
@@ -2776,7 +3192,11 @@ class TestAStateMakesTheSearchRun:
         _new_session(page)
         _ask(page, "find me a shrink in San Fransico CA")
         _wait_for_results(page)
-        page.wait_for_timeout(3_000)
+        _wait_for_the_turn_to_end(page)
+        # The census answers what was on screen at one instant; a case that
+        # walks every row needs the page as well. Keeping only the census
+        # is what let _rows be handed a dict.
+        type(self).page_under_test = page
         return _record(page, "20b_state_searches")
 
     def test_care_givers_are_found(self, searched):
@@ -2785,21 +3205,47 @@ class TestAStateMakesTheSearchRun:
 
     def test_it_did_not_search_the_whole_country(self, searched):
         text = _window(searched, "frame_MainWindow")["digest"]
-        found = [int(t.replace(",", "")) for t in
-                 __import__("re").findall(r"([\d,]+) providers? found", text)]
+        # Rule-065-ENF-006 forbids regular expressions in executable code,
+        # and __import__("re") is that with the name spelled so the scanner
+        # does not see it. The count is the word before "providers found",
+        # which _digits already reads.
+        found = []
+        for token in FOUND:
+            if token in text:
+                head = text.split(token)[0].strip().split()[-1]
+                found.append(int(head.replace(",", "")))
+                break
         assert found, f"the window does not say how many were found: {text[:160]!r}"
         assert found[0] < 50_000, (
             f"{found[0]} care givers were found for one city, so the place "
             f"was dropped and the search ran nationwide")
 
     def test_the_rows_carry_the_place_that_was_asked_for(self, searched):
-        rows = _rows(searched)
-        assert rows, "no rows to inspect"
-        elsewhere = [r for r in rows
-                     if "CA" not in r.upper() and r.strip()]
+        """EPIC-006-F-001-S-001-REQ-B-002 -- the row names the address the
+        search matched, so a search naming a state returns that state.
+
+        This has never once run its assertion. `searched` is the census
+        dict, `_rows` calls page.evaluate on it, and it raised
+        AttributeError before reaching anything -- and had that been
+        corrected it would then have raised again, because `_rows` returns
+        [code, ticked] pairs from the SPECIALTY panel and this is about
+        provider rows.
+
+        The state is matched as ", CA," rather than "CA": the bare pair of
+        letters is inside CARLSBAD and CARSON CITY, so the loose form
+        admits rows from New Mexico and Nevada -- the exact defect the
+        assertion exists to catch.
+        """
+        page = self.page_under_test
+        rows = page.locator("[data-testid='provider-card']")
+        count = rows.count()
+        assert count > 0, "no rows to inspect"
+        elsewhere = [text for text in
+                     (rows.nth(i).inner_text().upper() for i in range(count))
+                     if ", CA," not in text]
         assert not elsewhere, (
-            f"{len(elsewhere)} row(s) show an address outside the state "
-            f"that was searched: {elsewhere[:2]}")
+            f"{len(elsewhere)} of {count} row(s) show an address outside "
+            f"the state that was searched: {elsewhere[:2]}")
 
 
 class TestTheDetailIsTheSameFromEitherPath:

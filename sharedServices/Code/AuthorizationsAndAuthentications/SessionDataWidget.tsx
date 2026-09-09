@@ -6,7 +6,7 @@
 // paints the user_object into frame_MainWindow.
 
 import { useEffect } from 'react'
-import { openPopup, closePopup } from './popupFrame'
+import { openPopup, closePopup } from '../displayChrome/popupFrame'
 
 // Its own popup, beside About rather than painted over MainWindow.
 const TARGET = 'SessionInfoPopUp'

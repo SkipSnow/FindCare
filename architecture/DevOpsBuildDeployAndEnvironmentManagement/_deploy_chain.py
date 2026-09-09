@@ -1238,6 +1238,38 @@ def _parse_interval_schedule(name: str):
     return None
 
 
+_WEEK_DAYS = {
+    "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday", "thu": "Thursday",
+    "fri": "Friday", "sat": "Saturday", "sun": "Sunday",
+}
+
+
+def _parse_weekly_utc_schedule(name: str):
+    """SCH-<letters>-<Days>-<hhmm>UTC. Returns (weekdays, hhmm) or None.
+
+    Days is one or more three-letter day names run together, in any case:
+    MonThu, monthu, TueThuSat. A report that is read on the days somebody
+    works does not want a daily run, and "every N hours" cannot say
+    Monday.
+    """
+    parts = name.split("-")
+    if len(parts) != 4 or parts[0].upper() != "SCH" or not parts[1].isalpha():
+        return None
+    days_raw, tail = parts[2], parts[3]
+    if not (len(tail) == 7 and tail[-3:].upper() == "UTC" and tail[:4].isdigit()):
+        return None
+    if len(days_raw) % 3 or not days_raw.isalpha():
+        return None
+    days = []
+    for i in range(0, len(days_raw), 3):
+        day = _WEEK_DAYS.get(days_raw[i:i + 3].lower())
+        if day is None:
+            return None
+        if day not in days:
+            days.append(day)
+    return days, tail[:4]
+
+
 def _parse_daily_utc_schedule(name: str):
     """SCH-<letters>-<hhmm>UTC, case-insensitive. Returns hhmm or None."""
     parts = name.split("-")
@@ -1280,6 +1312,37 @@ def _parse_schedule_from_name(name: str) -> dict | None:
                 "timeZone": "UTC",
             }
         }
+    # Named-days form: SCH-<Runbook>-MonThu-1200UTC
+    weekly = _parse_weekly_utc_schedule(name)
+    if weekly:
+        days, hhmm = weekly
+        hh, mm = int(hhmm[:2]), int(hhmm[2:])
+        now = datetime.now(timezone.utc)
+        # The first occurrence has to be a day the schedule actually names,
+        # and Azure requires startTime > NOW + 5 minutes.
+        wanted = {d.lower() for d in days}
+        start_dt = None
+        for ahead in range(0, 8):
+            cand = (now + timedelta(days=ahead)).replace(
+                hour=hh, minute=mm, second=0, microsecond=0)
+            if cand.strftime("%A").lower() in wanted and cand > now + timedelta(minutes=10):
+                start_dt = cand
+                break
+        if start_dt is None:
+            return None
+        return {
+            "properties": {
+                "description": (
+                    f"Auto-created from runbook.schedule_names entry {name!r} "
+                    f"({', '.join(days)} at {hh:02d}:{mm:02d} UTC)"
+                ),
+                "startTime": start_dt.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
+                "frequency": "Week",
+                "interval": 1,
+                "timeZone": "UTC",
+                "advancedSchedule": {"weekDays": days},
+            }
+        }
     # Daily-at-fixed-time UTC form (HHMM)
     hhmm = _parse_daily_utc_schedule(name)
     if hhmm:
@@ -1314,7 +1377,8 @@ def az_automation_schedule_ensure(rg: str, aa: str, name: str) -> bool:
     sub = az_subscription_id()
     body = _parse_schedule_from_name(name)
     if body is None:
-        step(f"  schedule {name} — name does not match SCH-<x>-<N>(min|hour); skipping")
+        step(f"  schedule {name} — name matches none of SCH-<x>-<N>(min|hour), "
+             f"SCH-<x>-<HHMM>UTC or SCH-<x>-<Days>-<HHMM>UTC; skipping")
         return False
     url = (
         f"https://management.azure.com/subscriptions/{sub}/resourceGroups/{rg}"
@@ -4046,7 +4110,7 @@ class LocalDeploy:
         env["VITE_EVALCARE_URL"] = evalcare_url
         env["VITE_SHAREDSERVICES_URL"] = sharedservices_url
         canonical_vite = self.deploy_dir / "vite.config.ts"
-        vite_copy = self.frontend_dir / "vite.config.ts"
+        vite_copy = self.repo_root / "vite.config.ts"
         if not canonical_vite.is_file():
             raise ChatHealthyException(
                 mode="aborted",
@@ -4056,12 +4120,12 @@ class LocalDeploy:
         try:
             subprocess.run(
                 ["npm", "ci", "--silent"],
-                cwd=self.frontend_dir, env=env, check=True,
+                cwd=self.repo_root, env=env, check=True,
                 shell=(sys.platform == "win32"),
             )
             subprocess.run(
                 ["npm", "run", "build"],
-                cwd=self.frontend_dir, env=env, check=True,
+                cwd=self.repo_root, env=env, check=True,
                 shell=(sys.platform == "win32"),
             )
         except subprocess.CalledProcessError as e:
