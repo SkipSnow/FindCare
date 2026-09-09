@@ -1384,7 +1384,7 @@ def _group_tree(credential) -> tuple[dict[str, list[str]], dict[str, str],
     return membership, described, group_owners, True
 
 
-# ── Atlas: the database half of every identity's rights ───────────────
+# -- Atlas: the database half of every identity's rights ---------------
 #
 # EPIC-002-F-003-S-009-REQ-B-001. A user is any credential or human that
 # can reach a resource -- an API key, a certificate subject, a username
@@ -1523,7 +1523,7 @@ def database_rights_reached_through_secrets(data: dict) -> list[dict]:
             continue
         db_user = database_user(stated)
         yields[name] = db_user or (
-            f"{stated} — named by the tag, no database user of that name")
+            f"{stated} -- named by the tag, no database user of that name")
 
     out: list[dict] = []
     for row in data.get("vault_wide") or []:
@@ -2411,7 +2411,7 @@ def render_pdf(data: dict, out_path: Path) -> Path:
         db_roles_row = str(len(atlas.get("roles") or {}))
     else:
         why = atlas.get("reason") or "not read"
-        db_users_row = db_grants_row = db_roles_row = f"not measured — {why}"
+        db_users_row = db_grants_row = db_roles_row = f"not measured -- {why}"
 
     summary = [
         ["Role assignments in force", str(data["assignment_count"])],
@@ -2433,7 +2433,7 @@ def render_pdf(data: dict, out_path: Path) -> Path:
         ["Subscriptions enumerated", str(len(readable_subs))],
         ["Subscriptions NOT enumerated",
          str(len(unreadable_subs)) + (
-             " — " + ", ".join(x["name"] for x in unreadable_subs)
+             " -- " + ", ".join(x["name"] for x in unreadable_subs)
              if unreadable_subs else "")],
     ]
     t = Table(summary, colWidths=[4.2 * inch, 1.2 * inch], hAlign="LEFT")
@@ -2648,7 +2648,7 @@ def render_pdf(data: dict, out_path: Path) -> Path:
     else:
         story.extend(head)
 
-    # ── The database half ─────────────────────────────────────────────
+    # -- The database half ---------------------------------------------
     # EPIC-002-F-003-S-009-REQ-B-001 and REQ-B-006. Every credential that
     # can reach the data is a user: a certificate subject, a username with
     # a password, an API key. Rights are stated cluster, database,
@@ -2992,13 +2992,13 @@ def _produced_on_pacific(when: _dt.datetime) -> str:
     """
     try:
         try:
-            import tzdata  # noqa: F401 — registers IANA DB on Windows
+            import tzdata  # noqa: F401 -- registers IANA DB on Windows
         except ImportError:
             pass
         from zoneinfo import ZoneInfo
         local = when.astimezone(ZoneInfo("America/Los_Angeles"))
         return local.strftime("%d %B %Y at %H:%M %Z")
-    except Exception:  # noqa: BLE001 — stamp still required; UTC is honest
+    except Exception:  # noqa: BLE001 -- stamp still required; UTC is honest
         return when.strftime("%d %B %Y at %H:%M UTC")
 
 
