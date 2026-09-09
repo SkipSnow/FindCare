@@ -4563,7 +4563,8 @@
                 "DEVOPSUSER_AZURE_CLIENT_SECRET": "local_env",
                 "ATLAS_PUBLIC_KEY": "local_env",
                 "ATLAS_PRIVATE_KEY": "local_env",
-                "ATLAS_PROJECT_ID": "local_env"
+                "ATLAS_PROJECT_ID": "local_env",
+                "KEY_VAULT_URI": "local_env"
               },
               "config": {
                 "runbook_name": "EntitlementReport",

@@ -56,22 +56,50 @@ from reportlab.platypus import (CondPageBreak,   # noqa: E402
 
 _LOG = ChatHealthyLoggingService()
 
-# Azure Automation keeps a runbook's settings as Automation Variables, which are
-# not environment variables until the runbook asks for them. Outside Automation
-# the import fails and the environment already holds what is needed.
+# Azure Automation keeps a runbook's settings as Automation Variables, which
+# are not environment variables until the runbook asks for them. Outside
+# Automation the import fails and the environment already holds what is
+# needed.
+#
+# The names are the ones the runbook package declares. They used to be a
+# tuple of six typed here, which drifted the moment the package declared a
+# seventh: the deploy published the Atlas keys and the vault address as
+# Automation Variables, this list did not name them, and the report said
+# there were no secrets and no Atlas key rather than saying it had not
+# looked. A value published and never read is worse than one missing --
+# both produce a zero, and only one of them looks like an error.
+#
+# EVERY_VARIABLE is rewritten by the build from the package declaration, so
+# a name added there arrives here without anybody remembering to.
+EVERY_VARIABLE = (
+    "DEVOPSUSER_AZURE_TENANT_ID",
+    "DEVOPSUSER_AZURE_CLIENT_ID",
+    "DEVOPSUSER_AZURE_CLIENT_SECRET",
+    "SPARKMAIL_API_KEY",
+    "NOTIFICATION_FROM_EMAIL",
+    "ENTITLEMENT_REPORT_TO_EMAIL",
+    "ATLAS_PUBLIC_KEY",
+    "ATLAS_PRIVATE_KEY",
+    "ATLAS_PROJECT_ID",
+    "KEY_VAULT_URI",
+    "CH_LOG_DB",
+)
+
 try:
     import automationassets  # type: ignore[import-not-found]
 
-    for _k in ("DEVOPSUSER_AZURE_TENANT_ID",
-               "DEVOPSUSER_AZURE_CLIENT_ID",
-               "DEVOPSUSER_AZURE_CLIENT_SECRET",
-               "SPARKMAIL_API_KEY",
-               "NOTIFICATION_FROM_EMAIL",
-               "ENTITLEMENT_REPORT_TO_EMAIL"):
+    _unread = []
+    for _k in EVERY_VARIABLE:
         try:
             _ch_os.environ[_k] = str(automationassets.get_automation_variable(_k))
-        except Exception:                                       # noqa: BLE001
-            pass
+        except Exception as _exc:                               # noqa: BLE001
+            _unread.append(f"{_k}: {_exc}")
+    if _unread:
+        # Said out loud. Swallowed, this is a section of the report quietly
+        # reporting nothing.
+        _LOG.warning("Automation Variables not read, so whatever they "
+                     "configure is absent from this report: %s",
+                     "; ".join(_unread))
 except ImportError:
     pass
 
