@@ -2945,9 +2945,18 @@ def render_pdf(data: dict, out_path: Path) -> Path:
 def _recipient_from_secret(raw: str) -> tuple[str, str]:
     """Addressee and email from ENTITLEMENT_REPORT_TO_EMAIL.
 
-    The secret is JSON: {"addressee": "<how to greet>", "email": "<where>"}.
-    A bare address is refused: the cover note needs a name, and inventing one
-    from the local-part of an email is not measuring anything.
+    The conventional form a mail address has carried since RFC 822:
+
+        Skip Snow <skip.snow@example.com>
+
+    It was JSON, which is a shape invented here for a value that has had a
+    standard spelling for forty years -- every mail client, every address
+    book and every person already writes it this way, so a second spelling
+    is one more thing to get wrong and nothing to gain.
+
+    A bare address is still refused. The cover note greets someone by
+    name, and a name guessed from the local-part of an address is a guess
+    presented as a fact.
     """
     text = (raw or "").strip()
     if not text:
@@ -2955,31 +2964,27 @@ def _recipient_from_secret(raw: str) -> tuple[str, str]:
             mode="notification_recipient_missing",
             component="EntitlementReport",
             message="ENTITLEMENT_REPORT_TO_EMAIL is absent")
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError as exc:
+    # Parsed without a regular expression: the angle brackets are the
+    # delimiters and finding them is two index calls.
+    close = text.rfind(">")
+    open_ = text.rfind("<", 0, close if close != -1 else len(text))
+    if open_ == -1 or close == -1 or close < open_:
         raise ChatHealthyException(
             mode="config_error",
             component="EntitlementReport",
             message=(
-                "ENTITLEMENT_REPORT_TO_EMAIL must be JSON "
-                '{"addressee": "...", "email": "..."}; a bare address is not enough'
-            ),
-            exception=exc,
-        ) from exc
-    if not isinstance(parsed, dict):
+                "ENTITLEMENT_REPORT_TO_EMAIL must be "
+                "'Addressee Name <mailbox@host>'; "
+                f"a bare address is not enough, and this is {text!r}"))
+    addressee = text[:open_].strip().strip('"').strip()
+    email = text[open_ + 1:close].strip()
+    if not addressee or not email or "@" not in email:
         raise ChatHealthyException(
             mode="config_error",
             component="EntitlementReport",
-            message="ENTITLEMENT_REPORT_TO_EMAIL JSON must be an object "
-                    'with "addressee" and "email"')
-    addressee = str(parsed.get("addressee") or "").strip()
-    email = str(parsed.get("email") or "").strip()
-    if not addressee or not email:
-        raise ChatHealthyException(
-            mode="config_error",
-            component="EntitlementReport",
-            message='ENTITLEMENT_REPORT_TO_EMAIL must name both "addressee" and "email"')
+            message=("ENTITLEMENT_REPORT_TO_EMAIL must name both the "
+                     "addressee and a mailbox: "
+                     "'Addressee Name <mailbox@host>'"))
     return addressee, email
 
 

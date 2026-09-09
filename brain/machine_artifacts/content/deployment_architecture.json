@@ -4620,7 +4620,7 @@
                 "node_address": "https://management.azure.com/subscriptions/7a17eec1-c477-4c7c-b1c1-d0662ce7a1ee/resourceGroups/rg-chathealthy-pipeline-dev/providers/Microsoft.Automation/automationAccounts/ChatHealthyJobManager/runbooks/EntitlementReport"
               },
               "secret_descriptions": {
-                "ENTITLEMENT_REPORT_TO_EMAIL": "Recipient of the entitlement report: {\"addressee\", \"email\"}",
+                "ENTITLEMENT_REPORT_TO_EMAIL": "Entitlement report recipient: Addressee Name <mailbox@host>",
                 "CH_LOG_DB": "Database the structured log records are written to",
                 "DEVOPSUSER_AZURE_TENANT_ID": "Tenant the report enumerates. Not a secret.",
                 "DEVOPSUSER_AZURE_CLIENT_ID": "Identity the report runs as. Not a secret."
@@ -4730,7 +4730,7 @@
         "Automation Operator"
       ],
       "secret_descriptions": {
-        "ENTITLEMENT_REPORT_TO_EMAIL": "Recipient of the entitlement report: {\"addressee\", \"email\"}",
+        "ENTITLEMENT_REPORT_TO_EMAIL": "Entitlement report recipient: Addressee Name <mailbox@host>",
         "AZ_VM_ADMIN_SSH_PUBKEY": "Public key permitted to reach the pipeline run host",
         "AZ_VM_ADMIN_USERNAME": "Admin account name on the pipeline run host",
         "AZ_VM_LOCATION": "Azure region the pipeline run host is created in",
