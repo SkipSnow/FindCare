@@ -1586,6 +1586,39 @@ def database_rights_reached_through_secrets(data: dict) -> list[dict]:
     return out
 
 
+def _bare_name(username: str) -> str:
+    """A database user\'s name, without the certificate subject around it.
+
+    CN=DevOpsUser,O=ChatHealthy,ST=California,C=US is DevOpsUser wearing a
+    subject. The name is what identifies the user; the rest states how the
+    certificate was issued.
+    """
+    name = (username or "").strip()
+    if name.upper().startswith("CN="):
+        name = name[3:].split(",", 1)[0]
+    return name.strip()
+
+
+def database_users_of(holder_name: str, atlas: dict) -> list[dict]:
+    """The database credentials this identity holds.
+
+    REQ-B-001: an identity has rights in Mongo, or in Entra, or in both,
+    and it is one identity either way. Rendering the directory in one list
+    and the database in another put DevOpsUser on the page twice and left
+    a reader to notice they were the same person -- which is the join the
+    report exists to make.
+
+    A name can carry more than one credential: DevOpsUser authenticates
+    both by certificate and by password, and those are two ways in, so
+    both are listed under the one identity.
+    """
+    want = (holder_name or "").strip().lower()
+    if not want:
+        return []
+    return [u for u in (atlas.get("users") or [])
+            if _bare_name(u.get("username", "")).lower() == want]
+
+
 def duplicate_grants_of(user: dict, tree: list[dict]) -> list[dict]:
     """Where one user holds the same thing more than once.
 
@@ -2349,6 +2382,62 @@ def render_pdf(data: dict, out_path: Path) -> Path:
         tb.setStyle(TableStyle(st))
         return tb
 
+    def _database_block(user: dict) -> list:
+        """One database credential: how it authenticates, what it reaches.
+
+        Written once and called twice -- under the identity that holds the
+        credential, and on its own for a credential no identity claims.
+        """
+        atlas = data.get("atlas") or {}
+        out = [Paragraph(
+            f"<b>In the database</b> &nbsp;&middot;&nbsp; "
+            f"{user.get('username','')} &nbsp;&middot;&nbsp; "
+            f"{user.get('credential','')} credential"
+            + (f", authenticating against {user.get('auth_database')}"
+               if user.get("auth_database") else ""), note)]
+        rows = [[Paragraph("<b>Database</b>", cell),
+                 Paragraph("<b>Collection</b>", cell),
+                 Paragraph("<b>Right</b>", cell)]]
+        tree = atlas_tree(user, atlas.get("clusters") or [])
+        for t in tree:
+            if t["whole_cluster"]:
+                rows.append([Paragraph("(whole cluster)", cell),
+                             Paragraph("&mdash;", cell),
+                             Paragraph(t["whole_cluster"], cell)])
+            for db in t["databases"]:
+                if db["right"]:
+                    rows.append([Paragraph(db["database"], cell),
+                                 Paragraph("every collection", cell),
+                                 Paragraph(db["right"], cell)])
+                for c in db["collections"]:
+                    rows.append([
+                        Paragraph("" if db["right"] else db["database"], cell),
+                        Paragraph(c["collection"], cell),
+                        Paragraph(c["right"], cell)])
+        if len(rows) == 1:
+            out.append(Paragraph("Holds no database rights.", note))
+            return out
+        table = Table(rows, colWidths=[2.6 * inch, 2.6 * inch, 0.9 * inch],
+                      hAlign="LEFT")
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), BAND),
+            ("LINEBELOW", (0, 0), (-1, 0), 0.4, RULE),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ]))
+        out.append(table)
+        # REQ-B-006: this credential's own duplicates, at the end of its entry.
+        dups = duplicate_grants_of(user, tree)
+        if dups:
+            out.append(Paragraph(
+                f"<b>Exceptions &mdash; {len(dups)} grant(s) that add "
+                f"nothing</b>", note))
+            for d in dups:
+                out.append(Paragraph(
+                    f"&nbsp;&nbsp;{d['what']}: {d['why']}", note))
+        return out
+
     def _block(holder: dict) -> list:
         label = holder["name"] or "Unidentified principal"
         out = [Paragraph(label, who)]
@@ -2395,6 +2484,10 @@ def render_pdf(data: dict, out_path: Path) -> Path:
         out.append(Spacer(1, 4))
         if holder["grants"]:
             out.append(_grant_table(holder))
+        # REQ-B-001: the same identity's rights in the database, here
+        # rather than in a list of its own further down.
+        for db_user in database_users_of(holder["name"], data.get("atlas") or {}):
+            out.extend(_database_block(db_user))
         out.append(Spacer(1, 10))
         return out
 
@@ -2710,89 +2803,70 @@ def render_pdf(data: dict, out_path: Path) -> Path:
     else:
         story.extend(head)
 
-    # -- The database half ---------------------------------------------
-    # EPIC-002-F-003-S-009-REQ-B-001 and REQ-B-006. Every credential that
-    # can reach the data is a user: a certificate subject, a username with
-    # a password, an API key. Rights are stated cluster, database,
-    # collection, once at the level granted, and a collection appears only
-    # where it differs from what its database already grants.
+    # -- What no identity above claims ---------------------------------
+    # EPIC-002-F-003-S-009-REQ-B-001. An identity has rights in Entra, or
+    # in Mongo, or in both, and it is one identity either way -- so a
+    # database credential is rendered inside the entry of the identity
+    # whose name it carries, above. Rendering the two populations as two
+    # lists put DevOpsUser on the page twice and left the reader to work
+    # out they were the same user, which is the join this report exists
+    # to make.
+    #
+    # What remains here is the credentials no identity in the register
+    # answers for, which is a finding rather than a leftover: a way into
+    # the data with nobody named against it.
     atlas = data.get("atlas") or {}
     story.append(Spacer(1, 8))
-    story.append(Paragraph(
-        "<b>Database users</b> &nbsp;&middot;&nbsp; every credential that "
-        "reaches the data", sub_sec))
     if not atlas.get("readable"):
         story.append(Paragraph(
-            "<b>Not read.</b> " + (atlas.get("reason") or "no reason recorded")
-            + " &mdash; so this run states nothing about database rights, "
-            "which is not the same as there being none.", note))
+            "<b>Database rights &mdash; not read.</b> "
+            + (atlas.get("reason") or "no reason recorded")
+            + " So this run states nothing about database rights, which is "
+            "not the same as there being none.", sub_sec))
     else:
+        every_user = atlas.get("users") or []
+        # Both lists, because an identity outside the register still gets
+        # its own entry -- in section 3 rather than here -- and its
+        # database credential is rendered there with it. Counting only the
+        # approved would list that credential a second time as unheld.
+        claimed = {u.get("username")
+                   for h in approved + unapproved
+                   for u in database_users_of(h["name"], atlas)}
+        unclaimed = [u for u in every_user
+                     if u.get("username") not in claimed]
         story.append(Paragraph(
-            f"Project {atlas.get('project','')} &nbsp;&middot;&nbsp; clusters: "
-            + ", ".join(atlas.get("clusters") or []), note))
-        reached = {r["holder"]: r for r
-                   in database_rights_reached_through_secrets(data)}
-        for user in sorted(atlas.get("users") or [],
-                           key=lambda u: (u.get("username") or "").lower()):
-            story.append(Spacer(1, 6))
-            story.append(Paragraph(user.get("username") or "(unnamed)", who))
+            "<b>Database credentials no identity holds</b> "
+            f"&nbsp;&middot;&nbsp; {len(unclaimed)} of {len(every_user)} "
+            f"&nbsp;&middot;&nbsp; project {atlas.get('project','')}, "
+            "clusters " + ", ".join(atlas.get("clusters") or []), sub_sec))
+        if not unclaimed:
             story.append(Paragraph(
-                f"{user.get('credential','')} credential"
-                + (f" &nbsp;&middot;&nbsp; authenticates against "
-                   f"{user.get('auth_database')}" if user.get("auth_database") else ""),
-                note))
-            rows = [[Paragraph("<b>Database</b>", cell),
-                     Paragraph("<b>Collection</b>", cell),
-                     Paragraph("<b>Right</b>", cell)]]
-            for tree in atlas_tree(user, atlas.get("clusters") or []):
-                if tree["whole_cluster"]:
-                    rows.append([Paragraph("(whole cluster)", cell),
-                                 Paragraph("&mdash;", cell),
-                                 Paragraph(tree["whole_cluster"], cell)])
-                for db in tree["databases"]:
-                    if db["right"]:
-                        rows.append([Paragraph(db["database"], cell),
-                                     Paragraph("every collection", cell),
-                                     Paragraph(db["right"], cell)])
-                    for c in db["collections"]:
-                        rows.append([
-                            Paragraph("" if db["right"] else db["database"], cell),
-                            Paragraph(c["collection"], cell),
-                            Paragraph(c["right"], cell)])
-            dups = duplicate_grants_of(
-                user, atlas_tree(user, atlas.get("clusters") or []))
-            if len(rows) == 1:
-                story.append(Paragraph("Holds no database rights.", note))
-            else:
-                t = Table(rows, colWidths=[2.6 * inch, 2.6 * inch, 0.9 * inch],
-                          hAlign="LEFT")
-                t.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), BAND),
-                    ("LINEBELOW", (0, 0), (-1, 0), 0.4, RULE),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 2),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                ]))
-                story.append(t)
-            # REQ-B-006: this user\'s own duplicates, at the end of its entry.
-            if dups:
-                story.append(Paragraph(
-                    f"<b>Exceptions for this user &mdash; {len(dups)} grant(s) "
-                    f"that add nothing</b>", note))
-                for d in dups:
-                    story.append(Paragraph(
-                        f"&nbsp;&nbsp;{d['what']}: {d['why']}", note))
+                "None. Every credential that reaches the data carries the "
+                "name of an identity above, and its rights are stated "
+                "there.", note))
+        for user in sorted(unclaimed,
+                           key=lambda u: (u.get("username") or "").lower()):
+            entry = [Spacer(1, 6),
+                     Paragraph(user.get("username") or "(unnamed)", who),
+                     Paragraph(
+                         "No identity of this name holds rights in the "
+                         "directory, so nothing states who answers for this "
+                         "way into the data.", note)]
+            entry.extend(_database_block(user))
+            story.append(KeepTogether(entry))
 
-        # Who else holds these rights by being able to read the credential.
+        # Who holds these rights by being able to read the credential.
+        reached = database_rights_reached_through_secrets(data)
         if reached:
             story.append(Spacer(1, 8))
             story.append(Paragraph(
                 "<b>Held indirectly</b> &nbsp;&middot;&nbsp; a credential in "
                 "a vault is the ability to be whoever it identifies", sub_sec))
-            for holder, row in sorted(reached.items()):
+            for row in sorted(reached, key=lambda r: r["holder"]):
                 story.append(Paragraph(
-                    f"<b>{holder}</b> {row['how']}, and therefore holds every "
-                    f"right of: " + ", ".join(row["database_users"]), note))
+                    f"<b>{row['holder']}</b> {row['how']}, and therefore "
+                    "holds every right of: "
+                    + ", ".join(row["database_users"]), note))
                 if row.get("untagged_secrets"):
                     story.append(Paragraph(
                         f"{len(row['untagged_secrets'])} secret(s) in reach "
