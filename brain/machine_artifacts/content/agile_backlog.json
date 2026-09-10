@@ -1992,8 +1992,8 @@
                       "requirement": [
                         {
                           "req_id": "EPIC-002-F-004-S-001-REQ-B-001",
-                          "name": "All calls to ChatHealthy.ai MUST go to the ChatHealthy.ai Universal Gate",
-                          "requirement": "All browser, or other client, calls to ChatHealthy.ai servers MUST POST to {env}.sharedservices.chathealthy.ai/gate. Other calls to other URLs, except for the domain name by itself, MUST result in a 404; i.e., calls to http://chathealthy.ai, https://chathealthy.ai, http://dev.chathealthy.ai, https://dev.chathealthy.ai, http://qa.chathealthy.ai, https://qa.chathealthy.ai MUST all redirect to the universal gate call.",
+                          "name": "Every request reaches ChatHealthy.ai through the Universal Gate",
+                          "requirement": "Every request that reaches a ChatHealthy.ai server arrives at the Universal Gate, {env}.sharedservices.chathealthy.ai/gate, and no other route answers.\n\nA request ChatHealthy.ai's own client originates MUST be a POST to that address. This is the firm's own traffic and the firm decides its shape.\n\nA request the firm does not originate -- an identity provider's redirect, a third party's webhook, a platform's liveness probe -- MUST arrive at a URI the Gate owns. The Gate collects the facts of the request and dispatches it to the tool that handles it. The method is whatever the sender sends: the firm registers the address and the sender decides how to deliver to it, so a method requirement on inbound traffic would make compliance depend on a third party's choice. The Gate accepts what a registered address must accept and nothing more.\n\nAny other URL MUST answer 404, except the bare domain names, which redirect to the Gate.\n\nNothing is exempt. A route outside the Gate is non-compliant whatever its method and whoever calls it.",
                           "priority": "must-have",
                           "status": "in_progress",
                           "orphan": false,
