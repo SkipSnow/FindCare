@@ -61,7 +61,7 @@ def _probe(parser):
     # Canary read: confirm the brain content directory is readable. Uses
     # engineering_rules.json (always present, large enough to fail loudly if
     # the content dir is unreachable). Was version.json; swapped per
-    # BUG-001 (the file is being deleted).
+    # a deleted file.
     brain_read_ok = False
     brain_read_err = ""
     try:

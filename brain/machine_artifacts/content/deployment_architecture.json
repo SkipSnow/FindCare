@@ -1739,7 +1739,7 @@
         },
         {
           "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/ConversationalUX/ChatHealthyWhoAmIChat/me/BuildingAnthropicAConversationWithItsCo-foundersYouTube.pdf",
+          "source_location": "sharedServices/Code/AboutChatHealthy/me/BuildingAnthropicAConversationWithItsCo-foundersYouTube.pdf",
           "handler_type": "static_asset",
           "disposition": "referenced",
           "content_hash": "2527fa119a4b65d335fde92e6c9927b752f675be83a813e646e39c9fce90b0e2",
@@ -1747,7 +1747,7 @@
         },
         {
           "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/ConversationalUX/ChatHealthyWhoAmIChat/me/SkipSnowLinkedInProfile.pdf",
+          "source_location": "sharedServices/Code/AboutChatHealthy/me/SkipSnowLinkedInProfile.pdf",
           "handler_type": "static_asset",
           "disposition": "referenced",
           "content_hash": "492fd1c57fa42203d752ad4a6dfe9ccc8e03fb8935f61525576552db0599172d",
@@ -1755,7 +1755,7 @@
         },
         {
           "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/ConversationalUX/ChatHealthyWhoAmIChat/me/anthropic_principles.txt",
+          "source_location": "sharedServices/Code/AboutChatHealthy/me/anthropic_principles.txt",
           "handler_type": "static_asset",
           "disposition": "referenced",
           "content_hash": "00cb63b98d33952686ae07d492e7e482ca96a2bdd8f4b732243e8d3f1bab0401",
@@ -1763,7 +1763,7 @@
         },
         {
           "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/ConversationalUX/ChatHealthyWhoAmIChat/me/chatHealthy_ai_business_plan.pdf",
+          "source_location": "sharedServices/Code/AboutChatHealthy/me/chatHealthy_ai_business_plan.pdf",
           "handler_type": "static_asset",
           "disposition": "referenced",
           "content_hash": "3ffa0cb6f633cdf96dfd230c61ecc62b5ce29fb39b418258d8912ef8adf8faea",
@@ -1771,18 +1771,10 @@
         },
         {
           "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/ConversationalUX/ChatHealthyWhoAmIChat/me/summary.txt",
+          "source_location": "sharedServices/Code/AboutChatHealthy/me/summary.txt",
           "handler_type": "static_asset",
           "disposition": "referenced",
           "content_hash": "29ed8862c34bf4d6a9c335b12dcd8b024d6c7b7ab23453b27b7c16ea7e568ef6",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/ConversationalUX/FindCareChat/backend/README.md",
-          "handler_type": "markdown",
-          "disposition": "referenced",
-          "content_hash": "f60db720db8c4610b0ea5d69f3f01f8a3d80379fe6c1a43341aa264740262eee",
           "package": "service_runtime"
         },
         {
@@ -1798,7 +1790,7 @@
           "source_location": "Code/ConversationalUX/FindCareChat/backend/app.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "0dc7ac7177feb7a062a55875eec0e3815f383ff276e84f1c316f4bfd744a63dd",
+          "content_hash": "358941f9bcef92db8eebcf043bfa7c3524ad6b2cacc8eafcd104daa576019493",
           "package": "service_runtime"
         },
         {
@@ -1830,7 +1822,7 @@
           "source_location": "sharedServices/Code/externalInterface/tool_router.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "82ad5bd17c4875e216030444084169884213fac92ae00c772892e3059cc5c7e9",
+          "content_hash": "f55a379c80215a1622df3d048ffab2ba363cbc6740a764343d27f97e60f927f6",
           "package": "service_runtime"
         },
         {
@@ -2147,14 +2139,6 @@
         },
         {
           "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/Shared/llm_client.py",
-          "handler_type": "python_source",
-          "disposition": "referenced",
-          "content_hash": "4197d16ec0b2ef557868e96ac2b674c56ba8948233b8a974f5da8d5694974e68",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
           "source_location": "Code/Shared/ops/certs/ca.crt",
           "handler_type": "cert_or_key",
           "disposition": "referenced",
@@ -2190,7 +2174,7 @@
           "source_location": "Code/Shared/prompt_system_maker.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "1ac7238daa9d6cca29b4ea3e2da824e3cd8d2f7d160bcd597e816ba9a96c9135",
+          "content_hash": "7e28fbec6416589bcd440285b1264a60d5224d32a7db85ee570c90d139161095",
           "package": "service_runtime"
         },
         {
@@ -2540,7 +2524,7 @@
             },
             {
               "instruction": "COPY",
-              "args": "Code/ConversationalUX/ChatHealthyWhoAmIChat/me /app/Code/ConversationalUX/ChatHealthyWhoAmIChat/me"
+              "args": "sharedServices/Code/AboutChatHealthy/me /app/sharedServices/Code/AboutChatHealthy/me"
             },
             {
               "instruction": "COPY",
@@ -2582,7 +2566,7 @@
               ]
             }
           ],
-          "embedded_content": "\nFROM python:3.12-slim\n\nWORKDIR /app\nCOPY DevOps/FindCareBackend/requirements.txt /app/requirements.txt\nRUN pip install --no-cache-dir -r /app/requirements.txt\n\nCOPY Code/ConversationalUX/FindCareChat/backend /app/Code/ConversationalUX/FindCareChat/backend\nCOPY Code/Shared /app/Code/Shared\nCOPY Code/ConversationalUX/ChatHealthyWhoAmIChat/me /app/Code/ConversationalUX/ChatHealthyWhoAmIChat/me\nCOPY brain /app/brain\nCOPY FindCare /app/FindCare\nCOPY ChatHealthyLib /app/ChatHealthyLib\nCOPY sharedServices/Code/externalInterface /app/sharedServices/Code/externalInterface\nCOPY sharedServices/Code/AboutChatHealthy /app/sharedServices/Code/AboutChatHealthy\nCOPY sharedServices/Code/logs /app/sharedServices/Code/logs\nRUN pip install --no-cache-dir /app/ChatHealthyLib\n\nCOPY build_info.json /app/build_info.json\n\nWORKDIR /app/Code/ConversationalUX/FindCareChat/backend\nENV PORT=7860     SSL_CERTFILE=/certs/findcare.crt SSL_KEYFILE=/certs/findcare.key\nEXPOSE 7860\nCMD [\"python\", \"app.py\"]\n",
+          "embedded_content": "\nFROM python:3.12-slim\n\nWORKDIR /app\nCOPY DevOps/FindCareBackend/requirements.txt /app/requirements.txt\nRUN pip install --no-cache-dir -r /app/requirements.txt\n\nCOPY Code/ConversationalUX/FindCareChat/backend /app/Code/ConversationalUX/FindCareChat/backend\nCOPY Code/Shared /app/Code/Shared\nCOPY sharedServices/Code/AboutChatHealthy/me /app/sharedServices/Code/AboutChatHealthy/me\nCOPY brain /app/brain\nCOPY FindCare /app/FindCare\nCOPY ChatHealthyLib /app/ChatHealthyLib\nCOPY sharedServices/Code/externalInterface /app/sharedServices/Code/externalInterface\nCOPY sharedServices/Code/AboutChatHealthy /app/sharedServices/Code/AboutChatHealthy\nCOPY sharedServices/Code/logs /app/sharedServices/Code/logs\nRUN pip install --no-cache-dir /app/ChatHealthyLib\n\nCOPY build_info.json /app/build_info.json\n\nWORKDIR /app/Code/ConversationalUX/FindCareChat/backend\nENV PORT=7860     SSL_CERTFILE=/certs/findcare.crt SSL_KEYFILE=/certs/findcare.key\nEXPOSE 7860\nCMD [\"python\", \"app.py\"]\n",
           "package": "service_runtime"
         },
         {
@@ -2634,7 +2618,7 @@
           "src": "brain/machine_artifacts/content/prompts.json"
         },
         {
-          "src": "Code/ConversationalUX/ChatHealthyWhoAmIChat/me"
+          "src": "sharedServices/Code/AboutChatHealthy/me"
         },
         {
           "src": "ChatHealthyLib"
@@ -2672,7 +2656,7 @@
         "EVALCARE_URL": "peer_url:target_hf_space_evaluatecare_backend",
         "FINDCARE_CERT_PEM": "local_cert_file:Code/Shared/ops/certs/findcare.crt",
         "HUMAN_TESTING": "literal:false",
-        "ME_DIR": "literal:/app/Code/ConversationalUX/ChatHealthyWhoAmIChat/me",
+        "ME_DIR": "literal:/app/sharedServices/Code/AboutChatHealthy/me",
         "MONGO_HOST_CHATHEALTHYFRONTEND": "literal:chathealthyfrontend.mdwahg.mongodb.net",
         "PIPELINE_NAME": "literal:find_care",
         "SHARED_CERT_PEM": "local_cert_file:Code/Shared/ops/certs/shared.crt",
@@ -4549,7 +4533,7 @@
                   "feature_id": "EPIC-002-F-003",
                   "handler_type": "python_source",
                   "disposition": "referenced",
-                  "content_hash": "5bcf8f09a36f9a61c8f507cbfa5a962267f6632aaac6166b7f23034c5347e71d",
+                  "content_hash": "f87ade57daee6397c5976c9d58fbdba31c7207b584d13704a980b6c00b28445d",
                   "package": "entitlement_report"
                 }
               ],

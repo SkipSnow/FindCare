@@ -1,0 +1,146 @@
+@startuml
+' sys_deployment — rewritten by 01_system for legibility.
+'
+' MEASURED PROBLEM: 4096x674 = 468 px/in as placed. Six frames laid side by
+' side, 19 targets spread across one row, and labels up to 70 characters wide.
+' Higher DPI cannot fix it: the same printed inches with more pixels is the
+' same apparent size. Only fewer nodes ACROSS fixes it.
+'
+' WHAT CHANGED, and nothing else:
+'   1. The six platform frames are chained vertically with hidden arrows, so
+'      the layout runs down the page instead of across it. A tall diagram gets
+'      the full height of a portrait page and stays readable — which is why
+'      findcare_gate_components reads at 144 px/in and this did not.
+'   2. The ten Azure targets are chained vertically inside their own frame for
+'      the same reason; that frame alone was ten nodes wide.
+'   3. Labels are two short lines rather than one long one: the target id, then
+'      the bindings. Every target id, every binding and every package survives
+'      verbatim — the width came from the line breaks, not from the content.
+'   4. Addresses that were repeated per environment are given once as a pattern.
+'      The record holds four bindings; the diagram no longer spells all four
+'      across the page to say so.
+' No target, package, note or relationship is dropped.
+
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+skinparam nodesep 8
+skinparam ranksep 14
+
+title Where ChatHealthy.ai runs, and what each place is given to run
+
+legend top left
+  Every target and package is read from
+  deployment_architecture.json (DeploymentTargetRecord).
+  [4 env] = local, dev, qa and prod bindings.
+  [dev only] = one binding.
+end legend
+
+frame "Cloudflare" {
+  node "target_cloudflare_pages_website\n[4 env] {env}.chathealthy.ai" as CF {
+    artifact "json_schemas\nruntime_driver\nstatic_pages\nlocal_host (local binding only)" as CFPKG
+  }
+}
+
+frame "Hugging Face Spaces" {
+  node "target_hf_space_shared_services\n[4 env] /sharedservices : 8002" as HFSS {
+    artifact "service_runtime" as HFSSP
+  }
+  node "target_hf_space_findcare_backend\n[4 env] /findcare : 7860" as HFFC {
+    artifact "service_runtime" as HFFCP
+  }
+  node "target_hf_space_evaluatecare_backend\n[4 env] /evaluatecare : 8001" as HFEC {
+    artifact "service_runtime" as HFECP
+  }
+  HFSS -[hidden]down- HFFC
+  HFFC -[hidden]down- HFEC
+}
+
+frame "Azure — one subscription, one resource group" {
+  node "target_azure_automation_account_chathealthyjobmanager\n[dev only]" as AAJOB {
+    artifact "provider_pipeline\nreservation_reaper\nwatchdog_runbook\nchange_db_version\nentitlement_report" as AAJOBP
+  }
+  node "target_azure_automation_account_datamigratorworkmanager\n[dev only]" as AAMIG {
+    artifact "data_migration" as AAMIGP
+  }
+  node "target_azure_container_registry_pipeline\n[dev only]" as ACR {
+    artifact "pipeline_vm_image" as ACRP
+  }
+  node "target_azure_key_vault_pipeline\n[dev, qa, prod] one vault" as KV
+  node "target_azure_storage_account_pipeline\n[dev only]" as SA
+  node "target_azure_vnet_pipeline\n[dev only]" as VNET
+  node "target_azure_resource_group_pipeline\n[dev only]" as RG
+  node "target_identity_devops_user\n[4 env]" as IDDEV
+  node "target_identity_pipeline_editor\n[dev only]" as IDPE
+
+  AAJOB -[hidden]down- AAMIG
+  AAMIG -[hidden]down- ACR
+  ACR -[hidden]down- KV
+  KV -[hidden]down- SA
+  SA -[hidden]down- VNET
+  VNET -[hidden]down- RG
+  RG -[hidden]down- IDDEV
+  IDDEV -[hidden]down- IDPE
+}
+
+frame "MongoDB Atlas" {
+  database "target_atlas_pipeline\ncluster ChatHealthyDataPipelines [dev only]" as ATP
+  database "target_atlas_frontend\ncluster ChatHealthyFrontEnd [4 env]" as ATF
+  artifact "front_end_configuration" as ATFP
+  ATF *-- ATFP
+  ATP -[hidden]down- ATF
+}
+
+frame "Local host — the operator workstation" {
+  node "target_host_local_workstation\n[local]" as LWS {
+    artifact "service_runtime" as LWSP
+  }
+  node "target_host_local_deploy_tool\n[local, prod]" as LDT {
+    artifact "service_runtime" as LDTP
+  }
+  node "target_host_local_devops\n[local]" as LDO {
+    artifact "conversation_archive\nrule_enforcement" as LDOP
+  }
+  LWS -[hidden]down- LDT
+  LDT -[hidden]down- LDO
+}
+
+frame "GitHub" {
+  node "target_github_repository_chathealthy\n[dev only]" as GH {
+    artifact "rule_065_enforcement_workflow" as GHP
+  }
+}
+
+' Chain the frames top to bottom so the layout runs down the page.
+CFPKG -[hidden]down- HFSS
+HFEC -[hidden]down- AAJOB
+IDPE -[hidden]down- ATP
+ATF -[hidden]down- LWS
+LDO -[hidden]down- GH
+
+VNET ..> ATP : private endpoint service
+
+note right of KV
+  Three env bindings, one vault. dev, qa and prod all
+  resolve to the same vault, so there is one custody
+  store rather than one per environment.
+end note
+
+note right of ATF
+  Four env bindings, one cluster. The environments are not
+  separate databases; the collection version each one reads
+  is a value in the configuration record.
+end note
+
+note right of RG
+  Four Azure targets carry no package. They are declared
+  because the deploy provisions and audits them, not
+  because anything is installed into them.
+end note
+
+@enduml

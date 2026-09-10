@@ -1,0 +1,92 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+skinparam componentStyle rectangle
+skinparam PackageBorderColor #9ca3af
+
+title FindCare: three capabilities, four tools each, and which of the twelve the code and the record actually carry
+
+legend top right
+|<#dcfce7>   | declared in ToolConfiguration and dispatched by running code |
+|<#fef3c7>   | the work happens, but no tool is declared for it |
+|<#fee2e2>   | declared, and the file that would serve it is imported by nothing |
+|<#e5e7eb>   | no tool, no endpoint |
+endlegend
+
+package "Find an individual care giver\npage: individualProvider" {
+  component "ProviderSearch\nsearch\n/provider/find" as PS #dcfce7
+  component "SpecialtyFilter\nvocabulary chooser\n/specialty/find" as SF #dcfce7
+  component "ProviderDetail\ndetail\n/provider-detail" as PD #dcfce7
+  component "ProviderSelection\nselection\nprovider_selection" as PSel #dcfce7
+}
+
+package "Find a facility\npage: facility" {
+  component "FacilitySearch\nsearch\n/facility/find" as FS #dcfce7
+  component "facility kinds\nvocabulary chooser\ninside /facility/find" as FVoc #fef3c7
+  component "FacilityDetail\ndetail\n/provider-detail" as FD #dcfce7
+  component "FacilitySelection\nselection\nfacility_selection" as FSel #dcfce7
+}
+
+package "Find a clinical trial\npage: clinicalTrial" {
+  component "ClinicalTrials\nsearch\n/trial/find" as CT #dcfce7
+  component "condition wording\nvocabulary chooser\nmining prompt only" as CVoc #e5e7eb
+  component "trial detail\ndetail" as CD #e5e7eb
+  component "ClinicalTrialSelection\nselection\nclinical_trial_selection" as CSel #dcfce7
+}
+
+component "facility_search_tool.py\nshipped, imported by nothing" as FSdead #fee2e2
+
+FS .right. FSdead
+
+' Stack the three subjects vertically so the grid is four across, not twelve.
+PS -[hidden]down- FS
+FS -[hidden]down- CT
+
+note bottom of FVoc
+  A facility's kinds are resolved by the same
+  SpecialtyFilter funnel on the Non-Individual
+  partition, called from _facility_kinds inside the
+  search route. Because it is not a tool, no
+  requirement can be stated against it:
+  offeredFacilityTypes and selectedTaxonomyCodes are
+  declared against FacilitySearch instead, so the
+  chooser cannot be asked for on its own.
+end note
+
+note bottom of CVoc
+  The trial page turns words into a condition string
+  inside its mining prompt. Nothing intersects the
+  answer with a catalogue, so unlike the NUCC funnel
+  there is no registry fact the model is held to.
+end note
+
+note bottom of CD
+  openNctId is declared and the page records which
+  trial is on screen, but no tool and no route serve a
+  trial detail: the React widget paints it from the
+  search result it already cached.
+  EPIC-006-F-004-S-001 is the gap.
+end note
+
+note right of FSdead
+  Nothing imports it. The router posts straight to the
+  /facility/find URL, so the file ships into the
+  SharedServices container on every deploy and no code
+  path reaches it.
+end note
+
+note bottom of FD
+  Declared as its own tool, served by the
+  ProviderDetail tool with entity_type "2". There is
+  no facility_detail_tool.py; the declaration names an
+  endpoint two tools share.
+end note
+
+@enduml

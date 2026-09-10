@@ -1,0 +1,69 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+title FindCare as it stands today — one app.py holds every route, and the router does three capabilities itself
+
+component "React shell\nCode/ConversationalUX/FindCareChat/frontend\nApp.tsx imports 23 widgets: 5 still under\nsrc/components, 18 already reached from\nFindCare/ and sharedServices/Code/" as SHELL
+
+component "/gate\nsharedServices/Code/app.py:355-460\nparse, verify token, hand to the router" as GATE
+
+component "UniversalNavigationTool\nsharedServices/Code/AuthorizationsAndAuthentications/\nuniversal_navigation_tool.py\n_OP_HANDLERS: 23 ops -> method NAMES\n_dispatch_target_action: if/elif on target_action" as ROUTER
+
+component "Capability work the router does itself\nspecialtySearch  (2018-2046)\nfindAFacility    (2065-2125)\nfindAProvider    (2127-2179)\nhand-rolled httpx, hand-assembled stream events,\nMongo reads at 1576 and 1428" as INLINE #fdf6f6
+
+component "Tools the router does dispatch\nprovider_search, provider_detail,\nprovider_selection, facility_selection,\nclinical_trials_dispatcher, clinical_trial_selection,\nuser_parameters, utterance_manager, lockout,\nclose_connection_200, about_chathealthy, evalcare_splash" as LIVETOOLS
+
+component "Declared, shipped, never dispatched\nFacilitySearchTool     zero call sites\nGeoExtractorTool       zero call sites\nSpecialtyFilterTool    only a test-only caller\nCapabilitySearchTool   no subclass exists" as DEADTOOLS #fdf6f6
+
+component "FindCare service\nCode/ConversationalUX/FindCareChat/backend/app.py\n2000 lines, 14 @app.post routes:\n/search /provider/find /provider/exclusions /provider-detail\n/facility/find /facility/page /specialty/find /nucc/classify\n/trial/find /page/what-is-needed /page/detail-open\n/page/detail-close /welcome /health" as APPPY #fdf6f6
+
+component "In-app ToolRouter\napp.py:255-268 registers 7 LLM tool names.\nhandle_tool_calls has no caller and\nanthropic_tools has no reader." as DEADROUTER #fdf6f6
+
+package "FindCare/ — services already live here, routes do not" #f5fbfa {
+  component "ProviderManagement\nprovider_search_service, utterance mining" as PM
+  component "SpecialtyFilter\nfilter.py + specialty_filter_tool.py" as SF
+  component "ClinicalTrials\nservice + clinical_trials_tool.py" as CT
+  component "ProviderDetail\nprovider_detail_service" as PD
+}
+
+SHELL --> GATE
+GATE --> ROUTER
+ROUTER --> LIVETOOLS : by method name,\nlazy-imported in the branch
+ROUTER --> INLINE
+INLINE --> APPPY : httpx POST
+LIVETOOLS --> APPPY : httpx POST
+APPPY --> PM
+APPPY --> SF
+APPPY --> CT
+APPPY --> PD
+ROUTER .[#b91c1c].> DEADTOOLS
+APPPY .[#b91c1c].> DEADROUTER
+
+note bottom of INLINE
+  FacilitySearchTool already contains this exact
+  work. The router re-wrote it inline instead of
+  calling it, so the same capability now has two
+  implementations and only the unnamed one runs.
+end note
+
+note bottom of APPPY
+  Of the twelve capability cells -- three capabilities
+  by four tools -- six have a live wired tool, two have
+  a class that nothing calls, one is served by another
+  capability's class, and three do not exist at all.
+end note
+
+note right of SHELL
+  ProviderSearchRefinementWidget.tsx is imported by
+  App.tsx and is declared in no manifest record, so
+  it runs without the record saying it exists.
+end note
+
+@enduml

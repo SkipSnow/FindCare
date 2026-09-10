@@ -1,0 +1,68 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+skinparam ParticipantBorderColor #0b7a75
+skinparam SequenceLifeLineBorderColor #9ca3af
+
+title A person opens a provider detail: the whole path from click to paint, with no model in it
+
+actor "Person" as P
+participant "ProviderDetailWidget\n(React, in the iframe)" as W
+participant "ClientRouter\n(wrapper)" as CR
+participant "POST /gate\n(app.py)" as GATE
+participant "UniversalNavigationTool" as UR
+participant "ProviderDetailTool" as PDT
+participant "FindCare" as FC
+database "Users.sessions" as SESS
+
+P -> W : clicks the detail link on a provider card
+W -> CR : postMessage router:makeCall\nop 'provider-detail', payload {npi}
+CR -> GATE : POST /gate\n{op, payload, session_token}\nAccept: application/x-ndjson
+
+GATE -> GATE : _verify_session_or_401(session_token)
+note right of GATE
+  /gate is the only session-validation site.
+  A body with no valid token is answered 401
+  whatever op it names; downstream services
+  do not re-validate.
+end note
+
+GATE -> UR : handle_gate(GateRequest)
+UR -> SESS : find_one by session GUID
+UR -> UR : AuthN manage_session\n(restamp the nonce)
+UR -> UR : _OP_HANDLERS['provider-detail']\n-> _handle_provider_detail
+
+UR -> PDT : run_and_log(deps, Request(**payload))
+PDT -> FC : POST findcare_url() + /provider-detail
+FC --> PDT : structured detail JSON
+PDT -> CR : deps.stream({kind 'provider-detail', data})
+CR -> W : router:event-broadcast\nkind 'provider-detail'
+W -> W : renders the panel it claimed
+
+PDT --> UR : Response
+UR -> FC : POST /page/detail-open\n{page, record_id}
+note left of UR
+  Which page holds an open record is a routing
+  fact. Which of that page's parameters carries
+  it is the page's own, so no parameter name
+  crosses this call.
+end note
+
+UR -> SESS : persist the mutated user_object
+UR -> CR : {kind 'final', ok, guid,\ntime_remaining_seconds, session_token}
+CR -> W : router:final
+
+note over P, FC #f3f4f6
+  No language model runs anywhere on this path. The person named
+  the record by working a control, so there is nothing to interpret:
+  the op is dispatched, one declared endpoint is called, and the
+  answer is streamed. UtteranceManager is not reached.
+end note
+
+@enduml

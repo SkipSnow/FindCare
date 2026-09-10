@@ -1,0 +1,96 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+skinparam ParticipantBorderColor #0b7a75
+skinparam SequenceLifeLineBorderColor #9ca3af
+
+title One FindCare search end to end: the router carries the words, the page mines them, writes them, reads back what is in force, and either searches or asks
+
+participant "Router\nuniversal_navigation_tool" as UR
+participant "Search route\n/facility/find" as Route
+participant "Miner\nmine_facility_parameters" as Miner
+participant "SpecialtyFilter\nNon-Individual partition" as Cat
+database "Session\nuserParameters.pages.facility" as Session
+participant "Declaration\nToolConfiguration" as Decl
+database "Provider\ncollection" as Providers
+
+note over UR, Route
+  Reference implementation: /facility/find in
+  Code/ConversationalUX/FindCareChat/backend/app.py.
+  The individual-provider and NUCC pages are the same
+  six steps against their own page and their own tool.
+end note
+
+UR -> UR : latest_utterance_and_prior_dialogue()\nthe last thing said, and the talk before it
+note left of UR
+  The router reads no parameter and forms no opinion
+  about what the words mean. Its whole part in a mining
+  turn is producing those two things.
+end note
+
+UR -> Route : POST { session_token, utterance, history }
+activate Route
+Route -> Route : require_gateway_signature()
+
+Route -> Miner : mine(utterance, history)
+activate Miner
+Miner --> Route : geography, facilityType,\nfacilityName
+deactivate Miner
+
+alt a kind of place was named
+  Route -> Cat : find_specialties(facilityType,\nSection = Non-Individual)
+  activate Cat
+  Cat --> Route : offered kinds + codes
+  deactivate Cat
+end
+
+Route -> Session : $set pages.facility.<attribute>\nroute = tool, determination = model
+note right of Session
+  Written before the search runs, so what the answer
+  was produced under is on the session whatever the
+  search then does.
+end note
+
+Route -> Session : read every parameter this page holds
+Session --> Route : in_force
+note right of Route
+  What the search runs on is what is in force, not what
+  this turn happened to say. A person who named a city
+  one turn and a state the next has given both.
+end note
+
+Route -> Providers : state of the ZIP, when no state was said
+Providers --> Route : derived state
+note right of Route
+  Derived for the requirement check only. The query is
+  still built from what was asked for: the ZIP is
+  narrower than the state it implies.
+end note
+
+Route -> Decl : required_parameters("FacilitySearch")
+Decl --> Route : state, selectedTaxonomyCodes
+Route -> Route : unmet = those not in force
+
+alt nothing unmet
+  Route -> Providers : search_providers(entity_type = "2", codes, place)
+  Providers --> Route : rows + total
+else something unmet
+  Route -> Route : ask_for_missing(tool, unmet,\noptional, in_force, utterance)
+  note right of Route
+    The tool authors the question because the tool holds
+    the requirement. Making a parameter Required is an
+    edit to the record and a deploy, not a line of code.
+  end note
+end
+
+Route --> UR : rows, mined, unmet_requirements,\nrefinement_question
+deactivate Route
+
+@enduml

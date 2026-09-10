@@ -1,0 +1,83 @@
+@startuml
+title ToolConfiguration — three lists, and the join that decides what a tool may ask for
+
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 12
+skinparam ArrowColor #0b7a75
+skinparam ClassBorderColor #0b7a75
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+hide circle
+
+entity "PAGE" as PAGE {
+  page : string  <<key>>
+  --
+  the scope a VALUE lives in
+}
+
+entity "PAGE_TOOL" as PT {
+  page : string  <<fk>>
+  tool : string  <<fk>>
+  --
+  which tools compose a page
+}
+
+entity "TOOL" as TOOL {
+  tool : string  <<key>>
+  --
+  server : string
+  endpoint : string
+}
+
+entity "PARAMETER" as PARAM {
+  name : string  <<key>>
+  --
+  value_type : string
+  description : string
+}
+
+entity "SUBSCRIPTION" as SUB {
+  parameter : string  <<fk>>
+  tool : string  <<fk>>
+  --
+  use : Required | Optional
+}
+
+entity "PARAMETER_VALUE" as VAL {
+  page : string  <<fk>>
+  name : string  <<fk>>
+  --
+  value
+  route : tool | gateway | utterance_manager
+  determination : model | rule | person
+}
+
+PAGE ||--o{ PT
+TOOL ||--o{ PT
+PARAM ||--o{ SUB
+TOOL ||--o{ SUB
+PAGE ||--o{ VAL
+PARAM ||--o{ VAL
+
+note bottom of SUB
+  Required  the tool cannot run without it,
+            so it refuses and asks
+  Optional  it is used when present and
+            never demanded
+  absent    the tool has no business with it
+end note
+
+note bottom of VAL
+  One name, one value per page. The
+  geography on the care-giver page is
+  not the geography on the facility page.
+end note
+
+note top of PAGE
+  Requirements are per TOOL and never per
+  PAGE: a page carries a search, a filter,
+  a detail and a selection, and the search
+  runs before any record is opened.
+end note
+@enduml

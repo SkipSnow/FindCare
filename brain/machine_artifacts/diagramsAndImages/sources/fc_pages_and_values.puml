@@ -1,0 +1,91 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+skinparam componentStyle rectangle
+skinparam PackageBorderColor #9ca3af
+skinparam ArtifactBorderColor #6b7280
+
+title A requirement is stated against a tool; a value lives on a page. SpecialtyFilter serves two pages and holds different values on each.
+
+package "The declaration — ToolConfiguration" {
+  component "tool: SpecialtyFilter\nserved at /specialty/find" as Tool #dcfce7
+
+  artifact "complaint — Required" as PComplaint
+  artifact "offeredSpecialties — Optional" as POffered
+  artifact "selectedSpecialtyCodes — Optional" as PSelected
+
+  component "page: individualProvider\nProviderSearch, SpecialtyFilter,\nProviderDetail, ProviderSelection" as PageIP #f3f4f6
+  component "page: NUCC\nSpecialtyFilter" as PageNUCC #f3f4f6
+}
+
+PComplaint -down-> Tool : subscribed to
+POffered -down-> Tool : subscribed to
+PSelected -down-> Tool : subscribed to
+
+Tool -down-> PageIP : composed into
+Tool -down-> PageNUCC : composed into
+
+note right of Tool
+  Stated once, against the tool, and never against a page.
+  A page carries several tools — a search, a chooser, a
+  detail, a selection — each with its own answer, and the
+  search runs before any record is opened. Requiring the
+  detail's parameter of the page would stop the search that
+  comes first.
+end note
+
+database "The session\nuserParameters.pages" as Session
+
+package "values, one set per page" {
+  artifact "pages.individualProvider\n  complaint\n  selectedSpecialtyCodes\n  state / city / county / zip\n  providerName, providerSex,\n  soleProprietor, insurance\n  openNpi" as VIP #fef3c7
+  artifact "pages.NUCC\n  complaint\n  offeredSpecialties\n  selectedSpecialtyCodes" as VNUCC #fef3c7
+}
+
+Session -down-> VIP
+Session -down-> VNUCC
+
+PageIP ..> VIP : its scope
+PageNUCC ..> VNUCC : its scope
+
+component "/provider/find" as RIP
+component "/specialty/find" as RNUCC
+
+RIP -up-> VIP : writes complaint and\nselectedSpecialtyCodes here
+RNUCC -up-> VNUCC : writes complaint, offeredSpecialties\nand selectedSpecialtyCodes here
+
+component "Router\ncodes_in_force()" as Reader
+
+Reader -up-> VIP : reads selectedSpecialtyCodes first
+Reader -up-> VNUCC : falls back to offeredSpecialties
+
+note bottom of Reader
+  The same three names on two pages, holding two different
+  answers. Nothing chosen on the care-giver page means the
+  person has not narrowed, so the whole set the NUCC panel
+  offered still applies. Neither page could express that if
+  a value had one home.
+end note
+
+note bottom of VIP
+  openNpi is held here and on the facility page, and the
+  record declares no parameter of that name. openNctId, the
+  trial equivalent, is declared. Drawn as the code does it.
+end note
+
+note bottom of RNUCC
+  This page finds nobody. It is where a person waits while
+  their geography is not yet usable, so what it produces is
+  the panel and the codes it is ticked with, and nothing
+  else. A turn naming no complaint does not withdraw the one
+  already in force — repainting the panel empty would take
+  the person's choices away.
+end note
+
+@enduml

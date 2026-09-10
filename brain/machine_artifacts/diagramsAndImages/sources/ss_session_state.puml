@@ -1,0 +1,79 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+skinparam StateBorderColor #0b7a75
+skinparam StateBackgroundColor #ffffff
+
+title The life of one session token: minted once, re-stamped on every hop, verified only at the gate
+
+[*] --> NoSession
+
+state "No session" as NoSession
+
+state "Minting at POST /auth/issue" as Mint {
+  state "GUID decided" as MintGuid
+  state "Token assembled and signed" as MintSign
+  MintGuid --> MintSign
+}
+
+state "Live session" as Live {
+  state "Held by the browser" as Held
+  state "Verified at /gate" as Verify
+  state "Re-stamped" as Restamp
+  state "Persisted" as Persist
+
+  Held --> Verify : every /gate POST carries\nsession_token in the body
+  Verify --> Restamp : signature verifies
+  Restamp --> Persist : AuthN manage_session\ncalls put_nonce(origin)
+  Persist --> Held : new token returned\non the final event
+}
+
+state "401" as Denied
+
+NoSession --> Mint : the page posts /auth/issue,\noffering the GUID it holds
+
+MintGuid : a live, unexpired GUID is resumed
+MintGuid : anything else begins a new session
+MintSign : token = "CH" + nonce(35) + guid(32)
+MintSign : signature = RSA PKCS1v15 SHA256 over
+MintSign : "origin:original_stamp:guid", signed with shared.key
+
+Mint --> Live : SessionToken{origin, token, signature,\ncreated_at, signed, server_env}
+
+Verify --> Denied : missing, malformed,\nor signature fails
+Denied --> [*]
+
+Live --> NoSession : expires_at passed,\nor the nonce is older than 300s
+
+Verify : SessionToken.verify(expected_origin)
+Verify : loads shared.crt, checks origin and length,
+Verify : returns false on InvalidSignature
+
+Restamp : Nonce.restamp keeps the ORIGINAL stamp
+Restamp : and replaces the LATEST one, so the token
+Restamp : is signed afresh over an unchanged payload
+
+Held : the GUID is stable for the whole session
+Held : the nonce changes on every receive
+
+note right of Denied #f3f4f6
+  There is no op exempt from verification, so a call
+  cannot buy itself an answer by naming a harmless
+  gesture. Cookies are not used: HuggingFace's edge
+  proxy strips credentials from OPTIONS preflights,
+  so ClientRouter threads the token in the body.
+end note
+
+note bottom of Live #f3f4f6
+  Peers do not carry SharedServices signing material.
+  A peer holding a token asks the verify_token op,
+  which is what keeps verification one component's job.
+end note
+
+@enduml

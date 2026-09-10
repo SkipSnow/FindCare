@@ -1,0 +1,92 @@
+@startuml
+title ChatHealthy.ai — the components, and what each one owns
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+package "The browser" #fdfdfd {
+  [Wrapper site\nCloudflare Pages] as WRAP
+  [ClientRouter] as CR
+  [Widgets\none per frame] as W
+}
+
+package "SharedServices  ·  Hugging Face Space" #fdfdfd {
+  [/gate\nthe one entrance] as GATE
+  [UniversalNavigationTool] as UR
+  [UtteranceManager] as UM
+  [Session and authorization] as AUTH
+  [Parameters] as PARAM
+}
+
+package "FindCare  ·  Hugging Face Space" #fdfdfd {
+  [Find an individual] as FCP
+  [Find a facility] as FCF
+  [Find a clinical trial] as FCT
+}
+
+package "EvaluateCare  ·  Hugging Face Space" #fdfdfd {
+  [Scoring and ranking] as EC
+}
+
+component "ChatHealthyLib\nthe tool contract, exceptions,\nlogging, database access" as LIB #eef6f5
+
+database "Atlas — front end" as FE {
+  [PublicHealthData] as PHD
+  [ChatHealthyConfig] as CFG
+  [Sessions] as SESS
+}
+
+database "Atlas — pipelines" as PIPE {
+  [PipelinePublicHealthData] as PPHD
+}
+
+package "Azure" #fdfdfd {
+  [Automation\npipelines, reports] as AUTO
+  [Key Vault\ncertificates and secrets] as KV
+}
+
+CR -down-> GATE : every call, one POST
+WRAP -right-> CR
+CR -right-> W
+GATE -down-> AUTH
+GATE -down-> UR
+UR -right-> UM
+UR -down-> FCP
+UR -down-> FCF
+UR -down-> FCT
+UR -down-> EC
+UR -left-> PARAM
+FCP -down-> PHD
+FCF -down-> PHD
+FCT -right-> [clinicaltrials.gov] : not ours
+PARAM -down-> CFG
+PARAM -down-> SESS
+AUTO -up-> PPHD
+AUTO ..> PHD : migration, on release only
+KV .up.> GATE : certificates
+KV .up.> FCP
+
+LIB .up. GATE
+LIB .up. FCP
+LIB .up. EC
+LIB .up. AUTO
+
+note right of GATE
+  The only place a session is
+  validated. Everything that must
+  happen on every call happens here.
+end note
+
+note bottom of PPHD
+  Data reaches the front end only by
+  migration, and only when a person
+  releases it.
+end note
+@enduml

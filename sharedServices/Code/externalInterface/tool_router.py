@@ -115,7 +115,7 @@ class ToolRouter:
         return tool_results
 
     def handle_normalized_tool_calls(self, tool_calls: list, messages, format_history_fn=None) -> list:
-        """Process normalized tool calls from llm_client (OpenAI format).
+        """Process normalized tool calls in OpenAI format.
 
         Args:
             tool_calls: list of {"id": "...", "function": {"name": "...", "arguments": "..."}}

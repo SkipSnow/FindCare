@@ -1,0 +1,108 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+title How public health data travels from a federal source to a person's screen
+
+|Sources|
+start
+:fetch_all_sources
+NPPES monthly dissemination, NPPES practice locations,
+NUCC taxonomy, Census ZCTA-to-county, USDA RUCC,
+F-105 specialty catalog;
+:source_freshness_gate;
+:source_archival
+promotes each file to
+{env}-pipeline-sources/{source}/{version}/;
+
+|#f3f4f6|Atlas cluster ChatHealthyDataPipelines|
+:load_staging_parallel
+raw rows into the staging database;
+:normalize_nucc, then publish_smd_and_embed
+embeds every specialty with text-embedding-3-large;
+:normalize_npi_per_state_fanout
+add_secondary_practices
+provider_flags_enrichment
+harvest, classify and apply other identifier phrases
+license_address_repair;
+:county_enrichment
+stamps fips, name and USDA RUCC 1-9
+on every practice address;
+:urban_flag
+derives the urban marker from that RUCC;
+:post_load_reconciliation;
+:publish_provider
+renameCollection(dropTarget) swaps
+Provider_staging_v_N into place;
+:PipelinePublicHealthData.Provider_v_N
+PipelinePublicHealthData.SpecialtyMetaData_v_N|
+note right
+  Every pipeline step writes here and nowhere else.
+  No pipeline code holds a credential for the
+  serving cluster, so it cannot reach it at all.
+end note
+
+|#e5e7eb|Release — a person decides|
+:operator runs migrate_data.py naming one collection;
+:a browser page opens and blocks
+until APPROVE or REJECT is clicked;
+if (approved?) then (no)
+  stop
+else (yes)
+endif
+:the release is written to
+ChatHealthyFrontEnd.pipelineAdmin.Authorizations
+as type=data_migration with approval, human_click
+and the collection name;
+:a webhook starts the migration runbook
+in ChatHealthyJobManager;
+:the runbook re-reads that record and refuses
+unless type, approval, human_click and collection
+all match what it was asked to move;
+note right
+  The click is looked up, never taken on the caller's
+  word. Anyone who could reach the webhook could
+  otherwise assert their own approval.
+end note
+
+|#f3f4f6|Atlas cluster ChatHealthyDataPipelines|
+:data_migration.py reads the source collection
+as PipelineToFrontEndPublicDataMigrator;
+
+|#dcfce7|Atlas cluster ChatHealthyFrontEnd|
+:insert_many into PublicHealthData under the same name
+create-only: it refuses if the destination exists;
+note right
+  This is the only path between the two clusters,
+  and the migrator holds no update, no delete and
+  no drop on either. A fault here can add data and
+  can never alter what is already serving people.
+end note
+:PublicHealthData.Provider_v_N
+PublicHealthData.SpecialtyMetaData_v_N|
+
+|FindCare|
+:runtime_data_collections reads
+ChatHealthyConfig.DBVersions to learn which
+version this environment serves;
+fork
+  :SpecialtyFilter runs $vectorSearch
+on specialty_vector_index;
+fork again
+  :FindCareService runs find and aggregate
+over the Provider collection;
+end fork
+:results returned to SharedServices;
+
+|Browser|
+:ClientRouter posts to /gate
+and renders what comes back;
+stop
+
+@enduml

@@ -1,0 +1,41 @@
+@startuml
+skinparam dpi 140
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam ArrowColor #0B7A75
+skinparam ArrowFontSize 12
+skinparam state {
+  BackgroundColor #F4FAF9
+  BorderColor #0B7A75
+  FontColor #14312F
+  FontSize 13
+}
+
+title The Gate decides on what it can observe: the address, then the method
+
+[*] --> Received
+
+state "Request at the edge" as Received
+state "The one Gate op address" as Op
+state "A registered callback address" as Callback
+state "A bare domain name" as Bare
+state "Refused" as Refused #FDF2F2
+state "Dispatched to the tool that handles it" as Dispatched #F2F9F4
+
+Received --> Op : the URI is the Gate op address
+Received --> Callback : the URI is an address\nthe Gate registered\nwith a third party
+Received --> Bare : the URI is a bare\ndomain name
+Received --> Refused : any other URI — **404**
+
+Op --> Dispatched : **POST**\nverify the token,\ncollect the facts,\ndispatch
+Op --> Refused : **GET** — this address serves\nonly traffic the firm originates,\nand the firm requires POST
+
+Callback --> Dispatched : **the sender's method, whatever it is**\nverify the signed state it carries,\ncollect the facts, dispatch
+
+Bare --> Op : redirect to the Gate
+
+Refused --> [*]
+Dispatched --> [*]
+
+@enduml

@@ -1,0 +1,155 @@
+@startuml
+' sys_identity — rewritten by 01_system so it renders, keeping what it means.
+'
+' WHY THE PREVIOUS SOURCE FAILED, most likely cause first:
+'   1. "$external database user" — PlantUML's preprocessor reads $name as a
+'      variable reference. An undefined variable in a label is the classic
+'      silent parse failure, and this file had one in an element NAME.
+'      Written here as &#36;external, which renders as the dollar sign.
+'   2. class bodies mixed with component/artifact/database elements in one
+'      diagram. Every element here is a rectangle, which every renderer
+'      accepts, and the member lists are label text rather than class members.
+'   3. Stereotypes carrying a colon, e.g. <<Atlas, kind: certificate>>.
+'      Folded into the label text instead.
+' LEGIBILITY (measured 2263x1093 = 362 px/in as placed, unreadable in print):
+' the seven identities and the four packages each laid out side by side. Chained
+' vertically with hidden arrows so the layout runs down the page; a tall diagram
+' gets the full height of a portrait page. No element or relationship removed.
+'
+' Notes and package blocks are kept — the coordinator established neither is
+' the cause, and both carry meaning here.
+'
+' CONTENT IS ALSO CORRECTED. The previous source stated the agent's role as
+' the constrained one. That is what the repository declares; it is not what
+' the platform holds. The divergence is the most important fact in this
+' picture and is now drawn rather than omitted.
+
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam RectangleBorderColor #0b7a75
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+skinparam nodesep 8
+skinparam ranksep 14
+
+title Who ChatHealthy.ai can act as, where each credential is kept, and what proves it
+
+package "The directory — every identity in the tenant" #eef2ff {
+
+  rectangle "**the operator**\n//person//\n----\nOwner\nUser Access Administrator\nGlobal Administrator" as SKIP #fff7ed
+
+  rectangle "**claudeCodeAgent**\n//agent — service principal//\n----\nDECLARED in the repository:\nchatHealthyAgent, with identity creation\nand role-definition writes withheld,\nplus a condition it cannot remove\n----\nHELD on the platform:\nthe same role withholding nothing,\nplus unconditioned Owner and\nUser Access Administrator above it" as CCA #fee2e2
+
+  rectangle "**DevOpsUser**\n//agent — service principal//\n----\nvault administration\nautomation, container and site contributor\nregistry push, blob write, monitoring read\ndirectory read\nrole_governance_recorder" as DEVOPS
+
+  rectangle "**pipelineEditor**\n//agent — service principal//\n----\nvault secrets read\nautomation operator, registry pull\nmachine and network contributor\nblob write, reader" as PEDIT
+
+  rectangle "**frontendUser**\n//agent — service principal//\n----\nvault secrets read, and nothing else" as FEUSER
+
+  rectangle "**dataMigrator**\n//agent — managed identity//\n----\nvault secrets read\nrole_data_migrator" as MIG
+
+  rectangle "**ClaudeCodeUser**\n//user object//\n----\nholds no rights and signs in nowhere" as CCU
+
+  ' Stack the identities so this package runs down the page, not across it.
+  SKIP -[hidden]down- CCA
+  CCA -[hidden]down- DEVOPS
+  DEVOPS -[hidden]down- PEDIT
+  PEDIT -[hidden]down- FEUSER
+  FEUSER -[hidden]down- MIG
+  MIG -[hidden]down- CCU
+}
+
+package "The certificate authority" #fefce8 {
+  rectangle "**ChatHealthy CA**\nroot and intermediate\n----\nthe chain is baked into images at build time\n----\n**the minting path is absent from disk;**\n**the caller that issues still imports it**" as CA #fee2e2
+}
+
+package "Custody — the credential vault" #f0fdfa {
+  rectangle "**one certificate-and-key per identity**\nthe secret is named for the identity it belongs to" as IDCERTS
+  rectangle "**store control-plane API keys**\na read-only pair and a lifecycle pair,\ndeliberately separate" as ATLASKEYS
+  rectangle "**third-party API keys**\nmodel vendors, maps, mail,\nthe edge header, the source URLs" as OTHERSECRETS
+  IDCERTS -[hidden]down- ATLASKEYS
+  ATLASKEYS -[hidden]down- OTHERSECRETS
+}
+
+package "The data platform" #ecfdf5 {
+
+  rectangle "**serving store**" as ATF
+  rectangle "**pipeline store**" as ATP
+
+  rectangle "**certificate-authenticated database user**\n//the username is the certificate subject//\n----\nthe subject common name must equal\nthe identity being asked for\n----\nregistered against the &#36;external database" as DBUSER
+
+  rectangle "**role_data_migrator**\n//custom database role//\n----\nread on the built data\ninsert and create on the served data\nread and **insert** on the approvals\ndelete on its own job lock only\n----\nno update, no delete, no drop over data" as RDM
+
+  rectangle "**role_governance_recorder**\n//custom database role//\n----\nread and insert on the governance store\n----\nno update, no delete, no drop\nand the recorder is not the actor" as RGR
+
+  rectangle "**certificate registry**\nidentity, subject, vault key names,\ncreated, expires, status, version\n----\n**required, and nothing reads or writes it**" as REG #fee2e2
+
+  ATF -- REG
+  ATF -[hidden]down- ATP
+  ATP -[hidden]down- DBUSER
+  DBUSER -[hidden]down- RDM
+  RDM -[hidden]down- RGR
+}
+
+' Chain the packages so the whole diagram runs down the page.
+CCU -[hidden]down- CA
+OTHERSECRETS -[hidden]down- ATF
+
+CA --> IDCERTS : issues a certificate for a subject\nand stores it under the identity's name
+IDCERTS --> REG : the registry says which secret\nholds which identity's certificate
+
+CCA ..> IDCERTS
+DEVOPS ..> IDCERTS
+PEDIT ..> IDCERTS
+FEUSER ..> IDCERTS
+MIG ..> IDCERTS
+
+IDCERTS --> DBUSER : the certificate is presented\nover mutual TLS
+DBUSER --> ATF
+DBUSER --> ATP
+RDM --> DBUSER
+RGR --> DBUSER
+MIG ..> RDM
+DEVOPS ..> RGR
+
+ATLASKEYS --> RDM : **the control plane that defines these roles**\n**is reachable from a key on the workstation**
+
+note bottom of SKIP
+  The only person, and the only identity in the
+  tenant that may bring another identity into
+  existence. That is the one capability an agent
+  is never granted.
+end note
+
+note bottom of CCA
+  The gap between DECLARED and HELD is the finding.
+  A permission list is not a boundary: the withheld
+  capability is reachable by a second, unconditioned
+  assignment at a higher scope, so the condition is
+  applied and governs nothing.
+end note
+
+note bottom of CCU
+  It exists only because the directory will not accept
+  a service principal as a group's last owner, so the
+  agent groups need a user object to own them.
+end note
+
+note bottom of DBUSER
+  The subject is checked against the identity being
+  requested before the connection opens. Without that,
+  a mis-stored secret authenticates as whoever its
+  certificate names and no caller can tell.
+end note
+
+note bottom of RDM
+  Insert on the approvals is needed so the service can
+  record its acknowledgement — but a store grant is per
+  collection, not per document kind, so the identity that
+  performs the release can write the record that releases
+  it. Append-only stops alteration, not origination.
+end note
+
+@enduml

@@ -1,0 +1,114 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+skinparam ClassBorderColor #0b7a75
+skinparam ClassBackgroundColor #ffffff
+
+title What ChatHealthyLib gives every service, and what a concrete tool has to supply in return
+
+package "chathealthy_lib" {
+
+  abstract class ChatHealthyTool {
+    {static} TOOL_NAME : ClassVar[str]
+    {static} Request : ClassVar[Type[BaseModel]]
+    {static} Response : ClassVar[Type[BaseModel]]
+    --
+    {abstract} + run(deps, request) : Response
+    + run_and_log(deps, request) : Response
+    - __init_subclass__()
+  }
+
+  class ChatHealthyException {
+    + mode : str
+    + message : str
+    + server : str | None
+    + component : str | None
+    + exception : Exception | None
+    + context : dict
+    + construction_stack : str
+  }
+
+  class ChatHealthyLoggingService {
+    + debug(msg, *args, exc, if_not_debug_log)
+    + info(msg, *args, exc, if_not_debug_log)
+    + warning(msg, *args, exc, if_not_debug_log)
+    + error(msg, *args, exc, if_not_debug_log)
+    + critical(msg, *args, exc, if_not_debug_log)
+    + exception(msg, *args, exc, if_not_debug_log)
+  }
+
+  class ChatHealthyMongoUtilities {
+    + getConnection(identity, cluster, host="") : TimedClient
+  }
+
+  class AgentDeps <<dataclass>> {
+    + user_object : UserObject
+    + session_token : SessionToken
+    + mongo_frontend
+    + server_env : str
+    + stream : StreamSink
+  }
+}
+
+package "SharedServices" {
+  class UniversalNavigationTool {
+    TOOL_NAME = "universal_navigation"
+    Request = op + payload
+    Response = kind + result
+    --
+    + run(deps, request)
+    + handle_gate(gate_req) : GateResponse
+  }
+
+  class UtteranceManagerTool {
+    TOOL_NAME
+    Request = trigger_type + reason
+    Response
+    --
+    + run(deps, request)
+  }
+}
+
+Exception <|-- ChatHealthyException
+ChatHealthyTool <|-- UniversalNavigationTool
+ChatHealthyTool <|-- UtteranceManagerTool
+
+ChatHealthyTool ..> AgentDeps : run(deps, ...)
+ChatHealthyTool ..> ChatHealthyException : raises when a subclass\nomits a class attribute
+ChatHealthyLoggingService ..> ChatHealthyException : exc= must be one
+
+note right of ChatHealthyTool #f3f4f6
+  A subclass supplies three class attributes and one
+  method. __init_subclass__ refuses the class at import
+  if any attribute is missing, so a tool cannot be half
+  declared and discovered at dispatch time.
+
+  run_and_log records the invocation on the session
+  whether the run returned or raised. The run used to sit
+  outside the guard, so a tool that raised appended
+  nothing and the action log simply stopped.
+end note
+
+note bottom of ChatHealthyMongoUtilities #f3f4f6
+  No connection string and no password. The certificate is
+  the credential: identity selects the X.509 cert and
+  therefore the MongoDB user and its grants. There is
+  deliberately no fallback, because a fallback to a shared
+  credential makes the whole model decorative.
+end note
+
+note bottom of ChatHealthyException #f3f4f6
+  Catch sites discriminate on mode, never on type.
+  External exceptions keep their native type until a
+  boundary converts them, and the conversion carries the
+  original in exception= so the mode says what kind of
+  failure it was and the original says what failed.
+end note
+
+@enduml

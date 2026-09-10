@@ -20,7 +20,7 @@ promotion writers.
 Refuses to run if the collection already has any documents — protects
 against double-seeding.
 
-Authorization: BUG-001 step "Seed routine".
+Authorization: none on record. This script was written against a bug id that no longer resolves.
 Implements the canonical-collection direction approved 2026-05-01.
 """
 import json

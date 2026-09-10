@@ -28,9 +28,9 @@
       ]
     },
     {
-      "bugid": "BUG-001",
-      "title": "chathealthy_lib.mongo_utilities carries cluster-specific coupling",
-      "description": "ChatHealthyLib/src/chathealthy_lib/mongo_utilities.py violates REQ-B-010. The utility file hardcodes ChatHealthy cluster env var names as default args, in equality branches, and in the timeout-default selector added 2026-08-01 as a code-commented hack pending this bug's fix.",
+      "bugid": "BUG-003",
+      "title": "LLM call sites construct their own agent and pin their own vendor, outside the facade",
+      "description": "ChatHealthy has an LLM facade at ChatHealthyLib/src/chathealthy_lib/llm.py. This bug's earlier description named eleven call sites constructing vendor SDK clients directly. That mechanism is now almost gone and the description was describing it after the fact: three of the files it named no longer exist (homeopathic_resolver.py, consent_service.py, embedding_client.py at the path given), Code/Shared/llm_client.py has no importer anywhere, and safety_service.py's is_emergency has no call site. A remediation aimed at the described mechanism would have touched four files, three of them dead, and left every live site untouched.\n\nTHE LIVE MECHANISM IS DIFFERENT. Nine call sites construct a pydantic-ai Agent themselves rather than receiving one, and each pins its vendor as a string literal:\n  sharedServices/Code/UtteranceManager/utterance_manager.py:1068, :1204\n  FindCare/ProviderManagement/utterance_mining.py:65, :186\n  FindCare/ProviderManagement/facility_utterance.py:84\n  FindCare/SpecialtyFilter/filter.py:173, :194\n  ChatHealthyLib/src/chathealthy_lib/geo_extractor.py:97\n  pipeline/Code/other_identifier_phrases_engine.py:410\n\nAND THE FACADE CANNOT CENTRALISE VENDOR CHOICE AS BUILT. run_llm(agent, ...) receives an already-constructed agent, so retry, timeout and failure conversion are genuinely central while client construction and vendor selection cannot be. Five of the nine sites read the MODEL NAME from the prompt record and then hardcode the vendor prefix -- f\"openai:{...}\". So the model is data and the vendor is code, and the half that decides which company receives a person's words is the half that is not declared. Three vendors are live: openai, anthropic, google.",
       "environments": [
         "local",
         "dev",
@@ -39,15 +39,16 @@
       ],
       "status": "new",
       "severity": "medium",
-      "req_id": "EPIC-008-F-002-S-010-REQ-B-010",
-      "story_id": "EPIC-008-F-002-S-010",
-      "test_id": "Null",
-      "discovery_date": "2026-08-01",
-      "due_date": "2026-09-15",
-      "reproduction": "1. Open ChatHealthyLib/src/chathealthy_lib/mongo_utilities.py. 2. Observe the ChatHealthy cluster environment-variable names written as hardcoded literals -- as default arguments, in equality branches, and in the timeout-default selector. The names themselves are not reproduced here: they name a database credential, which Rule-065-ENF-003 forbids any committed file to carry.",
-      "orphan": false,
+      "req_id": "ORPHAN",
+      "story_id": "ORPHAN",
+      "test_id": "",
+      "discovery_date": "2026-08-07",
+      "due_date": "",
+      "reproduction": "1. grep -rn 'Agent(' --include=*.py sharedServices FindCare ChatHealthyLib pipeline | grep -v llm.py | grep -v tests -- returns the nine sites above.\n2. grep -rn 'f\"openai:' --include=*.py FindCare -- returns the five sites that read the model from the record and pin the vendor in source.\n3. Read run_llm in llm.py: its first parameter is an agent, so no caller can delegate construction to it.",
+      "orphan": true,
       "next_action": [
-        "Design, document and implement solution."
+        "Decide whether the facade constructs the agent (so vendor and model both come from the record) or remains a runner (so vendor pinning needs a different home). The bug cannot be closed without that decision.",
+        "Delete the dead paths rather than migrating them: Code/Shared/llm_client.py and safety_service.py's is_emergency have no callers."
       ]
     },
     {
@@ -95,7 +96,7 @@
     {
       "bugid": "BUG-006",
       "title": "Incremental load never deletes records missing from a full source file",
-      "description": "EPIC-010-F-007-S-004-REQ-B-002 says: when `incremental=true`, no provider record shall be deleted or altered unless (a) the source row changed (record altered to match), or (b) the source is a full file and the record is missing from it (record deleted).\n\nThe implementation only does (a). When `incremental=true`, `pipeline/Code/provider_load_manager.py:231-235` skips drain entirely, and `pipeline/Code/provider_worker.py:345-367` upserts each present row by NPI via `ReplaceOne({\"npi\": npi}, doc, upsert=True)`. There is NO post-load reconciliation pass that detects NPIs in the collection but missing from the source file and deletes them.\n\nNPPES is always a full dissemination file when the monthly file is used, so REQ branch (b) applies on every full-file incremental run, but no code path implements it. Stale and CMS-retired NPIs accumulate indefinitely in incremental mode.",
+      "description": "STIPULATED BY THE OPERATOR 2026-09-10: the incremental capability is UNTESTED. It has never been run against a real dissemination file, so what follows is read from code rather than observed, and the gap below is one of several an untested path may hold.\n\nEPIC-010-F-007-S-004-REQ-B-002 says: when `incremental=true`, no provider record shall be deleted or altered unless (a) the source row changed (record altered to match), or (b) the source is a full file and the record is missing from it (record deleted).\n\nThe implementation only does (a). When `incremental=true`, `pipeline/Code/provider_load_manager.py:231-235` skips drain entirely, and `pipeline/Code/provider_worker.py:345-367` upserts each present row by NPI via `ReplaceOne({\"npi\": npi}, doc, upsert=True)`. There is NO post-load reconciliation pass that detects NPIs in the collection but missing from the source file and deletes them.\n\nNPPES is always a full dissemination file when the monthly file is used, so REQ branch (b) applies on every full-file incremental run, but no code path implements it. Stale and CMS-retired NPIs accumulate indefinitely in incremental mode.",
       "environments": [
         "dev",
         "qa",
@@ -115,60 +116,11 @@
       "reproduction": "1. Run a full load of state X with `incremental=false` - collection holds 1000 NPIs for X.\n2. Wait one NPPES dissemination cycle in which CMS retires/merges 50 of those NPIs.\n3. Operator runs `incremental=true`. Two source-file paths exist:\n   3.a. Weekly NPPES incremental file: contains only records that changed since last weekly/full. The 50 retired NPIs appear in the diff with their NPI Deactivation Date populated. The code upserts each present row by NPI via `ReplaceOne({\"npi\": npi}, doc, upsert=True)`. The deactivation date is stored on the document but no logic acts on it: no out_of_scope flag is set, no record is deleted, no downstream signal is emitted. (REQ-B-002 branch (b) does not apply here because the source is not a full file; this exposes an orthogonal deactivation-flag-handling gap, and the system has no enforced way to distinguish weekly vs full source.)\n   3.b. Monthly NPPES full file: contains every currently-disseminated record (active + deactivated-but-not-yet-purged); long-retired NPIs are absent entirely (CMS-purged). The code only upserts rows present in the file. There is NO post-load pass that scans the collection for NPIs absent from the source file. Long-retired (CMS-purged) NPIs remain in the collection indefinitely; recently-deactivated NPIs (still in the file with deactivation dates) remain 'active' in collection state. Direct violation of REQ-B-002 branch (b).\n4. FindCare search returns providers CMS has retired.",
       "orphan": false,
       "next_action": [
+        "The capability is untested. Before any incremental run, it needs a test against a real dissemination file -- not only for this gap but because an untested load path against the served collection is the risk, not this particular defect.",
         "Deferred. No fix planned.",
         "If a real business need to use incremental loading arises (currently every load is full), this bug must be fixed before the first incremental run.",
         "Until then, all loads are `incremental=false` (drain -> reload), which is correct behavior under REQ-B-002 for full-loads and avoids the gap entirely.",
         "V8 req capturing branch (b) of the legacy REQ-B-002 (full-source-file -> delete DB records absent from source) does NOT exist in EPIC-010-F-102-S-005. A new requirement under F-102-S-005 MUST be authored to capture this delete-on-absence semantic before this bug can be re-attached."
-      ]
-    },
-    {
-      "bugid": "BUG-011",
-      "title": "Deploy build context ships files that no runtime code path uses",
-      "description": "It is required that our deployment scripts deploy exactly what is needed to each target — no more, no less. Today that requirement is not met for files: extraneous source files ship to targets where no runtime code path on that target imports or reads them. The reverse direction — artifacts required by deployed code that are not declared in the manifest — is captured by REQ-B-008 for env vars and REQ-B-009 for entitlements; both are approved and 'done' on S-001 with the substrate already in the schema. Why this matters: our runtime architecture is documented in deployment_architecture.json and nowhere else. As long as the manifest carries garbage (files that nothing on the target uses), no process — human or automated — can extract the actual architecture from it, and the firm continues to operate with undocumented architecture. Surfacing example: architecture/DevOpsBuildDeployAndEnvironmentManagement/hf_helpers.py:_findcare_source_set returns ('Code/Shared', 'Code/Shared') as one of the subtrees wholesale-copied into the FindCare HF build context by _copy_tree, which recursively copies every file under it. Code/Shared/ops/ is dev-time / planning-time tooling (promote_data.py, bump_build.py, seed_versions_collection.py, unattended_monitor.py, local_admin_server.py, sync_to_mongo.py, and — until 2026-06-04 — manifest_generator.py and epic_planning_runner.py) with no runtime caller in the FindCare backend. These files ride along into every FindCare HF deploy as dead bytes. The disposition: 'referenced' tag in deployment_architecture.json under target_hf_space_findcare_backend does NOT gate shipping — it is a content-hash audit trail only; what ships is determined by the subtree walk. EvaluateCare and SharedServices source sets do not include Code/Shared, so this specific symptom is FindCare-only, but the structural pattern (build context driven by wholesale subtree-copy rather than by an explicit per-target file list in the manifest) applies wherever the same mechanism is used.",
-      "environments": [
-        "dev",
-        "qa",
-        "prod"
-      ],
-      "status": "new",
-      "severity": "high",
-      "req_id": "ORPHAN",
-      "story_id": "EPIC-008-F-012",
-      "test_id": "",
-      "test_success_criteria": [
-        "Every file present in a target's build context is reached by a runtime code path on that target. No file present in a build context is unused by the runtime that target hosts."
-      ],
-      "discovery_date": "2026-06-04",
-      "due_date": "2026-09-01",
-      "reproduction": "1. Run local_build --target findcare. 2. Inspect the build_dir's Code/Shared/ops/ subdirectory; observe every file currently in repo Code/Shared/ops/ (minus standard excludes) is present. 3. Grep the FindCare backend (Code/ConversationalUX/FindCareChat/backend/, FindCare/, ChatHealthyLib/) for imports of any module under Code/Shared/ops/. Observe: zero hits. The files are dead bytes shipped to HF on every deploy.",
-      "orphan": false,
-      "next_action": [
-        "Author a new REQ on EPIC-008-F-012 capturing the bidirectional exact-truth contract for files per target — analog to REQ-B-008 (env vars) and REQ-B-009 (entitlements). Re-link this bug's req_id when the REQ exists.",
-        "Replace the wholesale subtree-copy mechanism with an explicit per-target file list driven by deployment_architecture.json. The build stages only what the manifest enumerates for that target.",
-        "Implement, then bring this bug to closed."
-      ]
-    },
-    {
-      "bugid": "BUG-003",
-      "title": "Eleven LLM call sites bypass the pydantic-ai facade and call vendor SDKs directly",
-      "description": "ChatHealthy has an LLM facade at ChatHealthyLib/src/chathealthy_lib/llm.py, built on pydantic-ai. Eight files route through it: utterance_manager.py, find_specialists.py, nucc_llm.py, geo_extractor.py, chathealthy_tool.py, other_identifier_phrases_engine.py, app.py, and llm.py itself.\n\nEleven other call sites bypass it, constructing vendor SDK clients directly and calling client.messages.create (Anthropic) or client.chat.completions.create (OpenAI).\n\nCONSEQUENCES:\n(1) The model is a hardcoded literal at each site, so changing models is an eleven-place edit rather than one config change.\n(2) The llm_unavailable ChatHealthyException mode introduced with the facade does not apply, so each site invents its own failure handling.\n(3) Vendor choice is made per call site rather than architecturally.\n(4) There is no single place to add retry, timeout, cost accounting, or model pinning.\n\nTHE ELEVEN SITES: FindCare/SpecialtyFilter/filter.py:122 and :206 (OpenAI); Code/ConversationalUX/FindCareChat/backend/app.py:949 and :979 (OpenAI); Code/ConversationalUX/FindCareChat/backend/domain/find_care/homeopathic_resolver.py:135 (Anthropic); Code/ConversationalUX/FindCareChat/backend/domain/shared/consent/consent_service.py:41 and :75 (Anthropic); Code/ConversationalUX/FindCareChat/backend/domain/shared/safety/safety_service.py:69 (OpenAI); Code/ConversationalUX/FindCareChat/backend/infrastructure/embeddings/embedding_client.py:62 (OpenAI); Code/Shared/llm_client.py:123 and :185 (both).",
-      "environments": [
-        "local",
-        "dev",
-        "qa",
-        "prod"
-      ],
-      "status": "new",
-      "severity": "medium",
-      "req_id": "ORPHAN",
-      "story_id": "ORPHAN",
-      "test_id": "",
-      "discovery_date": "2026-08-07",
-      "due_date": "",
-      "reproduction": "grep -rn \"messages\\.create\\|chat\\.completions\\.create\" --include=*.py sharedServices FindCare evaluateCare Code ChatHealthyLib | grep -v /build/ | grep -v /tests/ -- returns the eleven call sites listed in the description.",
-      "orphan": true,
-      "next_action": [
-        "Close these gaps as per priorities."
       ]
     },
     {
@@ -218,6 +170,117 @@
       "orphan": true,
       "next_action": [
         "Decide what authorizes a deployment or a change, given the record is written by the actor the record is meant to constrain."
+      ]
+    },
+    {
+      "environments": [
+        "local",
+        "dev",
+        "qa",
+        "prod"
+      ],
+      "test_id": "",
+      "orphan": false,
+      "due_date": "",
+      "bugid": "BUG-009",
+      "title": "A state-scoped pipeline fire replaces the whole served collection",
+      "description": "publish_provider.py renames the staging collection over the loaded one with dropTarget true. Staging is absent at the start of a run, nothing copies the loaded collection into staging, and state_partitions returns only the named states for a scoped run.\n\nSo any fire whose state scope is narrower than the loaded collection installs only the states it built and destroys the rest. Silently: no error, no finding, no gate. It is unconditional on load mode -- the incremental flag is not involved.\n\nThe rule that prevents it exists ONLY as prose. The module docstring says production fires must always be state_scope ALL. That identifier appears nowhere else in the file. There is no runtime guard, no requirement and no test. A rule that exists only as a comment reads as enforced and is not.\n\nThis is the March 2026 data-loss incident's shape in a different place: a step that is correct for a full load, reached by a mode that does not satisfy its precondition. That incident was an unconditional drop of all fifty states for a Delaware-scoped run.",
+      "status": "new",
+      "severity": "high",
+      "req_id": "ORPHAN",
+      "story_id": "ORPHAN",
+      "discovery_date": "2026-09-10",
+      "test_success_criteria": [
+        "A fire whose state scope is narrower than the loaded collection MUST refuse to publish, or MUST carry every out-of-scope record forward.",
+        "Boolean test: load every state to N records, fire one state scoped to DE, then count. The count MUST NOT fall below N."
+      ],
+      "reproduction": "1. Read publish_provider.py at the rename -- renameCollection with dropTarget true, unconditional on load mode or scope.\n2. Read pipeline_runtime.py provider_collection -- it resolves to the STAGING collection, the same name publish renames.\n3. Search the repository for an aggregation out stage, a merge stage, or any copy into staging -- none exists, so staging never receives the loaded records.\n4. Read steps/_partitions.py state_partitions -- a scoped run yields only the named states.\n5. Search publish_provider.py for state_scope -- one hit, in the docstring.",
+      "next_action": [
+        "Refuse the publish where the incoming partition set does not cover the set it replaces. The guard belongs in publish, not in the caller, because publish is what destroys.",
+        "Author the requirement this needs; the pipeline stages have none."
+      ]
+    },
+    {
+      "environments": [
+        "local",
+        "dev",
+        "qa",
+        "prod"
+      ],
+      "test_id": "",
+      "orphan": false,
+      "due_date": "",
+      "bugid": "BUG-010",
+      "title": "The agent's self-escalation condition is void beside an unconditioned Owner grant",
+      "description": "claudeCodeAgent holds the custom role chatHealthyAgent on the PipeLineServices subscription WITH its assignment condition applied and intact. The condition forbids role-assignment writes and deletes for six role-definition ids, including Owner and Contributor, so the identity cannot grant itself back a capability that was taken away. It is a well-made control.\n\nThe same identity also holds plain Owner on the same subscription with NO condition. Owner already grants role-assignment write. Azure unions a principal's assignments, so the constrained path and an unconstrained path to the same action sit side by side and the condition withholds nothing.\n\nThe control is not badly designed. It is defeated additively, by a second grant that nothing compares it against -- which is why a reading of either assignment alone reports a healthy posture. The lesson generalises: enumerate the union of a principal's grants, then check the union.",
+      "status": "new",
+      "severity": "high",
+      "req_id": "ORPHAN",
+      "story_id": "EPIC-002-F-003-S-007",
+      "discovery_date": "2026-09-10",
+      "test_success_criteria": [
+        "No identity holds an unconditioned grant that supplies an action a condition on another of its grants withholds.",
+        "Boolean test: for each principal, union the actions of every assignment; the union MUST NOT contain an action that any condition on that principal forbids."
+      ],
+      "reproduction": "1. List role assignments for the claudeCodeAgent service principal on the PipeLineServices subscription.\n2. Observe two: chatHealthyAgent carrying a condition, and Owner carrying none.\n3. Read the condition -- it names six role-definition ids for role-assignment write and delete.\n4. Owner's actions include role-assignment write, unconditioned.",
+      "next_action": [
+        "Decide whether the unconditioned Owner grant on this identity is intentional. If it is, the finding is that the condition is redundant and should be removed rather than left to imply a constraint. If it is not, removing Owner makes the existing condition load-bearing.",
+        "Either way this is one role assignment, not a programme."
+      ]
+    },
+    {
+      "bugid": "BUG-011",
+      "title": "Deploy build context ships files that no runtime code path uses",
+      "description": "CORRECTED 2026-09-10 after running this bug's own reproduction. The mechanism this bug named no longer exists and the defect it names does. Those are two different facts and the record had merged them.\n\nGONE: the wholesale subtree copy. _copy_tree is defined and called from nowhere; _findcare_source_set survives only inside a docstring saying it was replaced by _source_set_for, which reads huggingface_source_set from the deployment record. The build now stages an enumerated file list.\n\nNOT GONE: the criterion. A local build of target_hf_space_findcare_backend stages 82 files, of which 31 are under the legacy tree, and these are reached by no runtime code path on that target:\n  Code/Shared/llm_client.py, which no file imports anywhere\n  Code/Shared/prompt_system_maker.py, a prompt-authoring tool\n  backend/domain/shared/safety/safety_service.py, whose is_emergency has no call site\n  backend/README.md, documentation shipped into a container\n  Code/Shared/ops/certs/evalcare.crt -- FindCare needs shared.crt to verify the gateway signature and its own certificate; EvaluateCare's has no reader here\n\nSo the selection changed and the selected set did not. The record now enumerates the dead files instead of walking a subtree that contained them. Fixing how a thing is chosen is not the same as fixing what is chosen, and an enumerated list of the wrong files is harder to notice than a subtree walk, because it reads as deliberate.",
+      "environments": [
+        "dev",
+        "qa",
+        "prod"
+      ],
+      "status": "new",
+      "severity": "high",
+      "req_id": "ORPHAN",
+      "story_id": "EPIC-008-F-012",
+      "test_id": "",
+      "test_success_criteria": [
+        "Every file present in a target's build context is reached by a runtime code path on that target. No file present in a build context is unused by the runtime that target hosts."
+      ],
+      "discovery_date": "2026-06-04",
+      "due_date": "2026-09-01",
+      "reproduction": "1. Build local: build_chathealthy.py --env local --target target_hf_space_findcare_backend\n2. Find every staged file under the legacy tree in build/target_hf_space_findcare_backend -- observe 31.\n3. For each, search the FindCare runtime for an import or a read of it. The five named above have none.\n4. Search for a call to _copy_tree in the devops directory -- observe a definition and no call, confirming the mechanism in the original description is gone.",
+      "orphan": false,
+      "next_action": [
+        "Author a new REQ on EPIC-008-F-012 capturing the bidirectional exact-truth contract for files per target — analog to REQ-B-008 (env vars) and REQ-B-009 (entitlements). Re-link this bug's req_id when the REQ exists.",
+        "Replace the wholesale subtree-copy mechanism with an explicit per-target file list driven by deployment_architecture.json. The build stages only what the manifest enumerates for that target.",
+        "Implement, then bring this bug to closed."
+      ]
+    },
+    {
+      "environments": [
+        "local",
+        "dev",
+        "qa",
+        "prod"
+      ],
+      "test_id": "",
+      "orphan": false,
+      "due_date": "",
+      "bugid": "BUG-012",
+      "title": "Cloudflare users are a second identity registry outside the firm's IAM",
+      "description": "EPIC-002-F-003-S-008 states that every authenticating component has one canonical identity and that every identity, machine or human, lives in a single registry. IdentityCatalog in deployment_architecture.json holds seven entries, all Entra, all Azure-facing. No Cloudflare identity appears in it.\n\nCloudflare account users are authenticating actors holding real authority: DNS, the WAF, the Pages deployment, and the edge that fronts the whole application. They are governed by a separate account's own user list, with their own credentials and their own second factor -- which is why EPIC-002-F-001-S-005 exists as a requirement to enable MFA for all Cloudflare account users. That requirement only makes sense for users outside the registry; an identity inside it would take its second factor from conditional access.\n\nThe three tests the security framework applies elsewhere all fail here. A Cloudflare account administrator can switch off the MFA the backlog asks for, so the constrained party can lift the constraint. Nothing in the firm's record declares who those users are, so no independent reading can contradict a claim about them. And no party other than the firm can check any of it.\n\nCloudflare Zero Trust federates with Entra over OIDC or SAML, so this is a configuration gap rather than a platform limitation.",
+      "status": "new",
+      "severity": "high",
+      "req_id": "ORPHAN",
+      "story_id": "EPIC-002-F-003-S-008",
+      "discovery_date": "2026-09-10",
+      "test_success_criteria": [
+        "Every actor who can authenticate to Cloudflare appears in the firm's identity registry and authenticates through it.",
+        "The entitlement report enumerates Cloudflare authority alongside Entra, Azure and Atlas, read from Cloudflare's own API rather than from a declaration."
+      ],
+      "reproduction": "1. Read IdentityCatalog in deployment_architecture.json -- seven entries, none of them a Cloudflare identity.\n2. Read EPIC-002-F-001-S-005 in agile_backlog.json -- an approved requirement to enable MFA for all Cloudflare account users.\n3. Run the entitlement report and observe that Cloudflare appears in the Scope prose as a protected component and in no section that enumerates who holds rights over it.",
+      "next_action": [
+        "Decide whether Cloudflare federates into Entra. It is new architecture and it supersedes at least one approved story, so the requirement is the operator's to author.",
+        "Until then the entitlement report cannot answer who can change the edge, and that gap should be stated in the report rather than absent from it."
       ]
     }
   ]

@@ -1,0 +1,69 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+title FindCare in the target state — routes sit with their feature, twelve tools exist, the router only names them
+
+component "React shell\nwidgets import from the feature\ndirectory that owns them.\nNothing under Code/." as SHELL
+
+component "/gate\nsharedServices/Code/app.py\nparse, verify token, hand to the router\n(unchanged — it is already thin)" as GATE
+
+component "UniversalNavigationTool\ndispatch by name and nothing else.\nNo httpx in a branch, no Mongo read,\nno hand-assembled stream event,\nno capability knowledge." as ROUTER
+
+component "Individual providers\nprovider_search\nprovider_specialty  (vocabulary)\nprovider_detail\nprovider_selection" as PROVTOOLS #f5fbfa
+
+component "Facilities\nfacility_search      (revived, not re-written)\nfacility_vocabulary  (new)\nfacility_detail      (new)\nfacility_selection" as FACTOOLS #f5fbfa
+
+component "Clinical trials\ntrial_search\ntrial_vocabulary  (new)\ntrial_detail      (new)\ntrial_selection" as TRIALTOOLS #f5fbfa
+
+package "FindCare/ — each capability's routes live with the code that answers them" #f5fbfa {
+  component "ProviderManagement\nroutes: /search /provider/find\n/provider/exclusions\n+ service + mining + widget" as PM
+  component "SpecialtyFilter\nroutes: /specialty/find /nucc/classify\n+ filter + tool + widget" as SF
+  component "ClinicalTrials\nroutes: /trial/find\n+ service + tool + widget" as CT
+  component "ProviderDetail\nroutes: /provider-detail\n+ service + record sync + widget" as PD
+  component "Facility feature directory\nroutes: /facility/find /facility/page\n+ service + tools + widget\n(today these tools sit under\nsharedServices/Code, not here)" as FAC
+}
+
+component "Page and service routes\n/page/what-is-needed /page/detail-open\n/page/detail-close /welcome /health\nDestination not stated in the repository" as PAGEROUTES #fff8e6
+
+component "Code/\nretired — nothing on disk,\nno source_location in the manifest,\nno path in the build tooling" as GONE #eeeeee
+
+SHELL --> GATE
+GATE --> ROUTER
+ROUTER --> PROVTOOLS : by name
+ROUTER --> FACTOOLS : by name
+ROUTER --> TRIALTOOLS : by name
+PROVTOOLS --> PM
+PROVTOOLS --> SF
+PROVTOOLS --> PD
+FACTOOLS --> FAC
+TRIALTOOLS --> CT
+
+note bottom of ROUTER
+  Twelve cells filled is what lets the router stop
+  knowing anything. A branch that reaches for httpx
+  exists because the tool it should have called was
+  never written.
+end note
+
+note bottom of PAGEROUTES
+  Drawn without a home on purpose. These five are the
+  only routes with no capability that obviously owns
+  them, and picking one here would be a decision the
+  requirements have not made.
+end note
+
+note bottom of GONE
+  The tree is retired when the manifest names none of
+  it and vite.config.ts, _build_chain.py, _deploy_chain.py,
+  hf_helpers.py, preflight_undefined_names.py and
+  tsconfig.json all point elsewhere.
+end note
+
+@enduml

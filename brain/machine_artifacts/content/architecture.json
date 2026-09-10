@@ -2896,8 +2896,7 @@
         "hf_space_restart.py": "Restart HF Space (normal or factory)",
         "hf_space_status.py": "Check Space status, health, root",
         "atlas_cluster_toggle.py": "Pause/resume MongoDB clusters",
-        "promote_build.py": "Promote code between environments (increments target build counter, merges branch)",
-        "promote_data.py": "Copy provider data (PublicHealthData + SpecialtyMetaData) between environments on frontend cluster"
+        "promote_build.py": "Promote code between environments (increments target build counter, merges branch)"
       },
       "known_bugs": [
         {

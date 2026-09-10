@@ -1,0 +1,67 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+title How code moves from the workstation to production, one environment at a time
+
+state "local\nworking tree on the operator workstation" as LOCAL {
+  state "build --env local\nreads the working tree as it stands" as BLOCAL
+  state "deploy --env local\nreads build/<target_id>/ only" as DLOCAL
+  BLOCAL --> DLOCAL
+}
+
+state "dev\nbranch: dev" as DEV {
+  state "build --env dev\nworktree of origin/dev in a temp dir" as BDEV
+  state "deploy --env dev\nreads build/<target_id>/ only" as DDEV
+  BDEV --> DDEV
+}
+
+state "qa\nbranch: qa" as QA {
+  state "build --env qa\nworktree of origin/qa in a temp dir" as BQA
+  state "deploy --env qa\nreads build/<target_id>/ only" as DQA
+  BQA --> DQA
+}
+
+state "prod\nbranch: main" as PROD {
+  state "build --env prod\nworktree of origin/main in a temp dir" as BPROD
+  state "deploy --env prod\nreads build/<target_id>/ only" as DPROD
+  BPROD --> DPROD
+}
+
+[*] --> LOCAL
+
+LOCAL --> DEV : promote --from local --to dev\nhuman authorizes and the answer is recorded\nstash stack emptied, git add -A, whole tree staged\ncommit_governance_driver runs every scan\ngit commit --allow-empty then git push origin dev
+
+DEV --> QA : promote --from dev --to qa\nhuman authorizes and the answer is recorded\ngit push --force-with-lease\norigin/dev -> refs/heads/qa\nthe local working tree is never read
+
+QA --> PROD : promote --from qa --to prod\nhuman authorizes and the answer is recorded\ngit push --force-with-lease\norigin/qa -> refs/heads/main\nthe local working tree is never read
+
+note right of LOCAL
+  Code is authored here and nowhere else.
+  A local build reads the working tree because
+  local is the only place where uncommitted work
+  is a legitimate thing to run.
+end note
+
+note bottom of DEV
+  Only these three pairs are accepted:
+  (local,dev) (dev,qa) (qa,prod).
+  Any other pair is refused, so an environment
+  cannot receive code that skipped the one before it.
+end note
+
+note bottom of PROD
+  Deploy refuses a stale build before it dispatches:
+  the manifest's git_head_sha must equal current HEAD,
+  manifest.env must equal --env, and manifest.build must
+  equal frontEndAdmin.BuildVersions.latest.build.
+  Nothing certifies what shipped except the build itself.
+end note
+
+@enduml

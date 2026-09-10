@@ -1,0 +1,65 @@
+@startuml
+title FindCare — what serves a request, and what each part owns
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 12
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+package "Browser" #fdfdfd {
+  [ClientRouter] as CR
+  [Widgets\n(one per frame)] as W
+}
+
+package "SharedServices" #fdfdfd {
+  [POST /gate\nthe one entrance] as GATE
+  [UniversalNavigationTool\nthe router] as UR
+  [UtteranceManager\nclassifies what was said] as UM
+  [Tools\nlockout, closeConnection200,\nparameters, selection, detail] as TOOLS
+}
+
+package "FindCare" #fdfdfd {
+  [Declared endpoints\n/provider/find  /facility/find\n/specialty/find  /trial/find\n/provider-detail] as FC
+  [Search, filter and detail services] as SVC
+}
+
+database "ChatHealthyFrontEnd" as MONGO {
+  [ToolConfiguration\npages, tools, parameters] as CFG
+  [Session and page parameters] as SESS
+  [PublicHealthData\nthe registry records] as PHD
+}
+
+CR -down-> GATE : one POST per gesture\nop + payload + session_token
+GATE -down-> UR : GateRequest\nafter the signature verifies
+UR -right-> UM : op = "utterance" only
+UM -left-> UR : IntentDocument\ncarrying target_action
+UR -down-> TOOLS : every other op
+UR -down-> FC : the search a page owns,\ncarrying the utterance
+TOOLS -down-> FC
+FC -down-> SVC
+SVC -down-> PHD
+UR -up-> W : NDJSON stream\none event per kind
+W -[hidden]- CR
+UR ..> CFG : what each tool requires
+UR ..> SESS : the values in force
+FC ..> CFG
+FC ..> SESS
+
+note right of GATE
+  Verifies the SharedServices
+  signature. The only session
+  validation in the system;
+  nothing downstream repeats it.
+end note
+
+note bottom of CFG
+  A tool says what it cannot run
+  without. No page holds a rule
+  of its own.
+end note
+@enduml

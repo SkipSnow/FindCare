@@ -1,0 +1,74 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+title One migration step end to end, and the checks that prove it landed
+
+start
+
+:Move the files.\nRoutes leave Code/ConversationalUX/FindCareChat/backend/app.py\nand land in the FindCare/ feature directory that owns them;
+
+:Update deployment_architecture.json.\nEvery moved file's source_location is rewritten.\nIts content_hash follows the file;
+
+partition "build_chathealthy.py" {
+  :Validate the manifest against its schema\n(RecordLoader.validate_architecture);
+  :Materialise the source tree.\nlocal reads the working tree,\ndev/qa/prod read origin/<branch>;
+  :Refresh content_hash for every referenced file\nfrom disk, CRLF-normalised;
+  note right
+    This rewrite runs BEFORE the gate below, so on
+    dev/qa/prod a hash that drifted is snapshotted
+    rather than refused. Only --env local still
+    fails on drift, because there the refresh and
+    the gate read two different trees.
+  end note
+
+  if (Crosswalk gate) then (a declared\nsource_location\nis not on disk)
+    :REJECT — "source_location ... not present on disk";
+    stop
+  else (every declaration\nresolves)
+  endif
+
+  if (preflight_undefined_names) then (unresolved name\nin a scan root)
+    :exit 3;
+    stop
+  else (clean)
+  endif
+
+  :Stage each package from the declared file list,\nrun vite, write build.json\n(env, git sha, build_number);
+}
+
+partition "deploy_chathealthy.py" {
+  if (staleness gate\nagainst build.json) then (wrong env, sha behind\nHEAD, or build_number\nolder than the counter)
+    :ERROR — rebuild;
+    stop
+  else (current)
+  endif
+  :Install each package to the target that declares it;
+  :Poll the target's /health until it reports\nthe build_number just deployed;
+  note right
+    The target says which build it carries.
+    The deploy reads that back rather than
+    assuming the install took.
+  end note
+}
+
+:Conformance gate reports the new number.\nOne more of the twelve cells is a real tool,\nand app.py is shorter by the routes that moved;
+
+stop
+
+floating note left
+  Nothing in the build refuses a file that
+  exists on disk and is declared nowhere -- an
+  undeclared file is silently not shipped. That
+  is BUG-011, and it is why a migration step
+  needs the conformance gate rather than the
+  build alone to say the move is complete.
+end note
+
+@enduml

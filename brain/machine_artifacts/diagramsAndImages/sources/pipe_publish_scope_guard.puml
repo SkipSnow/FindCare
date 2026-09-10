@@ -1,0 +1,43 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+title The rename at publish does not look at scope
+
+rectangle "FRAME A — full scope  (state_scope = ALL)" as A #f6fbfa {
+  database "staging\n51 partitions\nAK AL AR ... WY" as SA
+  database "loaded\n51 partitions" as LA
+  SA -right-> LA : rename, replace-target
+  note bottom of LA
+    The incoming set covers the set it replaces.
+    Nothing is lost because everything was rebuilt.
+  end note
+}
+
+rectangle "FRAME B — narrow scope  (state_scope = DE)" as B #fdf6f6 {
+  database "staging\n1 partition\nDE" as SB
+  database "loaded\n51 partitions" as LB
+  SB -right-> LB : rename, replace-target\n(the same call)
+  note bottom of LB
+    50 partitions destroyed. Silently.
+    No error, no finding, no gate.
+  end note
+}
+
+A -[hidden]down- B
+
+note as CAP #fff4e5
+  The rename does not look at scope.
+  The only statement of this rule anywhere is a
+  sentence in a module docstring: no runtime
+  guard, no requirement, no test.
+end note
+
+B -[hidden]down- CAP
+@enduml

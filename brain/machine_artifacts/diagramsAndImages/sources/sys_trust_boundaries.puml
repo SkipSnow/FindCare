@@ -1,0 +1,87 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+title What ChatHealthy.ai trusts at each step, and what is allowed to cross
+
+rectangle "Untrusted — the person's browser" #fff1f2 {
+  component "ClientRouter.js\nthe only file in Website/ that calls a service" as CR
+  artifact "sessionStorage\nch_session_guid" as SS
+  CR -- SS
+}
+
+rectangle "The entrance — SharedServices, the only host a browser calls" #fef9c3 {
+  component "POST /auth/issue\nthe one unauthenticated door;\nmints and signs a SessionToken" as ISSUE
+  component "POST /gate\nverifies the signature, then dispatches" as GATE
+  component "universal_navigation_tool\nGateRequest in, GateResponse out" as UNT
+  component "auxiliary routes\n/health, /secrets/{key},\n/auth/google/start, /auth/google/callback" as AUX
+  GATE --> UNT
+}
+
+rectangle "Server to server — each component verifies the SharedServices signature" #ecfeff {
+  component "FindCare backend\nrequire_gateway_signature on every route" as FC
+  component "EvaluateCare backend" as EC
+  artifact "CERTS_DIR = /tmp/ch_certs\nshared.crt, findcare.crt,\nevalcare.crt, ca.crt\ndecoded at startup from Space secrets" as CERTS
+  FC .. CERTS
+  EC .. CERTS
+}
+
+rectangle "The data region — reached only with a certificate" #dcfce7 {
+  component "ChatHealthyMongoUtilities\ngetConnection(identity, cluster)" as MU
+  database "Atlas ChatHealthyFrontEnd\nPublicHealthData, ChatHealthyConfig,\npipelineAdmin, DevOpsAdmin" as ATF
+  database "Atlas ChatHealthyDataPipelines\nPipelinePublicHealthData, staging" as ATP
+  MU --> ATF
+  MU --> ATP
+}
+
+cloud "Azure Key Vault\nkv-chpipeline-dev" as KV
+
+CR --> ISSUE : a session GUID and nothing else.\nNo signature is required or possible here.
+CR --> GATE : op, payload, intent, session_guid\nand the signed SessionToken.\nOrigins are restricted by CORS to\nlocalhost and *.chathealthy.ai
+CR --> AUX
+
+UNT --> FC : HTTPS POST carrying the same\nsigned token in the JSON body
+UNT --> EC : HTTPS POST carrying the same\nsigned token in the JSON body
+
+UNT --> MU
+FC --> MU
+EC --> MU
+
+MU --> KV : an Azure token issued to this identity alone,\nexchanged for that identity's cert and key
+
+note right of GATE
+  Session validity is established here once.
+  Downstream components verify who sent the
+  request, not who the person is, so the session
+  is not re-litigated at every hop.
+end note
+
+note bottom of CERTS
+  Hugging Face Spaces cannot bind-mount a cert
+  directory, so the deploy stores each PEM as a
+  Space secret and startup writes them to disk.
+end note
+
+note bottom of MU
+  There is no connection string and no password.
+  The certificate is the credential: Atlas matches
+  its subject DN to a $external user and applies
+  that user's role, so an identity with no
+  certificate simply cannot connect.
+end note
+
+note right of KV
+  A host holds the Azure credential only for the
+  identities it is entitled to act as. One credential
+  serving every identity would let the workstation
+  read the front end's certificate, and the front
+  end's read the pipeline's.
+end note
+
+@enduml

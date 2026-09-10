@@ -1,0 +1,73 @@
+@startuml
+title One request, and the branch that decides whether a model is asked
+
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 12
+skinparam SequenceArrowColor #0b7a75
+skinparam ParticipantBorderColor #0b7a75
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+actor Person
+participant "ClientRouter" as CR
+participant "POST /gate" as GATE
+participant "UniversalNavigationTool" as UR
+participant "UtteranceManager" as UM
+participant "Tool" as TOOL
+participant "FindCare" as FC
+participant "Widget" as W
+
+Person -> CR : types, or works a control
+CR -> GATE : POST { op, payload, session_token }
+activate GATE
+
+GATE -> GATE : verify the SharedServices signature
+note right
+  Fails here and the answer is 401,
+  whatever the op named. This is the
+  only place a session is validated.
+end note
+GATE -> GATE : state the request facts\ntoken, body, headers
+GATE -> UR : GateRequest\nop, payload, session GUID, client IP
+deactivate GATE
+activate UR
+
+alt op = "utterance" -- the person used words
+  UR -> UM : the last thing said,\nand the talk before it
+  activate UM
+  UM -> UM : classify into an IntentDocument
+  UM --> UR : target_action\nand any prose to show
+  deactivate UM
+  note right of UM
+    A model runs here and nowhere
+    else on this path. It names an
+    action; it does not perform one.
+  end note
+
+  UR -> FC : the search the named page owns,\ncarrying the utterance
+  activate FC
+  FC -> FC : mine the parameters, write them\nto the page, read what is in force
+  FC -> FC : which declared parameters\nare not in force
+  FC --> UR : rows, or what is still needed
+  deactivate FC
+
+else every other op -- the person worked a control
+  UR -> TOOL : the tool that owns this gesture
+  activate TOOL
+  TOOL -> FC : the declared endpoint
+  FC --> TOOL : rows
+  TOOL --> UR : a typed response
+  deactivate TOOL
+  note right of TOOL
+    No model. A control already says
+    what was meant, so nothing has to
+    work out what was meant.
+  end note
+end
+
+UR -> W : one event per kind\nintent_classified, specialties, providers
+UR -> W : final
+deactivate UR
+W -> Person : each frame paints what it owns
+@enduml

@@ -1,0 +1,90 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+skinparam ActivityBorderColor #0b7a75
+skinparam ActivityBackgroundColor #ffffff
+skinparam ActivityDiamondBorderColor #0b7a75
+
+title What a capability does when it is asked to search: mine, write, read back what is in force, then ask or run
+
+start
+
+:the gateway posts the utterance and the
+talk before it to the page that owns it
+(POST /provider/find);
+
+:mine the parameters out of the utterance
+(mine_individual_provider_parameters);
+
+if (the turn named a complaint?) then (yes)
+  :resolve the kinds of care giver
+  that treat it, and tick a default set;
+else (no)
+endif
+
+:WRITE what was mined onto this page
+(_write_page_parameters);
+note right #f3f4f6
+  Written before the search, so what an answer
+  was produced under is on the session whatever
+  the search then does. A page writes its own
+  page and no other, ever.
+end note
+
+:READ BACK everything this page holds
+(_parameters_in_force);
+note right #f3f4f6
+  This read is what makes an answer ADD to a
+  request rather than replace it. Searching on
+  the mined values alone threw away the city
+  given a turn earlier and returned the whole
+  of New York.
+end note
+
+:work out what is KNOWN as against
+what was asked for
+(_geography_known: a ZIP names its state);
+
+:ask the declaration which parameters
+this tool cannot run without
+(required_parameters(tool));
+note left #f3f4f6
+  Read from tool_configuration, per TOOL and never
+  per page: a page carries a search, a filter, a
+  detail and a selection, and the search runs before
+  any record is opened. Making a parameter required
+  is an edit to the record and a deploy, not code.
+end note
+
+:subtract what is in force
+(_unmet_requirements);
+note right #f3f4f6
+  A value present but empty is not in force. An empty
+  string and a missing string are the same absence to
+  the person who did not say it.
+end note
+
+if (any requirement unmet?) then (yes)
+  :return their names
+  as unmet_requirements;
+  :author the question that asks for
+  exactly those, by name
+  (_question_for);
+  :the gateway streams it as kind 'prompt'
+  and appends it to the transcript;
+  stop
+else (no)
+  :run the search on what is in force
+  (find_care.search_providers);
+  :return the rows, the panel they were
+  narrowed by, and what was mined;
+  stop
+endif
+
+@enduml

@@ -222,7 +222,9 @@ WELCOME_MESSAGE = PromptSystemMaker.build_welcome_message()
 
 ME_DIR = os.getenv("ME_DIR") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "me")
 if not os.path.isdir(ME_DIR):
-    ME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "ChatHealthyWhoAmIChat", "me")
+    ME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "..", "..", "..", "..",
+                          "sharedServices", "Code", "AboutChatHealthy", "me")
 ME = prompt_maker.load_me_context(ME_DIR)
 
 # UAT report

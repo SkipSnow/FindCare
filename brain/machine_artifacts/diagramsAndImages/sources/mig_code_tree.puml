@@ -1,0 +1,81 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+title Everything still living in Code/, and where each population goes when Code/ is retired
+
+package "Code/ — the legacy tree" #fdf6f6 {
+  component "FindCareChat/backend\n14 @app.post routes in app.py (2000 lines)\n+ facades, safety, embeddings, adapter,\n  static/, tests/, README" as BACKEND
+  component "FindCareChat/frontend\nshell: index.html, main.tsx, App.tsx,\nvite-env.d.ts, .env.example, public/_redirects\n+ 5 widgets still under src/components" as FRONTEND
+  component "FindCareChat/tests\ntest_iphone_16_pro_walkthrough.py\ntest_iphone_hig_compliance.py" as UXTESTS
+  component "ChatHealthyWhoAmIChat/me\n5 about-content files\n(2 pdf, 1 pdf deck, 2 txt)" as ME
+  component "Shared/llm_client.py\nShared/prompt_system_maker.py" as SHAREDPY
+  component "Shared/ops\nCaddyfile, certs/ (18 files),\n6 ops scripts, tools/ (boot, probe,\nbrain hashes, log agent, caddy.exe, ...)" as OPS
+  component "skip_pipelineTest.http" as HTTPFILE
+}
+
+package "Destinations already in use" #f5fbfa {
+  component "FindCare/<Feature>/\nClinicalTrials, ProviderDetail,\nProviderManagement, SpecialtyFilter,\nParameterDeclaration" as FINDCARE
+  component "sharedServices/Code/<Feature>/\nAboutChatHealthy, displayChrome,\nProviderSelection, FacilitySearch,\nFacilitySelection, ClinicalTrialSelection" as SHAREDSVC
+  component "ChatHealthyLib\nchathealthy_lib.llm facade" as LIB
+}
+
+component "Destination not stated\nanywhere in the repository" as UNKNOWN #fff8e6
+
+BACKEND --> FINDCARE : routes join the service\nthat already lives there\n(app.py already imports\nProviderManagement, SpecialtyFilter,\nClinicalTrials, ProviderDetail)
+FRONTEND --> FINDCARE : ClinicalTrialsWidget,\nProviderSearchRefinementWidget
+FRONTEND --> SHAREDSVC : HeaderWidget, LegalPanelWidget,\nSelectedProvidersWidget
+ME --> SHAREDSVC : AboutService already reads\nthis content from there
+SHAREDPY --> LIB : BUG-003 names llm_client.py\nas a facade bypass site
+FRONTEND ..> UNKNOWN : shell files
+UXTESTS ..> UNKNOWN
+OPS ..> UNKNOWN
+HTTPFILE ..> UNKNOWN
+SHAREDPY ..> UNKNOWN : prompt_system_maker.py
+
+package "Build tooling that points into Code/ and must change" #f7f7fb {
+  component "vite.config.ts\nroot  = Code/ConversationalUX/FindCareChat/frontend\noutDir = <same>/dist" as VITE
+  component "_build_chain.py:747\ndist path for the HF build context" as BUILDCHAIN
+  component "_deploy_chain.py:3757-3760, 3768\nfrontend_dir / backend_dir / certs_dir" as DEPLOYCHAIN
+  component "hf_helpers.py:736\ndist/index resolution" as HFH
+  component "preflight_undefined_names.py:30\nscan root for the FindCare backend" as PREFLIGHT
+  component "tsconfig.json:22\ninclude path for the React sources" as TSCONFIG
+}
+
+VITE ..> FRONTEND
+BUILDCHAIN ..> FRONTEND
+DEPLOYCHAIN ..> FRONTEND
+DEPLOYCHAIN ..> BACKEND
+HFH ..> FRONTEND
+PREFLIGHT ..> BACKEND
+TSCONFIG ..> FRONTEND
+DEPLOYCHAIN ..> OPS
+
+note bottom of UNKNOWN
+  These populations are drawn without a
+  destination on purpose. Choosing one is an
+  architecture decision, and guessing it here
+  would put an unapproved answer into the plan.
+end note
+
+note right of OPS
+  Only 3 of the files under Shared/ops/tools are
+  declared in deployment_architecture.json. The
+  rest ship or run undeclared, so retiring the
+  tree cannot be driven from the manifest alone.
+end note
+
+note right of FINDCARE
+  Facility work is the exception to the pattern:
+  its tools sit under sharedServices/Code, not
+  under FindCare/, so a facility route has no
+  feature directory in FindCare/ to move into yet.
+end note
+
+@enduml

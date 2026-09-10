@@ -104,13 +104,17 @@ def tool_configuration() -> dict:
 def tool_names_on_disk() -> dict[str, str]:
     """TOOL_NAME -> the module that declares it, read by parsing.
 
-    Read from the class attribute rather than inferred from the filename,
-    because a filename is a spelling and TOOL_NAME is what the dispatcher
-    actually uses.
+    What makes a module a tool is that it subclasses the base, not that
+    its filename ends in _tool.py. Restricting the walk to that suffix
+    found seventeen of nineteen: two tools carry the base and a
+    TOOL_NAME under another filename, and a check keyed on the spelling
+    reported them as absent. A gate that names a mechanism inherits that
+    mechanism's lifetime, which this file's own docstring says and this
+    function did not do.
     """
     found: dict[str, str] = {}
     for path in tracked():
-        if not path.endswith("_tool.py") or any(s in "/" + path for s in NOT_A_DEPENDENCY):
+        if not path.endswith(".py") or any(s in "/" + path for s in NOT_A_DEPENDENCY):
             continue
         try:
             tree = ast.parse((REPO / path).read_text(encoding="utf-8"))
@@ -119,12 +123,51 @@ def tool_names_on_disk() -> dict[str, str]:
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef):
                 continue
+            bases = {b.id for b in node.bases if isinstance(b, ast.Name)}
+            bases |= {b.attr for b in node.bases if isinstance(b, ast.Attribute)}
+            if "ChatHealthyTool" not in bases:
+                continue
             for item in node.body:
                 if not isinstance(item, ast.Assign):
                     continue
                 for target in item.targets:
                     if (isinstance(target, ast.Name)
                             and target.id in ("TOOL_NAME", "CAPABILITY_TOOL")
+                            and isinstance(item.value, ast.Constant)
+                            and isinstance(item.value.value, str)):
+                        found[item.value.value] = path
+    return found
+
+
+def capabilities_declaring_the_contract() -> dict[str, str]:
+    """CAPABILITY -> the module declaring it, for subclasses of the contract.
+
+    The contract is what a capability answers to. A module that subclasses
+    it has adopted one search shape, one failure mode and one way of
+    learning where it is served; a module that has not, has not, whatever
+    its filename says.
+    """
+    found: dict[str, str] = {}
+    for path in tracked():
+        if not path.endswith(".py") or any(s in "/" + path for s in NOT_A_DEPENDENCY):
+            continue
+        try:
+            tree = ast.parse((REPO / path).read_text(encoding="utf-8"))
+        except (SyntaxError, OSError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            bases = {b.id for b in node.bases if isinstance(b, ast.Name)}
+            bases |= {b.attr for b in node.bases if isinstance(b, ast.Attribute)}
+            if "CapabilityContract" not in bases:
+                continue
+            for item in node.body:
+                if not isinstance(item, ast.Assign):
+                    continue
+                for target in item.targets:
+                    if (isinstance(target, ast.Name)
+                            and target.id == "CAPABILITY"
                             and isinstance(item.value, ast.Constant)
                             and isinstance(item.value.value, str)):
                         found[item.value.value] = path
@@ -164,21 +207,57 @@ def gate_declared_equals_dispatched() -> dict:
     declared = {t.get("tool"): t for t in config.get("tools") or [] if t.get("tool")}
     on_disk = tool_names_on_disk()
     dispatched_modules = modules_the_router_dispatches()
+    adopters = capabilities_declaring_the_contract()
 
     reachable = {
         name for name, path in on_disk.items()
         if pathlib.Path(path).stem in dispatched_modules
     }
-    declared_not_reachable = sorted(set(declared) - reachable - {"ProviderSelection"})
+
+    # BEFORE comparing the two sides, establish that they CAN be compared.
+    # The record names a tool ProviderSearch; the module's TOOL_NAME says
+    # provider_search; nothing declares the mapping. Without a join, a
+    # comparison returns every name on both sides and reads as a violation
+    # count when it is a failure to evaluate -- and a check that goes red
+    # for the wrong reason is no better than one that goes green for the
+    # wrong reason.
+    joinable = set(declared) & (set(on_disk) | reachable)
+    if not joinable and declared and on_disk:
+        return {
+            "gate": "declared equals dispatched",
+            "verdict": "CANNOT EVALUATE -- no join exists between the record "
+                       "and the code",
+            "declared_in_the_record": sorted(declared),
+            "declared_by_the_code": sorted(on_disk),
+            "names_in_common": 0,
+            "contract_exists": True,
+            "capabilities_adopting_the_contract": sorted(adopters),
+            "what_this_means": "The record and the code name the same tools "
+                               "in two conventions. The contract now exists "
+                               "and names one attribute, CAPABILITY, as the "
+                               "canonical spelling. Until the record carries "
+                               "that spelling, this gate has nothing to "
+                               "compare. Adoption is the remaining Phase 1 "
+                               "work; a violation count here would be a "
+                               "failure to evaluate wearing a number.",
+            "passing": False,
+        }
+
+    declared_not_reachable = sorted(set(declared) - reachable)
     reachable_not_declared = sorted(reachable - set(declared))
     return {
         "gate": "declared equals dispatched",
+        "verdict": "evaluated",
         "declared": len(declared),
         "tool_modules_on_disk": len(on_disk),
         "dispatched_by_the_router": len(reachable),
+        "capabilities_adopting_the_contract": len(adopters),
+        "reachable_but_not_on_the_contract": sorted(reachable - set(adopters)),
         "declared_but_not_reachable": declared_not_reachable,
         "reachable_but_not_declared": reachable_not_declared,
-        "passing": not declared_not_reachable and not reachable_not_declared,
+        "passing": (not declared_not_reachable
+                    and not reachable_not_declared
+                    and not (reachable - set(adopters))),
     }
 
 
@@ -242,8 +321,11 @@ def _report(results) -> None:
 
 
 def _write_baseline(results) -> None:
-    out = (REPO / "architecture" / "EngineeringRuleEnforcement"
-           / "ArchitectureDesignAndAuditDocs" / "refactor_baseline.json")
+    # Outside the tree git tracks: a baseline is this program's own state,
+    # not a record of the firm, and a number to beat is not an artifact
+    # anyone reviews.
+    out = REPO / "_oneshots" / "refactor_baseline.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
     sys.stdout.write(f"baseline written: {out}\n")
 

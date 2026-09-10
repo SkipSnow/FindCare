@@ -1,0 +1,130 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+skinparam componentStyle rectangle
+skinparam nodesep 8
+skinparam ranksep 14
+
+title Every streamed kind and the widget that claimed it:\nthe server names an event, never a frame
+
+package "Emitters (SharedServices)" #fdfdfd {
+  [UniversalNavigationTool] as UR
+  [UtteranceManagerTool] as UM
+  [ProviderSearchTool] as PST
+  [ProviderDetailTool] as PDT
+  [EvalCareSplashTool] as ESP
+  [AboutChatHealthyTool] as ABT
+  [Selection tools\nprovider / facility / trial] as SEL
+  [ClinicalTrialsDispatcher] as CTD
+  [LockoutTool] as LOCK
+  [CloseConnection200Tool] as CLOSE
+
+  UR -[hidden]down- UM
+  UM -[hidden]down- PST
+  PST -[hidden]down- PDT
+  PDT -[hidden]down- ESP
+  ESP -[hidden]down- ABT
+  ABT -[hidden]down- SEL
+  SEL -[hidden]down- CTD
+  CTD -[hidden]down- LOCK
+  LOCK -[hidden]down- CLOSE
+}
+
+package "ClientRouter" #fdfdfd {
+  [getStreamedPayloads\nreads the NDJSON, dispatches\nevery {kind, data} to subscribers] as ROUTER
+  [subscribe(kind, handler)\nthe only way to receive one] as SUB
+
+  ROUTER -[hidden]down- SUB
+}
+
+package "Widgets (each claims its own kinds)" #fdfdfd {
+  [ProviderResultsWidget] as WPR
+  [SpecialtyFilterWidget] as WSF
+  [ProviderDetailWidget] as WPD
+  [ProviderSearchRefinementWidget] as WPRF
+  [SelectedProvidersWidget] as WSP
+  [FacilityResultsWidget] as WFR
+  [ClinicalTrialsWidget] as WCT
+  [SelectedClinicalTrialsWidget] as WSCT
+  [SystemMessageWidget] as WSM
+  [SessionDataWidget] as WSD
+  [WelcomeWidget] as WW
+  [AboutChatHealthyWidget] as WAB
+  [EvaluateCareSplashWidget] as WES
+  [HeaderWidget] as WH
+  [NewQueryLoadingWidget] as WNQ
+
+  WPR -[hidden]down- WSF
+  WSF -[hidden]down- WPD
+  WPD -[hidden]down- WPRF
+  WPRF -[hidden]down- WSP
+  WSP -[hidden]down- WFR
+  WFR -[hidden]down- WCT
+  WCT -[hidden]down- WSCT
+  WSCT -[hidden]down- WSM
+  WSM -[hidden]down- WSD
+  WSD -[hidden]down- WW
+  WW -[hidden]down- WAB
+  WAB -[hidden]down- WES
+  WES -[hidden]down- WH
+  WH -[hidden]down- WNQ
+}
+
+UR --> ROUTER
+UM --> ROUTER
+PST --> ROUTER
+PDT --> ROUTER
+ESP --> ROUTER
+ABT --> ROUTER
+SEL --> ROUTER
+CTD --> ROUTER
+LOCK --> ROUTER
+CLOSE --> ROUTER
+
+ROUTER --> SUB
+
+SUB --> WPR : providers\nsearch_running\nspecialties\nintent_classified
+SUB --> WSF : specialties
+SUB --> WPD : provider-detail\nprovider_detail_close\nintent_classified
+SUB --> WPRF : providers\nprompt
+SUB --> WSP : providers\nselection_changed
+SUB --> WFR : facilities\nintent_classified
+SUB --> WCT : clinical_trials_chunk\nintent_classified
+SUB --> WSCT : clinical_trials_chunk\ntrial_selection_changed
+SUB --> WSM : prompt
+SUB --> WSD : session_data\nparameters_changed
+SUB --> WW : show_welcome
+SUB --> WAB : about_chathealthy
+SUB --> WES : evalcare-splash
+SUB --> WH : oauth_result
+SUB --> WNQ : intent_classified
+
+note right of ROUTER #f3f4f6
+  Nothing the server emits names a frame. An event
+  carries a kind and a payload; a widget subscribes
+  to the kind and then decides, for itself, which
+  frame it paints. That is what lets two widgets
+  answer one kind -- 'providers' repaints the list,
+  appends the refinement chips and refreshes the
+  selected strip -- without any of them being
+  addressed.
+
+  'final' is not claimed by a widget: ClientRouter
+  itself reads it and calls onFinal.
+end note
+
+note right of SUB #f3f4f6
+  Emitted but claimed by no widget today:
+  close, facility_selection_changed,
+  restore_findcare, ux_event_recorded.
+  A kind with no subscriber is dispatched
+  and lands nowhere.
+end note
+
+@enduml

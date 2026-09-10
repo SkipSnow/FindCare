@@ -1,0 +1,109 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+skinparam componentStyle rectangle
+
+title Inside SharedServices: the one entrance, the router's op map, and the tool each op reaches
+
+package "SharedServices process (app.py, port 8002)" #fdfdfd {
+
+  [POST /gate\nparse body, verify token, shape the response] as GATE
+  [POST /auth/issue\nthe one unauthenticated door] as ISSUE
+  [AuthorizationsAndAuthenticationsTool\nmanufacture_session / manage_session] as AUTHN
+
+  package "UniversalNavigationTool  (TOOL_NAME = universal_navigation)" #ffffff {
+    [handle_gate\nload session, build AgentDeps,\nfeed the NDJSON queue] as HG
+    [_OP_HANDLERS\n23 ops, one method each] as MAP
+
+    [Session and record ops\nsession_data  session_pdf\nrecord_ux_event  claim_oauth_result\nparameter_change] as OPS_SESSION
+    [Utterance op\nutterance] as OPS_UTT
+    [Control-gesture ops\nprovider-detail  provider_detail_close\napply_filter  refine_search\nprovider_page  facility_page\nrestore_findcare  evalcare-splash\nabout_chathealthy\nprovider_selection  facility_selection\nclinical_trial_selection] as OPS_GESTURE
+    [Wire ops\npeer_urls  peer_health  session\nverify_token  transfer_to_findcare] as OPS_WIRE
+    [_dispatch_target_action\nreached only from the utterance op] as DISPATCH
+  }
+
+  package "Tools (ChatHealthyTool subclasses)" #ffffff {
+    [UtteranceManagerTool\ninterpret | manufacture] as UM
+    [UserParametersTool] as UPT
+    [LockoutTool] as LOCK
+    [CloseConnection200Tool] as CLOSE
+    [ProviderSearchTool] as PST
+    [ProviderDetailTool] as PDT
+    [EvalCareSplashTool] as ESP
+    [AboutChatHealthyTool] as ABOUT
+    [ProviderSelectionTool] as PSEL
+    [FacilitySelectionTool] as FSEL
+    [ClinicalTrialSelectionTool] as CTSEL
+    [ClinicalTrialsDispatcher] as CTD
+  }
+
+  [session_pdf.render\nmodule, not a tool] as PDF
+}
+
+package "FindCare" #fdfdfd {
+  [/provider/find   /facility/find\n/specialty/find   /search\n/provider-detail   /facility/page\n/page/detail-open   /page/detail-close\n/page/what-is-needed] as FC
+}
+
+database "Users.sessions\n(front-end cluster)" as SESS
+
+ISSUE --> AUTHN : manufacture_session
+GATE --> HG : GateRequest(op, payload, session_guid, client_ip)
+HG --> SESS : read session by GUID
+HG --> AUTHN : manage_session (restamp) / manufacture_session
+HG --> MAP : run(deps, Request(op, payload))
+
+MAP --> OPS_SESSION
+MAP --> OPS_UTT
+MAP --> OPS_GESTURE
+MAP --> OPS_WIRE
+
+OPS_SESSION --> UPT : parameter_change
+OPS_SESSION --> PDF : session_pdf
+
+OPS_UTT --> LOCK : locked IP, before UM runs
+OPS_UTT --> UM : interpret the typed text
+OPS_UTT --> UPT : clear what a new question invalidates
+OPS_UTT --> DISPATCH : per IntentDocument.target_action
+
+DISPATCH --> LOCK : safetyLockout
+DISPATCH --> CLOSE : closeConnection200
+DISPATCH --> CTD : findClinicalTrials
+DISPATCH --> FC : specialtySearch, findAProvider, findAFacility
+
+OPS_GESTURE --> PDT : provider-detail, restore_findcare
+OPS_GESTURE --> PST : refine_search, provider_page, restore_findcare
+OPS_GESTURE --> UPT : apply_filter, refine_search, paging position
+OPS_GESTURE --> UM : apply_filter with no usable geography
+OPS_GESTURE --> ESP : evalcare-splash
+OPS_GESTURE --> ABOUT : about_chathealthy
+OPS_GESTURE --> PSEL : provider_selection
+OPS_GESTURE --> FSEL : facility_selection
+OPS_GESTURE --> CTSEL : clinical_trial_selection
+OPS_GESTURE --> FC : facility_page, detail open/close
+
+PDT --> FC
+PST --> FC
+CTD --> FC
+
+HG --> SESS : persist the mutated user_object
+
+note right of MAP
+  An op that names no handler is answered
+  kind "unknown_op" rather than dispatched,
+  so a new gesture cannot arrive silently.
+end note
+
+note bottom of OPS_WIRE
+  These were answered by the HTTP route itself, which
+  left the door deciding what a peer is and when a
+  token is valid. As ops they reach the client behind
+  the same session verification as everything else.
+end note
+
+@enduml

@@ -1,0 +1,64 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+title Four acts, four kinds of state, one arrow each — and no arrow anywhere else
+
+rectangle "COMMIT" as C #f6fbfa
+rectangle "PROMOTE" as P #f6fbfa
+rectangle "BUILD" as B #f6fbfa
+rectangle "DEPLOY" as D #f6fbfa
+
+database "the repository\nwhat the firm has written" as REPO
+database "the branch pointers\nwhich commit each environment is at" as PTR
+database "the build output\none directory per target per package" as OUT
+database "the running target\nwhat is actually serving" as RUN
+
+C -down-> REPO : writes
+P -down-> PTR  : advances, one step
+B -down-> OUT  : writes
+D -down-> RUN  : installs
+
+note right of C
+  Refuses: anything failing a rule; anything
+  without an authorisation given at that moment;
+  any branch but dev.
+  Does NOT touch the running target.
+end note
+
+note right of P
+  Refuses: a skipped step, a partial tree.
+  Does NOT build and does NOT deploy.
+  It moves a pointer and nothing else.
+end note
+
+note right of B
+  Reads the working tree for local, the
+  environment's branch otherwise.
+  Refuses a declared file not on disk.
+  Does NOT reach any environment.
+end note
+
+note right of D
+  Reads ONLY the build output, never source.
+  Refuses a target that does not report the
+  build it was given.
+end note
+
+note as ABSENCE #fff4e5
+  The absences are the subject.
+
+  There is no arrow from source to a running target,
+  no arrow from a commit to an environment, and no
+  fifth act. Anything that reaches a remote system by
+  another path is outside this model -- and what the
+  firm found is that such paths existed and no gate
+  objected, because every gate asks whether what SHIPS
+  is declared and none asks whether what RUNS is.
+end note

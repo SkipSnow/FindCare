@@ -1,0 +1,54 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+title One release, and which of its three gates actually hold
+
+left to right direction
+
+rectangle "operator\nintent" as OP
+rectangle "GATE 1\nhuman presence" as G1 #fdf6f6
+rectangle "approval\nrecord" as AR
+rectangle "GATE 2\nthe record itself" as G2 #fdf6f6
+rectangle "migration\nservice" as MS
+rectangle "GATE 3\nappend-only role" as G3 #f2f9f5
+rectangle "serve\nstore" as SS
+
+OP -right-> G1
+G1 -right-> AR
+AR -right-> G2
+G2 -right-> MS
+MS -right-> G3
+G3 -right-> SS
+
+note bottom of G1
+  BROKEN. The proof of a human is a value the
+  requesting process supplies. Whoever asks can
+  say a person was present.
+end note
+
+note bottom of G2
+  BROKEN. The releasing identity holds INSERT on
+  the collection that carries its own release
+  authorisation. It can write its own permission.
+end note
+
+note bottom of G3
+  HOLDS. No update, no delete, no drop. The
+  server refuses, whatever the code asks.
+end note
+
+note as FOOT #fff4e5
+  Two of three gates are CHECKS: they ask the actor
+  a question and believe the answer.
+  One is an INCAPACITY: the actor cannot do the thing,
+  so there is nothing to ask.
+
+  Adopt the incapacity first.
+end note
+@enduml

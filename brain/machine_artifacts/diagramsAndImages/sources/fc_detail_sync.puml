@@ -1,0 +1,144 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+skinparam ParticipantBorderColor #0b7a75
+skinparam SequenceLifeLineBorderColor #9ca3af
+
+title Opening one record: a click with no model in it, a live registry answer, and a write-back that cannot take away what only we know
+
+actor "Person" as User
+participant "Router\nop = provider-detail" as UR
+participant "ProviderDetail tool" as Tool
+participant "Detail route\n/provider-detail" as Route
+participant "ProviderDetailService" as Svc
+participant "NPPES\nlive query by NPI" as NPPES
+database "Provider\ncollection" as DB
+database "Session\npages.<page>.openNpi" as Session
+
+User -> UR : click the record's link
+note right of UR
+  A click, not an utterance. No classifier and no model
+  run on this path: the card already names the record, and
+  everything shown is read from the record that NPI names.
+end note
+
+UR -> Session : this page is showing this record
+note right of Session
+  Recorded on the page the record belongs to — facility
+  when entity_type is "2", care giver otherwise. Writing
+  every open record to the care-giver page meant nothing
+  could take a facility down when the person moved on.
+
+  openNpi is written here and is not one of the parameters
+  the record declares. openNctId, its trial equivalent, is.
+end note
+
+UR -> Tool : Request(npi, entity_type, card fields)
+Tool -> Route : POST /provider-detail
+activate Route
+Route -> Svc : lookup(npi, entity_type)
+activate Svc
+
+alt the facility page opened it
+  Svc -> NPPES : query by NPI
+  NPPES --> Svc : entity type
+  note right of Svc
+    Checked against the live answer, not the stored record,
+    because the stored record is the thing that would be
+    wrong. Not an organization means the person is told no
+    facility was found.
+  end note
+end
+
+Svc -> NPPES : query by NPI
+activate NPPES
+NPPES --> Svc : live record, or nothing
+deactivate NPPES
+
+alt the registry did not answer
+  Svc -> DB : read the stored record
+  DB --> Svc : record as we hold it
+  note right of Svc
+    Shown as we hold it, with no comparison. Not answering
+    leaves us no reason to doubt the record; answering with
+    something different is what gives us one.
+  end note
+else the registry answered
+  Svc -> DB : read the stored record
+  DB --> Svc : record
+  Svc -> Svc : project both onto the fields\nthe registry owns, and compare\nname, addresses, taxonomies,\nother identifiers, status, enumeration date
+  note right of Svc
+    Projected onto what the registry owns rather than
+    stripped of the fields somebody remembered to name.
+    Naming the exclusions meant our address — carrying a
+    county and spelled-out labels the registry has never
+    heard of — could never equal the live one, so every
+    record diverged the first time it was opened.
+  end note
+
+  alt something diverged
+    Svc -> Svc : merge: start from OUR record,\napply only the registry's fields
+    note right of Svc
+      Our address is carried forward whole and the registry's
+      eight fields are applied onto it. Building the new
+      address from the live one and copying back a named
+      field is what silently dropped everything else, and it
+      would drop the next enrichment added the same way.
+
+      Only the primary practice address and the mailing
+      address are touched. The live answer does not describe
+      secondary practice locations, so emitting only what it
+      named deleted the rest for every provider holding more
+      than one.
+
+      Taxonomy flags are preserved when the taxonomies
+      change: the catalogue may be unreachable, and a
+      recompute that cannot run must not blank them.
+
+      An address we have never seen has nothing to carry
+      forward, so that one is geocoded for its county.
+    end note
+
+    Svc -> Svc : compare the merged record to the stored one,\nprovenance left out of the comparison
+
+    alt the merge changed something real
+      Svc -> DB : replace the record
+      Svc -> DB : read it back
+      DB --> Svc : the record as now stored
+    else the merge changed nothing
+      note right of Svc
+        Not written. Provenance is stamped unconditionally,
+        so comparing the whole document would differ every
+        time and say nothing about whether anything changed.
+        Without this, a record whose county the geocoder
+        cannot answer is rewritten every time it is looked at.
+      end note
+    end
+  end
+end
+
+Svc --> Route : the panel's projection
+deactivate Svc
+
+alt the embedding text changed
+  Route -> Route : schedule the re-embed to run\nafter the response has gone
+  note right of Route
+    Scheduled rather than awaited: the person is waiting for
+    a panel, and the vector matters to the next search
+    rather than to this one.
+  end note
+end
+
+Route --> Tool : detail
+deactivate Route
+Tool --> UR : detail
+UR --> User : the record as the registry reports it now
+
+@enduml

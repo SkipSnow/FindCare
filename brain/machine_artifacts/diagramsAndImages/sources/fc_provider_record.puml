@@ -1,0 +1,165 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+skinparam ClassBorderColor #0b7a75
+skinparam ClassBackgroundColor #ffffff
+
+title The provider and facility record as stored, and the two projections taken from it: the five things a row carries and everything the detail carries
+
+class "Provider (stored)" as Stored #ffffff {
+  .. registry facts ..
+  npi
+  entity_type_code
+  provider_first_name / middle / last_name_legal_name
+  provider_name_prefix_text / suffix / credential_text
+  provider_organization_name_legal_business_name
+  provider_other_organization_name (+ type code)
+  is_organization_subpart, parent_organization_lbn
+  provider_enumeration_date
+  practice_addresses[], business_address
+  taxonomies[] { code, primary }
+  other_identifiers[]
+  authorized_official_* (organizations only)
+  .. normalised from registry ..
+  licenses[] { state, number }
+  insurance[] { insurance_type, payer_name, state, payer_id }
+  active[] { is_active, ... } appended on change
+  .. ours, not the registry's ..
+  <b>address.county</b> { name, fips, rucc, <b>urban</b>, source }
+  <b>address.lat / lng</b>
+  <b>address.state_label / country_code_label</b>
+  <b>can_prescribe / is_homeopathic / is_disqualified</b>
+  <b>facility_type_descriptions[]</b> { classification, specialization, definition }
+  <b>primary_taxonomy_code</b>
+  <b>bad_data / out_of_scope</b>
+  <b>embedding / embedding_model / embedding_version</b>
+  <b>load_id / loaded_at / chunk_id / row_index_in_chunk</b>
+  <b>provenance</b> { origin, last_touched_at, real_time_sync_count }
+}
+
+note right of Stored
+  The bold fields are the pipeline's and the geocoder's.
+  NPPES has never heard of any of them, which is why the
+  detail sync compares only the fields the registry owns
+  and starts a write-back from our address rather than
+  from the live one.
+end note
+
+class "Result row — care giver" as Row #f3f4f6 {
+  name
+  npi
+  taxonomy_code
+  matched_specialty_code / matched_specialty_label
+  taxonomy_codes[]
+  address (one line, the matched practice address)
+  phone
+  <b>county</b> (the name only, no urban standing)
+  <b>lat / lng</b>
+}
+
+class "Result row — facility" as FRow #f3f4f6 {
+  facility (legal business name)
+  practice_address_count
+  primary_practice_address
+  facility_type (primary taxonomy, resolved server-side)
+  npi
+}
+
+note bottom of FRow
+  Fixed at five things by requirement, and the projection
+  is where that is enforced rather than the renderer: a
+  renderer sent a sixth field is one edit from painting it.
+end note
+
+class "ProviderDetailOutput" as Detail #ffffff {
+  provider_name, npi
+  entity_type ("1" care giver, "2" facility)
+  unresolved_licensing_state
+}
+
+class Identity {
+  name_prefix, first, middle, last
+  credentials
+  primary_taxonomy_display
+  status_active
+  enumeration_date
+}
+class OrganizationIdentity {
+  legal_business_name
+  other_organization_name (+ kind, as a label)
+  enumeration_date, status_active
+  is_subpart, parent_organization_name
+}
+class Address {
+  address_type, line1, line2
+  city, state, zip, country, phone
+}
+class County {
+  <b>name</b>
+  <b>urban</b> (absent when unknown)
+}
+class License {
+  state, number
+}
+class Insurance {
+  coverage_kind, issuer, state, identifier
+}
+class Taxonomy {
+  code, display_name, primary
+}
+class AuthorizedOfficial {
+  last, first, middle
+  title_or_position, credential
+}
+class FacilityKind {
+  code, classification
+  specialization, definition
+}
+class ResearchSite {
+  url, name, guidance
+}
+
+Stored ..> Row : projected for a care-giver list
+Stored ..> FRow : projected for a facility list
+Stored ..> Detail : projected for one open record
+
+Detail *-- Identity
+Detail *-- OrganizationIdentity
+Detail *-- Address
+Address *-- County
+Detail *-- License
+Detail *-- Insurance
+Detail *-- Taxonomy
+Detail *-- AuthorizedOfficial
+Detail *-- FacilityKind
+Detail *-- ResearchSite
+
+note right of Detail
+  A row carries what a list can be read from; everything
+  else waits for the detail. The three organization blocks
+  are present on a facility and absent on a care giver, so
+  the renderer selects on entity_type rather than on the
+  shape of the data.
+
+  Two things the record holds are deliberately absent here:
+  the employer identification number and the parent
+  organization's taxpayer identification number. The
+  projection not naming them is the enforcement.
+end note
+
+note bottom of County
+  Urban standing is the pipeline's RUCC pass, not a
+  registry fact. It is absent rather than defaulted on an
+  address the pipeline has not yet reached — a brand-new
+  address written back from a live registry answer has a
+  county name from the geocoder and no urban standing.
+end note
+
+@enduml

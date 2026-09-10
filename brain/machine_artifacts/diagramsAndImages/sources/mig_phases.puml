@@ -1,0 +1,79 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+title The six migration phases and what each one needs before it can start
+
+start
+
+:**Phase 0 — the conformance gate**
+Measure the twelve cells: three capabilities
+by search, vocabulary, detail, selection.
+For each cell report whether a tool class exists,
+whether anything dispatches it, and where its
+routes live. Today that reads 6 live, 2 declared
+and dead, 1 borrowed, 3 absent;
+note right
+  Built first because it is the only thing that
+  can say a later phase finished. Without a number
+  that moves, "the routes were moved" is a claim
+  nobody can check afterwards.
+end note
+
+fork
+  :**Phase 1 — the tool contract in the library**
+  One shape every capability tool satisfies, so
+  search, vocabulary, detail and selection mean
+  the same thing in all three capabilities.
+  ChatHealthyTool and the unsubclassed
+  CapabilitySearchTool are what exists to build on;
+fork again
+  :**Phase 2 — split app.py by capability**
+  The 14 routes in
+  Code/ConversationalUX/FindCareChat/backend/app.py
+  leave for the FindCare/ feature directory that
+  already holds their service;
+end fork
+
+:**Phase 3 — the router dispatches tools**
+The three inline branches — specialtySearch,
+findAFacility, findAProvider — stop building
+httpx calls and stream events and call a tool
+by name. FacilitySearchTool already holds the
+work findAFacility duplicates;
+note right
+  Needs Phase 1 for the contract to dispatch
+  against, and Phase 2 so the route the tool
+  reaches is at its final address.
+end note
+
+:**Phase 4 — fill the missing tools**
+facility vocabulary, trial vocabulary and
+trial detail do not exist. Facility detail is
+served by ProviderDetailTool with entity_type=2
+and gets its own tool or a stated decision
+that sharing one is correct;
+
+:**Phase 5 — retire the rest of Code/**
+Frontend shell, the iPhone tests, the
+about-content files, Code/Shared and
+Code/Shared/ops. Then the six build-tooling
+paths change and the tree is deleted;
+
+stop
+
+floating note left
+  Phase 0 is not a step in this sequence so much as
+  the instrument the sequence is read with. Every
+  phase below it ends by the gate reporting a
+  different number, and a phase that moves no number
+  did not do what it said.
+end note
+
+@enduml

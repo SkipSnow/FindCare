@@ -2,7 +2,7 @@
 # Licensed under the FindCare Evaluation License (FEL-1.0).
 """Human-driven update of version and/or framework in frontEndAdmin.BuildVersions.
 
-Per BUG-001: build is global, in frontEndAdmin.BuildVersions, and is bumped at build time
+The build number is global, in frontEndAdmin.BuildVersions, and is bumped at build time
 (see DeploymentArchitectureDesignAndMigrationPlanPhase_v14.docx section 2.1 build_chathealthy.py).
 version and framework are set ONLY by humans, only at
 prod UAT sign-off. Claude invokes this routine when the operator authorizes

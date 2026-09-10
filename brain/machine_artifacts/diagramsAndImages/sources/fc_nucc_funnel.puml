@@ -1,0 +1,87 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam ArrowColor #0b7a75
+skinparam ComponentBorderColor #0b7a75
+skinparam DatabaseBorderColor #6b7280
+skinparam NoteBackgroundColor #f3f4f6
+skinparam NoteBorderColor #9ca3af
+
+skinparam ActivityBorderColor #0b7a75
+skinparam ActivityDiamondBorderColor #9ca3af
+
+title Resolving what somebody said into taxonomy codes: one funnel, two catalogue partitions, and the model held to what the catalogue returned
+
+start
+
+:the request, plus the last five turns;
+
+if (which partition of the catalogue?) then (a care giver)
+  :Section = Individual;
+  :prompts: specialty_normalize_system_prompt\nspecialty_filter_system_prompt;
+else (a facility)
+  :Section = Non-Individual;
+  :prompts: facility_normalize_system_prompt\nfacility_filter_system_prompt;
+endif
+
+note right
+  The two resolutions differ in exactly two things: the
+  partition the query searches and the prompt text the two
+  model stages read. The stage sequence, the score floor,
+  the intersection and the single catch point are shared,
+  so the two cannot drift apart.
+end note
+
+:normalise — one model call, two answers:\nsearch_term (what to look for)\ncomplaint (what is wrong);
+note right
+  Emitting one string for both put a specialty name where
+  the person's problem belongs: "orthodontist" is who you
+  see, not what you have. An empty search_term is refused
+  and re-asked rather than accepted.
+end note
+
+:embed the search_term\nwith the canonical model;
+
+:$vectorSearch SpecialtyMetaData\nfilter { Section: <partition> };
+
+:drop Deactivated and inactive rows\nkeep cosine >= 0.55;
+
+if (any candidates?) then (none)
+  :no matching specialty;
+  stop
+endif
+
+:second-stage model narrows the candidates\ncode, score, display name, grouping, definition;
+note right
+  The candidate line carries grouping and definition
+  because NUCC gives two codes the same display name in
+  six cases, and a model shown the same words twice has
+  nothing to choose on.
+end note
+
+:intersect the answer with the codes\nthe catalogue actually returned;
+note right
+  This is what makes a semantic step safe to have at all:
+  the model chooses among registry facts and cannot invent
+  one. A code it returns that was not a candidate is dropped.
+end note
+
+if (anything kept?) then (none)
+  :no matching specialty;
+  stop
+endif
+
+:re-rank by cosine, rank 1..n\nemit code, display name,\ncan_prescribe, homeopathic;
+
+stop
+
+floating note
+  Every stage fails loudly and is caught once, in
+  find_specialties, which answers with the real upstream
+  cause rather than a substitute value. There is no
+  degraded path: an unresolved complaint is not a search
+  across every specialty.
+end note
+
+@enduml
