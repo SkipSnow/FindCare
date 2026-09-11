@@ -7161,51 +7161,6 @@
                   "env": "dev"
                 }
               ]
-            },
-            {
-              "address": "ChatHealthyConfig.CertificateRegistry",
-              "identity_key": [
-                "env",
-                "subject_dn"
-              ],
-              "records": [
-                {
-                  "env": "dev",
-                  "identity": "frontendUser",
-                  "purpose": "database_client",
-                  "public_cert_vault_key": "cert-frontendUser",
-                  "private_key_vault_key": "key-frontendUser",
-                  "status": "active",
-                  "subject_dn": "CN=frontendUser,O=ChatHealthy,ST=California,C=US"
-                },
-                {
-                  "env": "dev",
-                  "identity": "pipelineEditor",
-                  "purpose": "database_client",
-                  "public_cert_vault_key": "cert-pipelineEditor",
-                  "private_key_vault_key": "key-pipelineEditor",
-                  "status": "active",
-                  "subject_dn": "CN=pipelineEditor,O=ChatHealthy,ST=California,C=US"
-                },
-                {
-                  "env": "dev",
-                  "identity": "DevOpsUser",
-                  "purpose": "database_client",
-                  "public_cert_vault_key": "cert-DevOpsUser",
-                  "private_key_vault_key": "key-DevOpsUser",
-                  "status": "active",
-                  "subject_dn": "CN=DevOpsUser,O=ChatHealthy,ST=California,C=US"
-                },
-                {
-                  "env": "dev",
-                  "identity": "SharedServices",
-                  "purpose": "token_signing",
-                  "subject_dn": "CN=SharedServices,O=ChatHealthy,C=US",
-                  "public_cert_vault_key": "session-signing-cert",
-                  "private_key_vault_key": "session-signing-key",
-                  "status": "active"
-                }
-              ]
             }
           ]
         },
@@ -7779,51 +7734,6 @@
                     }
                   ],
                   "env": "qa"
-                }
-              ]
-            },
-            {
-              "address": "ChatHealthyConfig.CertificateRegistry",
-              "identity_key": [
-                "env",
-                "subject_dn"
-              ],
-              "records": [
-                {
-                  "env": "qa",
-                  "identity": "frontendUser",
-                  "purpose": "database_client",
-                  "public_cert_vault_key": "cert-frontendUser",
-                  "private_key_vault_key": "key-frontendUser",
-                  "status": "active",
-                  "subject_dn": "CN=frontendUser,O=ChatHealthy,ST=California,C=US"
-                },
-                {
-                  "env": "qa",
-                  "identity": "pipelineEditor",
-                  "purpose": "database_client",
-                  "public_cert_vault_key": "cert-pipelineEditor",
-                  "private_key_vault_key": "key-pipelineEditor",
-                  "status": "active",
-                  "subject_dn": "CN=pipelineEditor,O=ChatHealthy,ST=California,C=US"
-                },
-                {
-                  "env": "qa",
-                  "identity": "DevOpsUser",
-                  "purpose": "database_client",
-                  "public_cert_vault_key": "cert-DevOpsUser",
-                  "private_key_vault_key": "key-DevOpsUser",
-                  "status": "active",
-                  "subject_dn": "CN=DevOpsUser,O=ChatHealthy,ST=California,C=US"
-                },
-                {
-                  "env": "qa",
-                  "identity": "SharedServices",
-                  "purpose": "token_signing",
-                  "subject_dn": "CN=SharedServices,O=ChatHealthy,C=US",
-                  "public_cert_vault_key": "session-signing-cert",
-                  "private_key_vault_key": "session-signing-key",
-                  "status": "active"
                 }
               ]
             }
@@ -8401,51 +8311,6 @@
                   "env": "prod"
                 }
               ]
-            },
-            {
-              "address": "ChatHealthyConfig.CertificateRegistry",
-              "identity_key": [
-                "env",
-                "subject_dn"
-              ],
-              "records": [
-                {
-                  "env": "prod",
-                  "identity": "frontendUser",
-                  "purpose": "database_client",
-                  "public_cert_vault_key": "cert-frontendUser",
-                  "private_key_vault_key": "key-frontendUser",
-                  "status": "active",
-                  "subject_dn": "CN=frontendUser,O=ChatHealthy,ST=California,C=US"
-                },
-                {
-                  "env": "prod",
-                  "identity": "pipelineEditor",
-                  "purpose": "database_client",
-                  "public_cert_vault_key": "cert-pipelineEditor",
-                  "private_key_vault_key": "key-pipelineEditor",
-                  "status": "active",
-                  "subject_dn": "CN=pipelineEditor,O=ChatHealthy,ST=California,C=US"
-                },
-                {
-                  "env": "prod",
-                  "identity": "DevOpsUser",
-                  "purpose": "database_client",
-                  "public_cert_vault_key": "cert-DevOpsUser",
-                  "private_key_vault_key": "key-DevOpsUser",
-                  "status": "active",
-                  "subject_dn": "CN=DevOpsUser,O=ChatHealthy,ST=California,C=US"
-                },
-                {
-                  "env": "prod",
-                  "identity": "SharedServices",
-                  "purpose": "token_signing",
-                  "subject_dn": "CN=SharedServices,O=ChatHealthy,C=US",
-                  "public_cert_vault_key": "session-signing-cert",
-                  "private_key_vault_key": "session-signing-key",
-                  "status": "active"
-                }
-              ]
             }
           ]
         }
@@ -8734,23 +8599,68 @@
       "IDENTITY_HEADER"
     ],
     "host_os_process": [
+      "ACA_ENVIRONMENT",
+      "ACA_JOB_DEPLOY",
+      "ACA_PIPELINE_IMAGE",
+      "ACA_RESOURCE_GROUP",
+      "ATLAS_GROUP_ID",
+      "ATLAS_PIPELINE_PRIVATE_KEY",
+      "ATLAS_PIPELINE_PUBLIC_KEY",
+      "ATLAS_PROJECT_ID",
       "AZURE_CLIENT_ID",
       "AZURE_TENANT_ID",
       "CERTS_DIR",
+      "CHATHEALTHY_COMMIT_MSG_FILE",
+      "CHATHEALTHY_COMMIT_MSG_PATH",
+      "CHATHEALTHY_HOOK_CWD",
+      "CHATHEALTHY_OPERATOR",
       "CHATHEALTHY_PROJECT_ROOT",
+      "CH_DRAIN_DEBUG_PORT",
+      "CH_LOG_ALARM_DISABLED",
+      "CH_LOG_DESTINATION",
+      "CLAUDE_PROJECT_DIR",
+      "CLOUDFLARE_PIPELINE_AUTH_HEADER",
+      "CONTAINER_APP_JOB_EXECUTION_NAME",
+      "DATA_VERSION",
       "EVALCARE_URL",
+      "GEMINI_API_KEY",
       "GITHUB_ACTIONS",
       "GITHUB_SHA",
+      "GOOGLE_API_KEY",
       "IDENTITY_ENDPOINT",
       "IDENTITY_HEADER",
+      "KEY_VAULT_URI",
+      "MONGO_HOST",
       "MSI_ENDPOINT",
       "MSI_SECRET",
+      "NOTIFICATION_FROM_EMAIL",
+      "NOTIFICATION_TO_EMAIL",
+      "OPENAI_API_KEY",
+      "PIPELINE_DATA_VERSION",
+      "PIPELINE_LOCAL_MODE",
+      "PIPELINE_NAME",
+      "PIPELINE_STORAGE_CONNECTION_STRING",
+      "PIPELINE_TEST_DISCREPANCIES_COLL",
+      "PIPELINE_TEST_MODE",
+      "PIPELINE_TEST_RUNS_COLL",
+      "PIPELINE_TEST_SNAPSHOT_ID",
+      "PIPELINE_TEST_WORK_ITEMS_COLL",
+      "PROVIDER_TEST_COLLECTION",
       "SHARED_SERVICES_URL",
       "SMOKE_TEST_ENV",
       "SMOKE_TEST_URL",
       "SPACE_ID",
+      "SPARKMAIL_API_KEY",
       "SSL_CERTFILE",
       "SSL_KEYFILE",
+      "TEMP",
+      "TWILIO_ACCOUNT_SID",
+      "TWILIO_API_KEY_SECRET",
+      "TWILIO_API_KEY_SID",
+      "TWILIO_AUTH_TOKEN",
+      "TWILIO_ENABLED",
+      "TWILIO_FROM_NUMBER",
+      "USERNAME",
       "WEBSITE_SITE_NAME"
     ],
     "azure_function_app": [
