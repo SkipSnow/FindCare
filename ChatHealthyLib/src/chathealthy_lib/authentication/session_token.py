@@ -52,25 +52,15 @@ class SessionTokenVerification(BaseModel):
     nonce: str = ""
 
 
+# The identity a front-end process reads the registry and the vault as.
+# All three services authenticate as this today; when each node has its
+# own identity it comes from the process's own binding rather than here.
+DEFAULT_READER = os.environ.get("CH_REGISTRY_READER", "frontendUser")
 
-CERTS_DIR = os.environ.get("CERTS_DIR", "/certs")
-
-
-SERVICE_TO_CERT_NAME = {
-    "FindCare":       "findcare",
-    "EvaluateCare":   "evalcare",
-    "SharedServices": "shared",
-}
-
-
-def cert_basename(origin: str) -> str:
-    if origin not in SERVICE_TO_CERT_NAME:
-        raise ChatHealthyException(
-            mode="value_error",
-            component="session_token",
-            message=f"Invalid token origin {origin!r}; "
-            f"must be one of {sorted(SERVICE_TO_CERT_NAME)}.")
-    return SERVICE_TO_CERT_NAME[origin]
+# Every session token is minted by SharedServices, so the signer a peer
+# expects is a constant the peer holds -- never a value read off the token
+# being checked.
+TOKEN_SIGNER = "SharedServices"
 
 
 class SessionToken(BaseModel):
@@ -110,6 +100,13 @@ class SessionToken(BaseModel):
         return self.get_auth_token()
 
     def put_nonce(self, origin: str) -> None:
+        """Restamp the nonce for this hop, and sign as the server doing it.
+
+        The requesting server signs. Every verifier holds the public half of
+        whichever server may request of it, selected by origin -- so the
+        number of keypairs is the number of servers that request, which is
+        one while the Gate routes everything.
+        """
         if len(self.token) < TOKEN_SIZE or not self.token.startswith(TOKEN_PREFIX):
             raise ChatHealthyException(
             mode="value_error",
@@ -117,29 +114,30 @@ class SessionToken(BaseModel):
             message=f"malformed token; cannot restamp: {self.token!r}")
         guid = self.get_auth_token()
         new_nonce_field = Nonce.restamp(self.get_nonce())
-        original_stamp = Nonce.original_stamp(new_nonce_field)
 
-        certs_dir = os.environ.get("CERTS_DIR", CERTS_DIR)
-        key_path = os.path.join(certs_dir, f"{cert_basename(origin)}.key")
-        if not os.path.exists(key_path):
-            raise ChatHealthyException(
-                mode="file_missing",
-                component="session_token",
-                message=f"signing key not found: {key_path}")
-        with open(key_path, "rb") as f:
-            private_key = serialization.load_pem_private_key(f.read(), password=None)
-
-        payload = f"{origin}:{original_stamp}:{guid}".encode()
-        sig_bytes = private_key.sign(payload, padding.PKCS1v15(), hashes.SHA256())
-
-        now = datetime.now(timezone.utc)
         self.origin = origin
         self.token = f"{TOKEN_PREFIX}{new_nonce_field}{guid}"
-        self.signature = base64.b64encode(sig_bytes).decode()
-        self.created_at = now.isoformat()
-        self.signed = True
+        self.created_at = datetime.now(timezone.utc).isoformat()
+        self.sign(reader=DEFAULT_READER)
 
-    def verify(self, expected_origin: str) -> bool:
+    def sign(self, reader: str = DEFAULT_READER) -> None:
+        """Sign as this token's origin, with that server's own key."""
+        from .signing_credential import signing_key  # noqa: PLC0415
+
+        guid = self.get_auth_token()
+        original_stamp = Nonce.original_stamp(self.get_nonce())
+        pem = signing_key(self.origin, reader)
+        private_key = serialization.load_pem_private_key(
+            pem.encode(), password=None)
+        payload = f"{self.origin}:{original_stamp}:{guid}".encode()
+        sig_bytes = private_key.sign(payload, padding.PKCS1v15(), hashes.SHA256())
+        self.signature = base64.b64encode(sig_bytes).decode()
+        self.signed = True
+        log.info("signature written: origin=%s guid=%s sig=%s",
+                 self.origin, guid[:8], self.signature[:16])
+
+    def verify(self, expected_origin: str,
+               reader: str = DEFAULT_READER) -> bool:
         if not self.signed:
             raise ChatHealthyException(
             mode="value_error",
@@ -170,22 +168,21 @@ class SessionToken(BaseModel):
         original_stamp = Nonce.original_stamp(nonce_field)
         guid = self.get_auth_token()
 
-        certs_dir = os.environ.get("CERTS_DIR", CERTS_DIR)
-        cert_path = os.path.join(certs_dir, f"{cert_basename(self.origin)}.crt")
-        if not os.path.exists(cert_path):
-            raise ChatHealthyException(
-                mode="token_infrastructure",
-                component="session_token",
-                message=f"cert file missing at {cert_path} (CERTS_DIR={certs_dir})")
+        from .signing_credential import verifying_cert  # noqa: PLC0415
+
+        log.info("signature read: origin=%s guid=%s sig=%s",
+                 self.origin, guid[:8], self.signature[:16])
         try:
-            with open(cert_path, "rb") as f:
-                cert_pem = f.read()
-            cert = load_pem_x509_certificate(cert_pem)
+            cert = load_pem_x509_certificate(
+                verifying_cert(self.origin, reader).encode())
+        except ChatHealthyException:
+            raise
         except Exception as exc:
             raise ChatHealthyException(
                 mode="token_infrastructure",
                 component="session_token",
-                message=f"failed to load cert at {cert_path}: {type(exc).__name__}: {exc}",
+                message=(f"the registered certificate for {self.origin!r} did "
+                         f"not load: {type(exc).__name__}: {exc}"),
             exception=exc)
 
         public_key = cert.public_key()

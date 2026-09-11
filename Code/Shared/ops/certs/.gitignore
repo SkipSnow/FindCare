@@ -1,8 +1,0 @@
-# Private keys — NEVER commit
-*.key
-# Certificate signing requests — intermediate, not needed in git
-*.csr
-# Encrypted secrets store — contains all API keys
-*.enc
-# Serial files from CA cert generation
-*.srl

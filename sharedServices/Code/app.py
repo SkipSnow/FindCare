@@ -44,66 +44,12 @@ log = ChatHealthyLoggingService()
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-def _decode_cert_pem(env_var: str, b64: str, component: str) -> bytes:
-    """Decode one PEM from base64. Raises, never logs.
-
-    Extracted so bootstrap_certs_from_env can keep its operational logging
-    without also being a raising function -- Rule-005 statement 3: the
-    thrower does not log, the catcher does.
-    """
-    try:
-        return base64.b64decode(b64.strip())
-    except Exception as e:
-        raise ChatHealthyException(
-            mode="startup_invalid_base64",
-            message=f"STARTUP: {env_var} not valid base64: {e}",
-            component=component,
-            exception=e,
-        )
-
-
-def bootstrap_certs_from_env():
-    runtime_dir = os.path.join(tempfile.gettempdir(), "ch_certs")
-    mapping = {
-        "FINDCARE_CERT_PEM":      "findcare.crt",
-        "SHARED_CERT_PEM":        "shared.crt",
-        "SHARED_SIGNING_KEY_PEM": "shared.key",
-        "CA_CERT_PEM":            "ca.crt",
-    }
-    wrote = []
-    for env_var, filename in mapping.items():
-        b64 = os.environ.get(env_var)
-        if not b64:
-            continue
-        pem = _decode_cert_pem(env_var, b64, "SharedServices")
-        os.makedirs(runtime_dir, exist_ok=True)
-        path = os.path.join(runtime_dir, filename)
-        with open(path, "wb") as f:
-            f.write(pem)
-        try:
-            os.chmod(path, 0o600)
-        except Exception as _exc:
-            # Mode 1 (REQ-B-008): best-effort startup chmod; system continues.
-            # log.info + default debug-gated.
-            log.info("STARTUP: chmod 0600 on %s failed (continuing): %s", path, _exc, exc=ChatHealthyException(
-                                                                                          mode="startup_chmod_failed",
-                                                                                          message=f"STARTUP: chmod 0600 on {path} failed (continuing): {_exc}",
-                                                                                          component="SharedServices",
-                                                                                          exception=_exc,
-                                                                                      ), if_not_debug_log=True)
-        wrote.append(filename)
-    if wrote:
-        os.environ["CERTS_DIR"] = runtime_dir
-        log.info("startup bootstrap: wrote %s to %s", ",".join(wrote), runtime_dir)
-
-
 
 # This service acts as frontendUser, including when it writes its own
 # logs. The Mongo log handler refuses to build without an identity, and
 # nothing else in this process sets one.
 from chathealthy_lib.logging_service import set_mongo_log_identity
 set_mongo_log_identity("frontendUser")
-bootstrap_certs_from_env()
 
 app = FastAPI(title="ChatHealthy.ai Shared Services", version="0.1.5")
 
@@ -119,7 +65,6 @@ from chathealthy_lib.runtime_data_collections import (  # noqa: E402
 )
 
 app.include_router(data_collections_router)
-
 
 
 @app.exception_handler(ChatHealthyException)
@@ -150,7 +95,6 @@ async def _chathealthy_exception_to_response(request, exc: ChatHealthyException)
                         content={"detail": exc.message, "mode": exc.mode})
 
 import datetime as dt
-
 
 
 @app.exception_handler(Exception)

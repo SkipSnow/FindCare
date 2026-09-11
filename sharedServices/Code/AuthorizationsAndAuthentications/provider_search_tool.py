@@ -173,9 +173,9 @@ class ProviderSearchTool(ChatHealthyTool):
             return resp
 
         body: dict[str, Any] = {
-            # The token this hop already holds, forwarded so FindCare can
-            # verify the SharedServices signature on it. Nothing upstream
-            # changes shape: the token is deps, not a new request field.
+            # The token this hop already holds, signed by whichever server
+            # stamped it. Nothing upstream changes shape -- the token is
+            # deps, not a request field.
             "session_token": deps.session_token.model_dump(mode="json"),
             "entity_type": PAGE_ENTITY_TYPE,
             "nucc_codes": request.specialty_codes,

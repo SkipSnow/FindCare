@@ -40,10 +40,10 @@ from .logging_service import set_mongo_log_collection, set_mongo_log_identity
 # this module is imported by every service that resolves a data collection,
 # which makes it the front-end equivalent of pipeline_db.
 set_mongo_log_identity("frontendUser")
-# The whole front-end application is one log stream. The collection was a
-# constant in the logging service, which made the front end and the pipeline
-# the same stream; each caller now declares its own beside its identity.
-set_mongo_log_collection("CGFrontEndLogs")
+# The front end's log stream. The environment is appended by the handler,
+# which already refuses to build without ENV_PREFIX, so the name here
+# cannot disagree with the environment the process is running as.
+set_mongo_log_collection("ChatHealthyLogs")
 
 
 # The one spelling of a versioned collection. Shared with mongo_utilities,

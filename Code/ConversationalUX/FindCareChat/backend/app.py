@@ -45,7 +45,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 # ARCH-001 — domain services
 from externalInterface.tool_router import ToolRouter
-from application.facades.evaluate_care_facade import EvaluateCareFacade
+from application.facades.find_care_facade import FindCareFacade
 from ProviderManagement.provider_search_service import FindCareService
 from SpecialtyFilter.filter import (
     SpecialtyFilter, SECTION_INDIVIDUAL, SECTION_ORGANIZATION,
@@ -245,8 +245,8 @@ find_care = FindCareService(
 
 clinical_trials_service = ClinicalTrialsService()
 provider_detail_service = ProviderDetailService()
-evaluate_care_facade = EvaluateCareFacade(
-    clinical_trials=clinical_trials_service, provider_detail=provider_detail_service, find_care_facade=find_care)
+find_care_facade = FindCareFacade(
+    clinical_trials=clinical_trials_service, provider_detail=provider_detail_service)
 
 safety_service = SafetyService(get_db_fn=get_db, env_prefix=ENV_PREFIX, emergency_keywords=EMERGENCY_KEYWORDS)
 about_service = AboutService(me_context=ME, trim_fn=PromptSystemMaker.trim)
@@ -258,8 +258,8 @@ tool_router = ToolRouter()
 tool_router.register_with_models([
     ("find_providers",          find_care.search_providers,            ProviderSearchInput),
     ("find_specialty_codes",    find_care.identify_specialty,          SpecialtyInput),
-    ("search_clinical_trials",  evaluate_care_facade.search_clinical_trials,  ClinicalTrialsInput),
-    ("lookup_provider_external", evaluate_care_facade.get_provider_details,   ProviderLookupInput),
+    ("search_clinical_trials",  find_care_facade.search_clinical_trials,  ClinicalTrialsInput),
+    ("lookup_provider_external", find_care_facade.get_provider_details,   ProviderLookupInput),
     ("get_skip_snow_context",   about_service.get_skip_snow_context),
     ("get_chathealthy_context", about_service.get_chathealthy_context),
     ("commitSignificantActivity", commitSignificantActivity),
@@ -347,25 +347,52 @@ app.include_router(data_collections_router)
 
 
 # ── EPIC-002-F-001-S-012: startup security-primitive verification ──
-# FindCare's security primitives are nonce restamp (signs with findcare.key)
-# and verify (reads peer certs). The probe loads both findcare.key and
-# findcare.crt to confirm CERTS_DIR is bootstrapped. Exit codes per sysexits.h:
-#   78 (EX_CONFIG)    — missing key or cert file
-#   77 (EX_NOPERM)    — permission denied on cert/key
-#   70 (EX_SOFTWARE)  — unexpected internal error
-def decode_cert_pem(env_var: str, b64_value: str) -> bytes:
-    """Decode one PEM env var. Raises on malformed base64. No logging here —
-    the caller decides what to do with the failure."""
-    import base64
+def startup_security_verification():
+    """Exercise the security primitive this service uses, at startup.
+
+    FindCare verifies session tokens SharedServices signed for the FindCare
+    pair. That certificate is named by ChatHealthyConfig.CertificateRegistry
+    and held in the vault, so the probe is a resolution and a parse. No
+    certificate is written to this container's filesystem, and none is read
+    from it.
+
+    Exit codes per sysexits.h: 78 (EX_CONFIG) when the credential cannot be
+    resolved, 70 (EX_SOFTWARE) when it resolves and will not parse.
+    """
     try:
-        return base64.b64decode(b64_value.strip())
-    except Exception as exc:
+        from chathealthy_lib.authentication.session_token import (
+            DEFAULT_READER, TOKEN_SIGNER)
+        from chathealthy_lib.authentication.signing_credential import verifying_cert
+        from cryptography.x509 import load_pem_x509_certificate
+    except ImportError as _imp:
         raise ChatHealthyException(
-            mode="startup_invalid_base64",
-            message=f"STARTUP: {env_var} is present but not valid base64: {exc}",
+            mode="startup_abend_config",
             component="FindCareBackend",
-            exception=exc,
-        )
+            message=("STARTUP ABEND exit=78 primitive=crypto reason=import_failed: %s" % (_imp,)),
+            exit_code=78,
+            exception=_imp)
+    try:
+        pem = verifying_cert(TOKEN_SIGNER, DEFAULT_READER)
+    except ChatHealthyException as _res:
+        raise ChatHealthyException(
+            mode="startup_abend_config",
+            component="FindCareBackend",
+            message=("STARTUP ABEND exit=78 primitive=session_token "
+                     "reason=credential_unresolvable: %s" % (_res,)),
+            exit_code=78,
+            exception=_res)
+    try:
+        load_pem_x509_certificate(pem.encode())
+    except Exception as _exc:
+        raise ChatHealthyException(
+            mode="startup_abend_software",
+            component="FindCareBackend",
+            message=("STARTUP ABEND exit=70 primitive=session_token "
+                     "reason=cert_unparseable: %s" % (_exc,)),
+            exit_code=70,
+            exception=_exc)
+    log.info("startup security check PASSED - registered certificate for "
+             "%s -> FindCare resolved from the vault", TOKEN_SIGNER)
 
 
 def try_chmod_0600(path: str) -> None:
@@ -386,115 +413,6 @@ def try_chmod_0600(path: str) -> None:
             ),
         )
 
-
-def write_certs_to_runtime_dir(mapping: dict[str, str], runtime_dir: str) -> list[str]:
-    """For each present env var, decode and write to runtime_dir. Returns the
-    list of filenames written. Logs the final summary on success."""
-    wrote = []
-    for env_var, filename in mapping.items():
-        b64 = os.environ.get(env_var)
-        if not b64:
-            continue
-        pem_bytes = decode_cert_pem(env_var, b64)
-        os.makedirs(runtime_dir, exist_ok=True)
-        path = os.path.join(runtime_dir, filename)
-        with open(path, "wb") as f:
-            f.write(pem_bytes)
-        try_chmod_0600(path)
-        wrote.append(filename)
-    if wrote:
-        log.info("startup bootstrap: wrote %s to %s (CERTS_DIR=%s)",
-                 ",".join(wrote), runtime_dir, runtime_dir)
-    return wrote
-
-
-def bootstrap_certs_from_env():
-    """Write PKI material from env vars to a runtime dir and point CERTS_DIR at it.
-
-    HF Spaces don't support bind-mounted cert directories. The deploy pipeline
-    stores the signing key and public cert as HF Space secrets (base64-encoded
-    PEM). On startup we decode them to /tmp/ch_certs and set CERTS_DIR.
-
-    If none of the env vars are present (e.g. local dev, local Docker with a
-    bind-mounted /certs), the function is a no-op — the caller's CERTS_DIR
-    resolution remains in effect. Malformed PEM content raises, which the
-    startup check turns into an exit-78 abend per EPIC-002-F-001-S-012.
-    """
-    runtime_dir = "/tmp/ch_certs"
-    mapping = {
-        "FINDCARE_SIGNING_KEY_PEM":  "findcare.key",
-        "FINDCARE_CERT_PEM":         "findcare.crt",
-        # SEC-HTTPS-001-REQ-021: FindCare verifies tokens minted by peers
-        # (page-owning service mints; FindCare verifies for mutual auth).
-        "SHARED_CERT_PEM":           "shared.crt",
-        "EVALCARE_CERT_PEM":         "evalcare.crt",
-        "CA_CERT_PEM":               "ca.crt",
-    }
-    wrote = write_certs_to_runtime_dir(mapping, runtime_dir)
-    if wrote:
-        os.environ["CERTS_DIR"] = runtime_dir
-
-def startup_security_verification():
-    """EPIC-002-F-001-S-012: exercise the security primitives this
-    service uses. FindCare does NOT manufacture auth tokens — that's
-    SharedServices's /auth/issue. FindCare's primitives are nonce restamp
-    (signs with findcare.key) and verify (reads the page-owner's cert).
-    Probe loads both to confirm CERTS_DIR is bootstrapped and the
-    cryptography primitives can parse them."""
-    bootstrap_certs_from_env()
-    try:
-        from chathealthy_lib.authentication.session_token import cert_basename
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.x509 import load_pem_x509_certificate
-    except ImportError as _imp:
-        # Mode 2 (REQ-B-008): startup-time fatal — handled locally by
-        # logging + sys.exit(78). The process abends cleanly with a named
-        # exit code so the operator can diagnose; the user never sees the
-        # service since it never bound a port. Not Mode 3 because the
-        # exception IS caught and handled with explicit abend semantics.
-        raise ChatHealthyException(
-            mode="startup_abend_config",
-            component="FindCareBackend",
-            message=("STARTUP ABEND exit=78 primitive=crypto reason=import_failed: %s" % (_imp,)),
-            exit_code=78,
-            exception=_imp)
-    certs_dir = os.environ.get("CERTS_DIR", "/certs")
-    key_path = os.path.join(certs_dir, f"{cert_basename('FindCare')}.key")
-    cert_path = os.path.join(certs_dir, f"{cert_basename('FindCare')}.crt")
-    try:
-        with open(key_path, "rb") as _f:
-            serialization.load_pem_private_key(_f.read(), password=None)
-        with open(cert_path, "rb") as _f:
-            load_pem_x509_certificate(_f.read())
-    except FileNotFoundError as _fnf:
-        # Mode 2 (REQ-B-008): startup-time fatal — handled locally with
-        # named exit code 78 (EX_CONFIG, missing cert/key file).
-        raise ChatHealthyException(
-            mode="startup_abend_config",
-            component="FindCareBackend",
-            message=("STARTUP ABEND exit=78 primitive=session_token reason=missing_cert_or_key: %s" % (_fnf,)),
-            exit_code=78,
-            exception=_fnf)
-    except PermissionError as _perm:
-        # Mode 2 (REQ-B-008): startup-time fatal — handled locally with
-        # named exit code 77 (EX_NOPERM, permission denied on cert/key).
-        raise ChatHealthyException(
-            mode="startup_abend_permission",
-            component="FindCareBackend",
-            message=("STARTUP ABEND exit=77 primitive=session_token reason=permission: %s" % (_perm,)),
-            exit_code=77,
-            exception=_perm)
-    except Exception as _exc:
-        # Mode 2 (REQ-B-008): startup-time fatal — handled locally with
-        # named exit code 70 (EX_SOFTWARE, key/cert unreadable for other
-        # reasons). Process abends cleanly; user never sees the service.
-        raise ChatHealthyException(
-            mode="startup_abend_software",
-            component="FindCareBackend",
-            message=("STARTUP ABEND exit=70 primitive=session_token reason=key_or_cert_unreadable: %s" % (_exc,)),
-            exit_code=70,
-            exception=_exc)
-    log.info("startup security check PASSED — findcare.key + findcare.crt OK at %s", certs_dir)
 
 startup_security_verification()
 
@@ -567,12 +485,13 @@ def require_gateway_signature(session_token: Optional[dict],
     FindCare, because the Space is a public HTTPS host and cannot require
     a client certificate.
 
-    The mechanism is the one the application already carries: SharedServices
-    signs the session token with its own key and FindCare receives
-    SharedServices' certificate as SHARED_CERT_PEM at deploy time. FindCare
-    verifies that signature and does not re-validate the session -- /gate
-    has already done that, and a second validation with a different answer
-    would be worse than none.
+    SharedServices signs the session token with the private half of the
+    SharedServices-to-FindCare pair, and FindCare verifies it against the
+    public half, both named by ChatHealthyConfig.CertificateRegistry and
+    held in the vault. A token signed for another peer does not verify
+    here. FindCare does not re-validate the session -- /gate has already
+    done that, and a second validation with a different answer would be
+    worse than none.
     """
     if not session_token:
         raise ChatHealthyException(
@@ -1828,7 +1747,6 @@ def provider_detail(
         specialty_meta_coll=specialty_meta_coll,
         schedule_background_task=background_tasks.add_task,
     )
-
 
 
 REQUIRED_INDEXES = [

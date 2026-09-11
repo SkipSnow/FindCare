@@ -51,7 +51,14 @@ class AuthToken:
         return self._st
 
     def verify(self) -> bool:
-        return self._st.verify(expected_origin=self._st.origin)
+        """Check the signature against the signer's registered certificate.
+
+        The expected signer is a constant this process holds. It is not read
+        off the token: a token that names its own expected origin chooses
+        which key verifies it.
+        """
+        from .session_token import TOKEN_SIGNER  # noqa: PLC0415
+        return self._st.verify(expected_origin=TOKEN_SIGNER)
 
     def to_verification(self, valid: bool, server_env: Optional[str]) -> SessionTokenVerification:
         sig = self._st.signature or ""

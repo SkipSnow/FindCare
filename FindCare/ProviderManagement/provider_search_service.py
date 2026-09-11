@@ -5,7 +5,7 @@
 #
 # This is a Facade (GoF: https://refactoring.guru/design-patterns/facade)
 # implemented as a service class. It is the single entry point for FindCare.
-# EvaluateCareFacade calls this, never internal services directly.
+# FindCareFacade calls this, never internal services directly.
 #
 # UAT Features: 1 (Provider Search), 2 (Specialty Identification)
 # Design: ARCH-001, business component: FindCare
@@ -86,7 +86,7 @@ class FindCareService:
     """FindCare Facade — single entry point for all FindCare capabilities.
 
     Facade pattern (GoF): simplifies access to provider search, specialty
-    identification, and provider location. EvaluateCareFacade calls this
+    identification, and provider location. FindCareFacade calls this
     service, never internal components directly.
 
     UAT Features: 1 (Provider Search), 2 (Specialty Identification)

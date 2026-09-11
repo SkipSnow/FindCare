@@ -3765,7 +3765,11 @@ class LocalDeploy:
         # and crash the browser when JS tries to fetch '__HF_URL_FINDCARE__'.
         # No fallback — if build_dir is missing, run build_chathealthy.py first.
         self.website_dir = _website_publish_dir(self.repo_root)
-        self.certs_dir = self.repo_root / "Code" / "Shared" / "ops" / "certs"
+        # Deploy output, not source. TLS material is fetched from the vault at
+        # deploy time and written here; the containers mount this. It used to
+        # be Code/Shared/ops/certs, which put a CA private key in the source
+        # tree and mounted the working directory into every running server.
+        self.certs_dir = self.repo_root / "build" / "_tls"
         self.output_dir = self.repo_root / "_oneshots/test_output" / "deploy"
         self.output_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%SZ")
@@ -3859,6 +3863,83 @@ class LocalDeploy:
 
     def _port_in_use(self, port: int) -> bool:
         return len(self._pids_listening_on(port)) > 0
+
+    # Which file each secret becomes, decided by the secret's own tags rather
+    # than by its name. A name is a convention and conventions are not checked;
+    # a tag is a fact stored beside the value. Selection is
+    # purpose=tls AND env=<this env>, then service and kind say where it goes.
+    TLS_FILENAME_FOR_KIND = {"cert": "crt", "key": "key"}
+
+    def _materialise_tls_from_vault(self) -> None:
+        vault = os.environ.get("KEY_VAULT_NAME", "kv-chpipeline-dev")
+        listing = subprocess.run(
+            ["az", "keyvault", "secret", "list", "--vault-name", vault,
+             "--query", "[].{name:name,tags:tags}", "-o", "json"],
+            capture_output=True, text=True, timeout=120,
+            creationflags=creation_flags(), shell=(sys.platform == "win32"),
+        )
+        if listing.returncode != 0:
+            raise ChatHealthyException(
+                mode="aborted",
+                component="_deploy_chain",
+                message=f"ERROR: cannot list {vault}: {listing.stderr[:300]}")
+
+        wanted = [
+            s for s in json.loads(listing.stdout or "[]")
+            if (s.get("tags") or {}).get("purpose") == "tls"
+            and (s.get("tags") or {}).get("env") == self.env
+        ]
+        if not wanted:
+            raise ChatHealthyException(
+                mode="aborted",
+                component="_deploy_chain",
+                message=f"ERROR: {vault} holds no secret tagged purpose=tls "
+                        f"env={self.env}, so the local stack has no TLS "
+                        "material to serve and nothing is started.")
+
+        if self.certs_dir.exists():
+            shutil.rmtree(self.certs_dir)
+        self.certs_dir.mkdir(parents=True, exist_ok=True)
+
+        written = []
+        for secret in wanted:
+            tags = secret["tags"]
+            service, kind = tags.get("service"), tags.get("kind")
+            raw = subprocess.run(
+                ["az", "keyvault", "secret", "show", "--vault-name", vault,
+                 "--name", secret["name"], "--query", "value", "-o", "tsv"],
+                capture_output=True, text=True, timeout=60,
+                creationflags=creation_flags(), shell=(sys.platform == "win32"),
+            )
+            if raw.returncode != 0:
+                raise ChatHealthyException(
+                    mode="aborted",
+                    component="_deploy_chain",
+                    message=f"ERROR: {secret['name']} is declared in {vault} "
+                            f"but could not be read: {raw.stderr[:200]}")
+            value = raw.stdout.strip()
+            data = (base64.b64decode(value)
+                    if tags.get("encoding") == "base64" else value.encode())
+
+            if kind == "ca_chain":
+                name = "ca.crt"
+            else:
+                suffix = self.TLS_FILENAME_FOR_KIND.get(kind)
+                if suffix is None:
+                    raise ChatHealthyException(
+                        mode="aborted",
+                        component="_deploy_chain",
+                        message=f"ERROR: {secret['name']} carries kind={kind!r}, "
+                                "which names no file this deploy knows how to "
+                                "write. Tags are the contract; an unknown kind "
+                                "is a declaration nothing implements.")
+                name = f"{service}.{suffix}"
+            (self.certs_dir / name).write_bytes(data)
+            written.append(name)
+
+        self._step_notice(
+            f"TLS material from {vault} -> {self.certs_dir} "
+            f"({len(written)} file(s): {', '.join(sorted(written))})")
 
     def _validate_prerequisites(self) -> None:
         required_certs = [
@@ -4433,6 +4514,71 @@ class LocalDeploy:
                    f"{type(exc).__name__}: {exc}")
 
     # REQ-B-003 — verify components
+    def _verify_logging_reaches_mongo(self, record) -> None:
+        """Assert this environment's own log collection received what just ran.
+
+        The health probes above proved each service answered. A service that
+        answers and records nothing is a service nobody can account for
+        afterwards, so answering is not enough: the record has to be in the
+        place THIS environment's records go.
+
+        Naming the environment is the point. CH_LOG_DB stood at a literal
+        'local_admin' for every environment, so dev, qa and prod wrote their
+        records into local's database for five weeks while every gate passed
+        -- the binding was declared, present and hashed, and pointed
+        somewhere wrong. A check that asked only 'did anything log' would
+        have passed throughout.
+        """
+        env = self.env
+        collection = f"ChatHealthyLogs_{env}"
+        # Read from the RECORD, which is what the targets were given. Reading
+        # this process's own CH_LOG_DB checks the workstation's binding, not
+        # the deployed one -- and the workstation's is pipelineAdmin, so the
+        # check would report on a database no front-end service writes to.
+        # A checker that supplies its own destination proves the destination
+        # it chose, which is how CH_LOG_DB pointed at local's database for
+        # every environment for five weeks under gates that all passed.
+        arch = json.loads(
+            (self.repo_root / ARCHITECTURE_REL).read_text(encoding="utf-8"))
+        wanted = set(self.CONTAINER_TARGET_ID.values())
+        databases = sorted({
+            (t.get("variables") or {}).get("CH_LOG_DB", "")
+                .split("literal:")[-1]
+            for t in arch.get("DeploymentTargetRecord", [])
+            if t.get("target_id") in wanted
+            and (t.get("variables") or {}).get("CH_LOG_DB")
+        })
+        if not databases:
+            record(f"logging_to_mongo_{env}", False,
+                   "no target in this deploy declares CH_LOG_DB, so the log "
+                   "destination the services were given is unstated")
+            return
+        if len(databases) > 1:
+            record(f"logging_to_mongo_{env}", False,
+                   f"the targets disagree on where {env!r} logs: {databases}; "
+                   "one environment's records must land in one place")
+            return
+        database = databases[0]
+        try:
+            from chathealthy_lib.mongo_utilities import ChatHealthyMongoUtilities
+            client = ChatHealthyMongoUtilities().getConnection(
+                "DevOpsUser", "ChatHealthyFrontEnd")
+            coll = client[database][collection]
+            recent = coll.count_documents({"env": env}, limit=1)
+            if not recent:
+                record(f"logging_to_mongo_{env}", False,
+                       f"{database}.{collection} holds no record carrying env={env!r}; "
+                       f"this environment's services answered and logged nowhere "
+                       f"a reader of {env!r} would look")
+                return
+            newest = coll.find({"env": env}).sort([("_id", -1)]).limit(1)
+            stamp = next(iter(newest), {}).get("timeStamp", "unknown")
+            record(f"logging_to_mongo_{env}", True,
+                   f"{database}.{collection} env={env} latest={stamp}")
+        except Exception as exc:                                # noqa: BLE001
+            record(f"logging_to_mongo_{env}", False,
+                   f"could not read {database}.{collection}: {type(exc).__name__}: {exc}")
+
     def _verify_components(self) -> None:
         passed, failed = [], []
         v = self.results["verification"]
@@ -4464,6 +4610,7 @@ class LocalDeploy:
                 ok = r.status_code == 200 and expected_substr in r.text
                 record(f"mtls_findcare_to_{tgt_svc}", ok,
                        r.text if ok else f"{r.status_code}: {r.text}")
+        self._verify_logging_reaches_mongo(record)
         self._verify_screens(record)
 
         self._step_notice(
@@ -4499,68 +4646,14 @@ class LocalDeploy:
         )
         self._step_notice(f"structured output -> {self.output_path}")
 
-    def _ensure_local_ca_trusted(self) -> None:
-        if sys.platform != "win32":
-            self._step_notice(
-                f"skipping CA trust step (platform={sys.platform!r}, Windows-only)"
-            )
-            return
-        ca_path = self.certs_dir / "ca.crt"
-        if not ca_path.is_file():
-            raise ChatHealthyException(
-                mode="aborted",
-                component="_deploy_chain",
-                message=f"ERROR: ChatHealthy CA cert missing at {ca_path}")
-        probe = subprocess.run(
-            ["certutil", "-store", "Root"],
-            capture_output=True, text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        if "ChatHealthy" in (probe.stdout or ""):
-            self._step_notice("ChatHealthy Local CA already in Windows Root store")
-            return
-        self._step_notice(
-            "installing ChatHealthy Local CA into Windows Root store "
-            "(UAC prompt will appear; approve it)"
-        )
-        ps_cmd = (
-            "Start-Process certutil "
-            f"-ArgumentList '-addstore','-f','Root','{ca_path}' "
-            "-Verb RunAs -Wait"
-        )
-        result = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", ps_cmd],
-            capture_output=True, text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        if result.returncode != 0:
-            raise ChatHealthyException(
-                mode="aborted",
-                component="_deploy_chain",
-                message=f"ERROR: certutil install failed (rc={result.returncode}). "
-                f"stderr={result.stderr or '(empty)'} "
-                f"stdout={result.stdout or '(empty)'}")
-        verify = subprocess.run(
-            ["certutil", "-store", "Root"],
-            capture_output=True, text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        if "ChatHealthy" not in (verify.stdout or ""):
-            raise ChatHealthyException(
-                mode="aborted",
-                component="_deploy_chain",
-                message="ERROR: ChatHealthy Local CA install completed but the "
-                "Windows Root store still doesn't show it (UAC cancelled?).")
-        self._step_notice("ChatHealthy Local CA verified in Windows Root store")
-
     # ── Orchestration ─────────────────────────────────────────────────
     def run(self) -> int:
         self._step_notice(f"deploy started for {self.env}")
-        self._ensure_local_ca_trusted()
         self._deployment_architecture_gate()
         self._ensure_docker_available()
         self._teardown_precondition()
         self._step_notice("old environment torn down and ready")
+        self._materialise_tls_from_vault()
         self._validate_prerequisites()
         self._stage_wrapper_website()
         # React build MUST run before backend container build.

@@ -319,7 +319,8 @@ class _MongoLogHandler(logging.Handler):
                     # A per-env collection duplicates the env field and makes
                     # "what happened during run X" unanswerable across
                     # components.
-                    self._coll = raw_client[self._log_db][self._collection]
+                    self._coll = raw_client[self._log_db][
+                        f"{self._collection}_{self._env}"]
         return self._coll
 
     def emit(self, record: logging.LogRecord) -> None:

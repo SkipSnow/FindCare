@@ -1,10 +1,11 @@
 # Copyright (c) 2026 ChatHealthy.ai LLC. All rights reserved.
 # Licensed under the FindCare Evaluation License (FEL-1.0).
 #
-# EvaluateCareFacade — entry point for all EvaluateCareQuality capabilities.
+# FindCareFacade — the one surface FindCare's tools call.
 #
-# Facade-to-facade: calls FindCareFacade for cross-domain needs (e.g., provider location).
-# Never exposes internal services to other components.
+# Wraps FindCare's own clinical-trials and provider-detail services. Nothing
+# here crosses a component boundary: both services are FindCare's, and both
+# capabilities are FindCare features (EPIC-006-F-004, F-005, F-002).
 #
 # Design: ARCH-001
 
@@ -16,18 +17,17 @@ from ProviderDetail.provider_detail_service import ProviderDetailService
 log = ChatHealthyLoggingService()
 
 
-class EvaluateCareFacade:
-    """Public interface for the EvaluateCareQuality business component.
+class FindCareFacade:
+    """The one surface FindCare's tools call.
 
-    UAT Features: 3 (Clinical Trials), 8 (Provider Detail)
+    Clinical trials (EPIC-006-F-004, F-005) and provider detail
+    (EPIC-006-F-002).
     """
 
     def __init__(self, clinical_trials: ClinicalTrialsService,
-                 provider_detail: ProviderDetailService,
-                 find_care_facade=None):
+                 provider_detail: ProviderDetailService):
         self._clinical_trials = clinical_trials
         self._provider_detail = provider_detail
-        self._find_care = find_care_facade  # for cross-domain calls
 
     def search_clinical_trials(self, condition: str, location: str = "",
                                user_location: str = "", max_results: int = 5) -> dict:

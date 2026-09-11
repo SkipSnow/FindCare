@@ -1116,7 +1116,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/authentication/auth_token.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "6f6f1d202c41a7d40eccd7142ef6548d18e8c15e715b4acceffeeb1b01aad467",
+          "content_hash": "b303fa4eac2084e5ac290a22608d57305c00b79c851e1cdb51d09364f577d5ff",
           "package": "service_runtime"
         },
         {
@@ -1132,7 +1132,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/authentication/session_token.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "ed60e67bde2670d204152c12f0fdda86f57b2c346cabe8728c17bc9e986d947a",
+          "content_hash": "a6d59380f4ffbceae13bf415b627eda6ec19ebef2e257725141214c2e18ffca7",
           "package": "service_runtime"
         },
         {
@@ -1172,7 +1172,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/logging_service.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "cea482c0e4aeeb9604500c026b9f6074a062b403dbf0ec650abf55b462ab1c5c",
+          "content_hash": "b2566a35ebba22d87900e656a649fa5a84c13f52ec358f86ebdb1e131e026ef7",
           "package": "service_runtime"
         },
         {
@@ -1211,7 +1211,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/runtime_data_collections.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "ad1b2a0cb87faabfe36938bcb2827f224fc44d5885fe48bd1c49b3112341ba69",
+          "content_hash": "3f769df6fdd620507f0c976fa5301b80a16bdf9c3c5848c7bfed29bcde608188",
           "package": "service_runtime"
         },
         {
@@ -1220,38 +1220,6 @@
           "handler_type": "python_source",
           "disposition": "referenced",
           "content_hash": "e2ba71e8e2216fab245aceb933aa07e5cb789b689d4281d9d1fce61d72448634",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/Shared/ops/certs/ca.crt",
-          "handler_type": "cert_or_key",
-          "disposition": "referenced",
-          "content_hash": "33fc90235b5601dfd0be4bcbd45d2534c031fc1ec2dd6b22cecd94fcd989e74a",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/Shared/ops/certs/evalcare.crt",
-          "handler_type": "cert_or_key",
-          "disposition": "referenced",
-          "content_hash": "f52e9e7a2c4d905aa17cf23b9bd45f457ae3ff352bfafd5e89f902df8fe91334",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/Shared/ops/certs/findcare.crt",
-          "handler_type": "cert_or_key",
-          "disposition": "referenced",
-          "content_hash": "e0af9e2fb0e8ed8ba9f178aa18cb121e328fcd27c05d0645a9aa4d39a6f44f66",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/Shared/ops/certs/shared.crt",
-          "handler_type": "cert_or_key",
-          "disposition": "referenced",
-          "content_hash": "09b2cf01c5a66bd3754db49ed21d372cf886e0ae69cc53f172335c443f6ad04d",
           "package": "service_runtime"
         },
         {
@@ -1267,7 +1235,7 @@
           "source_location": "evaluateCare/Code/app.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "1d7952c69fe785408ce892dd811e261c8db85a3e85097d7715eff1e70ae9f38e",
+          "content_hash": "e4d932bbf0c1fd3d00fca3ee1f4bc89cb1f2d4320b749da0e5452fd754ac4cda",
           "package": "service_runtime"
         },
         {
@@ -1308,22 +1276,6 @@
           "handler_type": "python_requirements",
           "disposition": "referenced",
           "content_hash": "b927300eba07c10a67b62d83c379ca742c84d8b6039bb7ee81a87ab55d28be19",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
-          "source_location": "evaluateCare/Code/security/debug_bootstrap_endpoint.py",
-          "handler_type": "python_source",
-          "disposition": "referenced",
-          "content_hash": "2520fe8caf075c0ceee141f2b928f5bbf66eb952f8b6770f54aa4c0bd7adc843",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
-          "source_location": "evaluateCare/Code/security/debug_verify_live_endpoint.py",
-          "handler_type": "python_source",
-          "disposition": "referenced",
-          "content_hash": "bde0cba2ffa2123bb5d0b2a2e9dd4acfa94ed97386e642df94da76d485747db2",
           "package": "service_runtime"
         },
         {
@@ -1374,10 +1326,6 @@
             },
             {
               "instruction": "COPY",
-              "args": "security           /app/security"
-            },
-            {
-              "instruction": "COPY",
               "args": "externalInterface  /app/externalInterface"
             },
             {
@@ -1396,7 +1344,15 @@
               ]
             }
           ],
-          "embedded_content": "\nFROM python:3.12-slim\n\nWORKDIR /app\n\nCOPY requirements.txt /app/requirements.txt\nRUN pip install --no-cache-dir -r /app/requirements.txt\n\nCOPY ChatHealthyLib /app/ChatHealthyLib\nRUN pip install --no-cache-dir /app/ChatHealthyLib\n\nCOPY build_info.json    /app/build_info.json\nCOPY app.py             /app/app.py\nCOPY healthcheck        /app/healthcheck\nCOPY displayChrome      /app/displayChrome\nCOPY security           /app/security\nCOPY externalInterface  /app/externalInterface\n\nENV PORT=7860     CERTS_DIR=/certs     SSL_CERTFILE=/certs/evalcare.crt SSL_KEYFILE=/certs/evalcare.key\nEXPOSE 7860\nCMD [\"python\", \"app.py\"]\n",
+          "embedded_content": "\nFROM python:3.12-slim\n\nWORKDIR /app\n\nCOPY requirements.txt /app/requirements.txt\nRUN pip install --no-cache-dir -r /app/requirements.txt\n\nCOPY ChatHealthyLib /app/ChatHealthyLib\nRUN pip install --no-cache-dir /app/ChatHealthyLib\n\nCOPY build_info.json    /app/build_info.json\nCOPY app.py             /app/app.py\nCOPY healthcheck        /app/healthcheck\nCOPY displayChrome      /app/displayChrome\nCOPY externalInterface  /app/externalInterface\n\nENV PORT=7860     CERTS_DIR=/certs     SSL_CERTFILE=/certs/evalcare.crt SSL_KEYFILE=/certs/evalcare.key\nEXPOSE 7860\nCMD [\"python\", \"app.py\"]",
+          "package": "service_runtime"
+        },
+        {
+          "feature_id": "EPIC-008-F-012",
+          "source_location": "ChatHealthyLib/src/chathealthy_lib/authentication/signing_credential.py",
+          "handler_type": "python_source",
+          "disposition": "referenced",
+          "content_hash": "44b54615988d2f663a7769f7499eba54025df85868450c588e3ad9039fd98038",
           "package": "service_runtime"
         }
       ],
@@ -1433,23 +1389,20 @@
         }
       ],
       "variables": {
-        "CA_CERT_PEM": "local_cert_file:Code/Shared/ops/certs/ca.crt",
         "CH_COMPONENT": "literal:evaluatecare",
         "CH_IDENTITY": "literal:frontendUser",
-        "CH_LOG_DB": "literal:local_admin",
         "CH_LOG_DESTINATION": "literal:mongo",
         "CH_LOG_LEVEL": "local_env",
         "CH_MONGO_HOST_CHATHEALTHYFRONTEND": "rename_from:MONGO_HOST_CHATHEALTHYFRONTEND",
         "DATA_VERSION": "literal:unknown",
         "DEBUG": "literal:false",
         "ENV_PREFIX": "env_name",
-        "EVALCARE_CERT_PEM": "local_cert_file:Code/Shared/ops/certs/evalcare.crt",
-        "FINDCARE_CERT_PEM": "local_cert_file:Code/Shared/ops/certs/findcare.crt",
         "FINDCARE_URL": "peer_url:target_hf_space_findcare_backend",
         "MONGO_HOST_CHATHEALTHYFRONTEND": "literal:chathealthyfrontend.mdwahg.mongodb.net",
         "PIPELINE_NAME": "literal:evaluate_care",
-        "SHARED_CERT_PEM": "local_cert_file:Code/Shared/ops/certs/shared.crt",
-        "SHARED_SERVICES_URL": "peer_url:target_hf_space_shared_services"
+        "SHARED_SERVICES_URL": "peer_url:target_hf_space_shared_services",
+        "CH_REGISTRY_READER": "literal:frontendUser",
+        "CH_LOG_DB": "literal:FrontEndLogs"
       },
       "secret_descriptions": {
         "FRONTENDUSER_AZURE_CLIENT_ID": "Identifies frontendUser to Azure",
@@ -1615,7 +1568,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/authentication/auth_token.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "6f6f1d202c41a7d40eccd7142ef6548d18e8c15e715b4acceffeeb1b01aad467",
+          "content_hash": "b303fa4eac2084e5ac290a22608d57305c00b79c851e1cdb51d09364f577d5ff",
           "package": "service_runtime"
         },
         {
@@ -1647,7 +1600,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/authentication/session_token.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "ed60e67bde2670d204152c12f0fdda86f57b2c346cabe8728c17bc9e986d947a",
+          "content_hash": "a6d59380f4ffbceae13bf415b627eda6ec19ebef2e257725141214c2e18ffca7",
           "package": "service_runtime"
         },
         {
@@ -1695,7 +1648,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/logging_service.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "cea482c0e4aeeb9604500c026b9f6074a062b403dbf0ec650abf55b462ab1c5c",
+          "content_hash": "b2566a35ebba22d87900e656a649fa5a84c13f52ec358f86ebdb1e131e026ef7",
           "package": "service_runtime"
         },
         {
@@ -1726,7 +1679,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/runtime_data_collections.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "ad1b2a0cb87faabfe36938bcb2827f224fc44d5885fe48bd1c49b3112341ba69",
+          "content_hash": "3f769df6fdd620507f0c976fa5301b80a16bdf9c3c5848c7bfed29bcde608188",
           "package": "service_runtime"
         },
         {
@@ -1790,7 +1743,7 @@
           "source_location": "Code/ConversationalUX/FindCareChat/backend/app.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "358941f9bcef92db8eebcf043bfa7c3524ad6b2cacc8eafcd104daa576019493",
+          "content_hash": "bc4f8ed5ec7fe19a7712a6cf2721589457755c6e56f13b878c4687ffcf4ff39c",
           "package": "service_runtime"
         },
         {
@@ -1811,10 +1764,10 @@
         },
         {
           "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/ConversationalUX/FindCareChat/backend/application/facades/evaluate_care_facade.py",
+          "source_location": "Code/ConversationalUX/FindCareChat/backend/application/facades/find_care_facade.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "4432fbdddbd343234f0d01b8cfd7c05295486a333d287eca5f7ca63ea6d77042",
+          "content_hash": "34259796abee21aa552d10e126e5e8e5add6881ad6127e330aa72ae8f42bd172",
           "package": "service_runtime"
         },
         {
@@ -2139,38 +2092,6 @@
         },
         {
           "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/Shared/ops/certs/ca.crt",
-          "handler_type": "cert_or_key",
-          "disposition": "referenced",
-          "content_hash": "33fc90235b5601dfd0be4bcbd45d2534c031fc1ec2dd6b22cecd94fcd989e74a",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/Shared/ops/certs/evalcare.crt",
-          "handler_type": "cert_or_key",
-          "disposition": "referenced",
-          "content_hash": "f52e9e7a2c4d905aa17cf23b9bd45f457ae3ff352bfafd5e89f902df8fe91334",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/Shared/ops/certs/findcare.crt",
-          "handler_type": "cert_or_key",
-          "disposition": "referenced",
-          "content_hash": "e0af9e2fb0e8ed8ba9f178aa18cb121e328fcd27c05d0645a9aa4d39a6f44f66",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/Shared/ops/certs/shared.crt",
-          "handler_type": "cert_or_key",
-          "disposition": "referenced",
-          "content_hash": "09b2cf01c5a66bd3754db49ed21d372cf886e0ae69cc53f172335c443f6ad04d",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
           "source_location": "Code/Shared/prompt_system_maker.py",
           "handler_type": "python_source",
           "disposition": "referenced",
@@ -2254,7 +2175,7 @@
           "source_location": "FindCare/ProviderManagement/provider_search_service.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "0425c23e3f0b18c3b300d92de92033a7be273610c3645debcc62933f4dfe9af3",
+          "content_hash": "395cf8ca7b7a0fb9f9b9af8c5c22b1557956a0db0765f98e9df2bbb09e86d543",
           "package": "service_runtime"
         },
         {
@@ -2575,6 +2496,14 @@
           "handler_type": "python_source",
           "disposition": "referenced",
           "package": "service_runtime"
+        },
+        {
+          "feature_id": "EPIC-008-F-012",
+          "source_location": "ChatHealthyLib/src/chathealthy_lib/authentication/signing_credential.py",
+          "handler_type": "python_source",
+          "disposition": "referenced",
+          "content_hash": "44b54615988d2f663a7769f7499eba54025df85868450c588e3ad9039fd98038",
+          "package": "service_runtime"
         }
       ],
       "secrets": {
@@ -2641,26 +2570,23 @@
       ],
       "variables": {
         "APP_VERSION": "literal:unknown",
-        "CA_CERT_PEM": "local_cert_file:Code/Shared/ops/certs/ca.crt",
         "CH_COMPONENT": "literal:findcare",
         "CH_EMBEDDING_MODEL": "firm:embedding_model",
         "CH_IDENTITY": "literal:frontendUser",
-        "CH_LOG_DB": "literal:local_admin",
         "CH_LOG_DESTINATION": "literal:mongo",
         "CH_LOG_LEVEL": "local_env",
         "CH_MONGO_HOST_CHATHEALTHYFRONTEND": "rename_from:MONGO_HOST_CHATHEALTHYFRONTEND",
         "DATA_VERSION": "literal:unknown",
         "DEBUG": "literal:false",
         "ENV_PREFIX": "env_name",
-        "EVALCARE_CERT_PEM": "local_cert_file:Code/Shared/ops/certs/evalcare.crt",
         "EVALCARE_URL": "peer_url:target_hf_space_evaluatecare_backend",
-        "FINDCARE_CERT_PEM": "local_cert_file:Code/Shared/ops/certs/findcare.crt",
         "HUMAN_TESTING": "literal:false",
         "ME_DIR": "literal:/app/sharedServices/Code/AboutChatHealthy/me",
         "MONGO_HOST_CHATHEALTHYFRONTEND": "literal:chathealthyfrontend.mdwahg.mongodb.net",
         "PIPELINE_NAME": "literal:find_care",
-        "SHARED_CERT_PEM": "local_cert_file:Code/Shared/ops/certs/shared.crt",
-        "SHARED_SERVICES_URL": "peer_url:target_hf_space_shared_services"
+        "SHARED_SERVICES_URL": "peer_url:target_hf_space_shared_services",
+        "CH_REGISTRY_READER": "literal:frontendUser",
+        "CH_LOG_DB": "literal:FrontEndLogs"
       },
       "secret_descriptions": {
         "FRONTENDUSER_AZURE_CLIENT_ID": "Identifies frontendUser to Azure",
@@ -2826,7 +2752,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/authentication/auth_token.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "6f6f1d202c41a7d40eccd7142ef6548d18e8c15e715b4acceffeeb1b01aad467",
+          "content_hash": "b303fa4eac2084e5ac290a22608d57305c00b79c851e1cdb51d09364f577d5ff",
           "package": "service_runtime"
         },
         {
@@ -2858,7 +2784,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/authentication/session_token.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "ed60e67bde2670d204152c12f0fdda86f57b2c346cabe8728c17bc9e986d947a",
+          "content_hash": "a6d59380f4ffbceae13bf415b627eda6ec19ebef2e257725141214c2e18ffca7",
           "package": "service_runtime"
         },
         {
@@ -2906,7 +2832,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/logging_service.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "cea482c0e4aeeb9604500c026b9f6074a062b403dbf0ec650abf55b462ab1c5c",
+          "content_hash": "b2566a35ebba22d87900e656a649fa5a84c13f52ec358f86ebdb1e131e026ef7",
           "package": "service_runtime"
         },
         {
@@ -2945,7 +2871,7 @@
           "source_location": "ChatHealthyLib/src/chathealthy_lib/runtime_data_collections.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "ad1b2a0cb87faabfe36938bcb2827f224fc44d5885fe48bd1c49b3112341ba69",
+          "content_hash": "3f769df6fdd620507f0c976fa5301b80a16bdf9c3c5848c7bfed29bcde608188",
           "package": "service_runtime"
         },
         {
@@ -2954,38 +2880,6 @@
           "handler_type": "python_source",
           "disposition": "referenced",
           "content_hash": "e2ba71e8e2216fab245aceb933aa07e5cb789b689d4281d9d1fce61d72448634",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/Shared/ops/certs/ca.crt",
-          "handler_type": "cert_or_key",
-          "disposition": "referenced",
-          "content_hash": "33fc90235b5601dfd0be4bcbd45d2534c031fc1ec2dd6b22cecd94fcd989e74a",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/Shared/ops/certs/evalcare.crt",
-          "handler_type": "cert_or_key",
-          "disposition": "referenced",
-          "content_hash": "f52e9e7a2c4d905aa17cf23b9bd45f457ae3ff352bfafd5e89f902df8fe91334",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/Shared/ops/certs/findcare.crt",
-          "handler_type": "cert_or_key",
-          "disposition": "referenced",
-          "content_hash": "e0af9e2fb0e8ed8ba9f178aa18cb121e328fcd27c05d0645a9aa4d39a6f44f66",
-          "package": "service_runtime"
-        },
-        {
-          "feature_id": "EPIC-008-F-012",
-          "source_location": "Code/Shared/ops/certs/shared.crt",
-          "handler_type": "cert_or_key",
-          "disposition": "referenced",
-          "content_hash": "09b2cf01c5a66bd3754db49ed21d372cf886e0ae69cc53f172335c443f6ad04d",
           "package": "service_runtime"
         },
         {
@@ -3081,7 +2975,7 @@
           "source_location": "sharedServices/Code/AuthorizationsAndAuthentications/mintable_auth_token.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "44423cfd355ce1f63af594cc213381fa1c1cc622635711a11177c0e660c99514",
+          "content_hash": "e2e21ffd8e1ac55c1e197aa78a30a53d51b1538eaf5de676fdceb70cfbc58164",
           "package": "service_runtime"
         },
         {
@@ -3105,7 +2999,7 @@
           "source_location": "sharedServices/Code/AuthorizationsAndAuthentications/provider_search_tool.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "6fb98721fa5006d65342dcf002df00f80179b3ae41600c1f246b6917f2f5dd33",
+          "content_hash": "bd8a43c226574493eb5f231b957b927d6a4c0e5ba16ea5b120fe1057b8932af8",
           "package": "service_runtime"
         },
         {
@@ -3257,7 +3151,7 @@
           "source_location": "sharedServices/Code/app.py",
           "handler_type": "python_source",
           "disposition": "referenced",
-          "content_hash": "639fc967068a2b9ac278698759ecac3f87980fe9a94e2883e81d06462d229452",
+          "content_hash": "52a42de3a1c51e73289fe1ff03f1b8b295f49fe7cd1bac21b7406d7e54eece59",
           "package": "service_runtime"
         },
         {
@@ -3438,6 +3332,14 @@
           ],
           "embedded_content": "\nFROM python:3.12-slim\n\nWORKDIR /app\n\nCOPY requirements.txt /app/requirements.txt\nRUN pip install --no-cache-dir -r /app/requirements.txt\n\nCOPY ChatHealthyLib /app/ChatHealthyLib\nRUN pip install --no-cache-dir /app/ChatHealthyLib\n\nCOPY build_info.json    /app/build_info.json\nCOPY app.py             /app/app.py\nCOPY healthcheck        /app/healthcheck\nCOPY displayChrome      /app/displayChrome\nCOPY authentication     /app/authentication\nCOPY SpecialtyFilter    /app/SpecialtyFilter\nCOPY AboutChatHealthy  /app/AboutChatHealthy\nCOPY externalInterface  /app/externalInterface\nCOPY secretsManager     /app/secretsManager\nCOPY UtteranceManager  /app/UtteranceManager\nCOPY CloseConnection200Tool  /app/CloseConnection200Tool\nCOPY LockoutTool  /app/LockoutTool\nCOPY ProviderSelection  /app/ProviderSelection\nCOPY FacilitySearch  /app/FacilitySearch\nCOPY FacilitySelection  /app/FacilitySelection\nCOPY ClinicalTrialSelection  /app/ClinicalTrialSelection\nCOPY UserParameters  /app/UserParameters\nCOPY buildIdentity  /app/buildIdentity\nCOPY sessionPdf  /app/sessionPdf\n\nENV PORT=7860     CERTS_DIR=/certs     SSL_CERTFILE=/certs/shared.crt SSL_KEYFILE=/certs/shared.key\nEXPOSE 7860\nCMD [\"python\", \"app.py\"]\n",
           "package": "service_runtime"
+        },
+        {
+          "feature_id": "EPIC-008-F-012",
+          "source_location": "ChatHealthyLib/src/chathealthy_lib/authentication/signing_credential.py",
+          "handler_type": "python_source",
+          "disposition": "referenced",
+          "content_hash": "44b54615988d2f663a7769f7499eba54025df85868450c588e3ad9039fd98038",
+          "package": "service_runtime"
         }
       ],
       "secrets": {
@@ -3486,26 +3388,23 @@
         }
       ],
       "variables": {
-        "CA_CERT_PEM": "local_cert_file:Code/Shared/ops/certs/ca.crt",
         "CH_BROWSER_PEER_URL_EVALCARE": "peer_url:target_hf_space_evaluatecare_backend",
         "CH_BROWSER_PEER_URL_FINDCARE": "peer_url:target_hf_space_findcare_backend",
         "CH_COMPONENT": "literal:sharedservices",
         "CH_IDENTITY": "literal:frontendUser",
-        "CH_LOG_DB": "literal:local_admin",
         "CH_LOG_DESTINATION": "literal:mongo",
         "CH_LOG_LEVEL": "local_env",
         "CH_MONGO_HOST_CHATHEALTHYFRONTEND": "rename_from:MONGO_HOST_CHATHEALTHYFRONTEND",
         "DATA_VERSION": "literal:unknown",
         "ENV_PREFIX": "env_name",
-        "EVALCARE_CERT_PEM": "local_cert_file:Code/Shared/ops/certs/evalcare.crt",
         "EVALCARE_INTERNAL_URL": "peer_url:target_hf_space_evaluatecare_backend",
         "EVALCARE_URL": "peer_url:target_hf_space_evaluatecare_backend",
-        "FINDCARE_CERT_PEM": "local_cert_file:Code/Shared/ops/certs/findcare.crt",
         "FINDCARE_INTERNAL_URL": "peer_url:target_hf_space_findcare_backend",
         "FINDCARE_URL": "peer_url:target_hf_space_findcare_backend",
         "MONGO_HOST_CHATHEALTHYFRONTEND": "literal:chathealthyfrontend.mdwahg.mongodb.net",
         "PIPELINE_NAME": "literal:shared_services",
-        "SHARED_CERT_PEM": "local_cert_file:Code/Shared/ops/certs/shared.crt"
+        "CH_REGISTRY_READER": "literal:frontendUser",
+        "CH_LOG_DB": "literal:FrontEndLogs"
       },
       "secret_descriptions": {
         "FRONTENDUSER_AZURE_CLIENT_ID": "Identifies frontendUser to Azure",
@@ -6640,6 +6539,51 @@
                     }
                   ],
                   "env": "local"
+                }
+              ]
+            },
+            {
+              "address": "ChatHealthyConfig.CertificateRegistry",
+              "identity_key": [
+                "env",
+                "subject_dn"
+              ],
+              "records": [
+                {
+                  "env": "local",
+                  "identity": "frontendUser",
+                  "purpose": "database_client",
+                  "public_cert_vault_key": "cert-frontendUser",
+                  "private_key_vault_key": "key-frontendUser",
+                  "status": "active",
+                  "subject_dn": "CN=frontendUser,O=ChatHealthy,ST=California,C=US"
+                },
+                {
+                  "env": "local",
+                  "identity": "pipelineEditor",
+                  "purpose": "database_client",
+                  "public_cert_vault_key": "cert-pipelineEditor",
+                  "private_key_vault_key": "key-pipelineEditor",
+                  "status": "active",
+                  "subject_dn": "CN=pipelineEditor,O=ChatHealthy,ST=California,C=US"
+                },
+                {
+                  "env": "local",
+                  "identity": "DevOpsUser",
+                  "purpose": "database_client",
+                  "public_cert_vault_key": "cert-DevOpsUser",
+                  "private_key_vault_key": "key-DevOpsUser",
+                  "status": "active",
+                  "subject_dn": "CN=DevOpsUser,O=ChatHealthy,ST=California,C=US"
+                },
+                {
+                  "env": "local",
+                  "identity": "SharedServices",
+                  "purpose": "token_signing",
+                  "subject_dn": "CN=SharedServices,O=ChatHealthy,C=US",
+                  "public_cert_vault_key": "session-signing-cert",
+                  "private_key_vault_key": "session-signing-key",
+                  "status": "active"
                 }
               ]
             }

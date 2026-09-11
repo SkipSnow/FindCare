@@ -8,7 +8,7 @@ Detail endpoint's own ProviderDetailInput further down, which SHADOWED
 it: the tool registry got this three-field shape and the endpoint got the
 other one, from a single name, in a single module. They are different
 contracts -- this one names the field provider_name because that is what
-EvaluateCareFacade.get_provider_details takes -- so they now have
+FindCareFacade.get_provider_details takes -- so they now have
 different names.
 """
 from pydantic import BaseModel, Field
