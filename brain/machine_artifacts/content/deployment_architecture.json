@@ -7161,6 +7161,51 @@
                   "env": "dev"
                 }
               ]
+            },
+            {
+              "address": "ChatHealthyConfig.CertificateRegistry",
+              "identity_key": [
+                "env",
+                "subject_dn"
+              ],
+              "records": [
+                {
+                  "env": "dev",
+                  "identity": "frontendUser",
+                  "purpose": "database_client",
+                  "public_cert_vault_key": "cert-frontendUser",
+                  "private_key_vault_key": "key-frontendUser",
+                  "status": "active",
+                  "subject_dn": "CN=frontendUser,O=ChatHealthy,ST=California,C=US"
+                },
+                {
+                  "env": "dev",
+                  "identity": "pipelineEditor",
+                  "purpose": "database_client",
+                  "public_cert_vault_key": "cert-pipelineEditor",
+                  "private_key_vault_key": "key-pipelineEditor",
+                  "status": "active",
+                  "subject_dn": "CN=pipelineEditor,O=ChatHealthy,ST=California,C=US"
+                },
+                {
+                  "env": "dev",
+                  "identity": "DevOpsUser",
+                  "purpose": "database_client",
+                  "public_cert_vault_key": "cert-DevOpsUser",
+                  "private_key_vault_key": "key-DevOpsUser",
+                  "status": "active",
+                  "subject_dn": "CN=DevOpsUser,O=ChatHealthy,ST=California,C=US"
+                },
+                {
+                  "env": "dev",
+                  "identity": "SharedServices",
+                  "purpose": "token_signing",
+                  "subject_dn": "CN=SharedServices,O=ChatHealthy,C=US",
+                  "public_cert_vault_key": "session-signing-cert",
+                  "private_key_vault_key": "session-signing-key",
+                  "status": "active"
+                }
+              ]
             }
           ]
         },
@@ -7736,6 +7781,51 @@
                   "env": "qa"
                 }
               ]
+            },
+            {
+              "address": "ChatHealthyConfig.CertificateRegistry",
+              "identity_key": [
+                "env",
+                "subject_dn"
+              ],
+              "records": [
+                {
+                  "env": "qa",
+                  "identity": "frontendUser",
+                  "purpose": "database_client",
+                  "public_cert_vault_key": "cert-frontendUser",
+                  "private_key_vault_key": "key-frontendUser",
+                  "status": "active",
+                  "subject_dn": "CN=frontendUser,O=ChatHealthy,ST=California,C=US"
+                },
+                {
+                  "env": "qa",
+                  "identity": "pipelineEditor",
+                  "purpose": "database_client",
+                  "public_cert_vault_key": "cert-pipelineEditor",
+                  "private_key_vault_key": "key-pipelineEditor",
+                  "status": "active",
+                  "subject_dn": "CN=pipelineEditor,O=ChatHealthy,ST=California,C=US"
+                },
+                {
+                  "env": "qa",
+                  "identity": "DevOpsUser",
+                  "purpose": "database_client",
+                  "public_cert_vault_key": "cert-DevOpsUser",
+                  "private_key_vault_key": "key-DevOpsUser",
+                  "status": "active",
+                  "subject_dn": "CN=DevOpsUser,O=ChatHealthy,ST=California,C=US"
+                },
+                {
+                  "env": "qa",
+                  "identity": "SharedServices",
+                  "purpose": "token_signing",
+                  "subject_dn": "CN=SharedServices,O=ChatHealthy,C=US",
+                  "public_cert_vault_key": "session-signing-cert",
+                  "private_key_vault_key": "session-signing-key",
+                  "status": "active"
+                }
+              ]
             }
           ]
         },
@@ -8309,6 +8399,51 @@
                     }
                   ],
                   "env": "prod"
+                }
+              ]
+            },
+            {
+              "address": "ChatHealthyConfig.CertificateRegistry",
+              "identity_key": [
+                "env",
+                "subject_dn"
+              ],
+              "records": [
+                {
+                  "env": "prod",
+                  "identity": "frontendUser",
+                  "purpose": "database_client",
+                  "public_cert_vault_key": "cert-frontendUser",
+                  "private_key_vault_key": "key-frontendUser",
+                  "status": "active",
+                  "subject_dn": "CN=frontendUser,O=ChatHealthy,ST=California,C=US"
+                },
+                {
+                  "env": "prod",
+                  "identity": "pipelineEditor",
+                  "purpose": "database_client",
+                  "public_cert_vault_key": "cert-pipelineEditor",
+                  "private_key_vault_key": "key-pipelineEditor",
+                  "status": "active",
+                  "subject_dn": "CN=pipelineEditor,O=ChatHealthy,ST=California,C=US"
+                },
+                {
+                  "env": "prod",
+                  "identity": "DevOpsUser",
+                  "purpose": "database_client",
+                  "public_cert_vault_key": "cert-DevOpsUser",
+                  "private_key_vault_key": "key-DevOpsUser",
+                  "status": "active",
+                  "subject_dn": "CN=DevOpsUser,O=ChatHealthy,ST=California,C=US"
+                },
+                {
+                  "env": "prod",
+                  "identity": "SharedServices",
+                  "purpose": "token_signing",
+                  "subject_dn": "CN=SharedServices,O=ChatHealthy,C=US",
+                  "public_cert_vault_key": "session-signing-cert",
+                  "private_key_vault_key": "session-signing-key",
+                  "status": "active"
                 }
               ]
             }
